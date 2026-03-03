@@ -1,0 +1,26 @@
+{
+  "name": "boxes-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=packages/core",
+    "dev:web": "concurrently \"npm run dev --workspace=packages/web\" \"npm run dev:vite --workspace=packages/web\"",
+    "dev:vite": "vite",
+    "build": "npm run build --workspaces --if-present",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "electron:dev": "npm run dev --workspace=packages/electron",
+    "web:dev": "npm run dev --workspace=packages/web",
+    "web:start": "npm run start --workspace=packages/web"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "vitest": "^1.3.1"
+  }
+}

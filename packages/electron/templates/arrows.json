@@ -1,0 +1,30 @@
+{
+  "name": "Arrows",
+  "description": "Basic graph template similar to Arrows",
+  "elements": {
+    "nodes": [],
+    "edges": []
+  },
+  "style": [
+    {
+      "selector": "node",
+      "style": {
+        "background-color": "#6FB1FC",
+        "shape": "ellipse",
+        "width": "60px",
+        "height": "60px",
+        "border-width": 2,
+        "border-color": "#4A90E2"
+      }
+    },
+    {
+      "selector": "edge",
+      "style": {
+        "line-color": "#AAA",
+        "target-arrow-color": "#AAA",
+        "width": 2,
+        "curve-style": "bezier"
+      }
+    }
+  ]
+}

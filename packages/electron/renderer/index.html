@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Boxes</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      overflow: hidden;
+      background: #f5f5f5;
+    }
+
+    #app { width: 100vw; height: 100vh; display: flex; flex-direction: column; }
+
+    #toolbar {
+      background: #fff;
+      border-bottom: 1px solid #ddd;
+      padding: 8px 16px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    #toolbar.hidden { display: none; }
+
+    #toolbar button, #toolbar select {
+      padding: 6px 14px;
+      border: 1px solid #ddd;
+      background: #fff;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+
+    #toolbar button:hover { background: #f5f5f5; border-color: #3498db; }
+    #toolbar .separator { width: 1px; height: 20px; background: #ddd; margin: 0 4px; }
+
+    .main-area {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Left palette panel */
+    #left-panel {
+      width: 140px;
+      flex-shrink: 0;
+      background: #fafafa;
+      border-right: 1px solid #ddd;
+      display: none;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    #left-panel.show { display: flex; }
+
+    .palette-header {
+      padding: 7px 8px 4px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #95a5a6;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .palette-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 8px;
+      cursor: pointer;
+      border-bottom: 1px solid #f0f0f0;
+      transition: background 0.15s;
+      user-select: none;
+    }
+
+    .palette-item:hover { background: #eef6fd; }
+
+    .palette-swatch {
+      width: 24px;
+      height: 18px;
+      border: 2px solid #666;
+      flex-shrink: 0;
+    }
+
+    .palette-label {
+      font-size: 11px;
+      color: #2c3e50;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Edge handle is injected by BoxesEditor core */
+
+
+
+    #welcome-screen {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+    }
+
+    #welcome-screen h1 { font-size: 42px; margin-bottom: 12px; color: #2c3e50; }
+    #welcome-screen p { font-size: 16px; color: #7f8c8d; margin-bottom: 36px; }
+
+    .template-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 180px);
+      gap: 16px;
+    }
+
+    .template-card {
+      padding: 20px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      cursor: pointer;
+      background: white;
+      text-align: center;
+      transition: all 0.2s;
+    }
+
+    .template-card:hover { border-color: #3498db; background: #ebf5fb; }
+    .template-card h3 { font-size: 15px; margin-bottom: 6px; color: #2c3e50; }
+    .template-card p { font-size: 12px; color: #7f8c8d; }
+
+    #editor-container {
+      flex: 1;
+      background: #f9f9f9;
+      position: relative;
+    }
+
+    #editor-container.hidden { display: none; }
+
+    /* Right Panel with tabs */
+    #right-panel {
+      width: 300px;
+      background: white;
+      border-left: 1px solid #ddd;
+      display: none;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    #right-panel.show { display: flex; }
+
+    .panel-tabs {
+      display: flex;
+      border-bottom: 1px solid #ddd;
+      flex-shrink: 0;
+    }
+
+    .panel-tab {
+      flex: 1;
+      padding: 9px 6px;
+      border: none;
+      background: #f9f9f9;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      color: #7f8c8d;
+      border-bottom: 3px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .panel-tab:hover { color: #2c3e50; background: #f0f0f0; }
+    .panel-tab.active { color: #3498db; background: white; border-bottom-color: #3498db; }
+
+    .panel-pane {
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      padding: 12px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .panel-pane.active { display: flex; }
+
+    #right-panel h3 { margin: 0; font-size: 15px; color: #2c3e50; padding-bottom: 10px; border-bottom: 2px solid #3498db; }
+
+    .property-group { display: flex; flex-direction: column; gap: 6px; }
+    .property-group label { font-size: 11px; font-weight: 600; color: #7f8c8d; text-transform: uppercase; letter-spacing: 0.5px; }
+    .property-group input, .property-group textarea, .property-group select {
+      padding: 7px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; font-family: inherit;
+    }
+    .property-group input[type="color"] { height: 36px; cursor: pointer; }
+    .property-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    .property-actions { display: flex; gap: 8px; padding-top: 10px; border-top: 1px solid #eee; }
+    .property-actions button { flex: 1; padding: 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+    .btn-primary { background: #3498db; color: white; }
+    .btn-primary:hover { background: #2980b9; }
+    .btn-danger { background: #e74c3c; color: white; }
+    .btn-danger:hover { background: #c0392b; }
+
+    .property-table-wrap { width: 100%; overflow-x: auto; }
+    .property-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
+    .property-table .col-key { width: 36%; }
+    .property-table .col-val { width: auto; }
+    .property-table .col-del { width: 28px; }
+    .property-item td { padding: 3px 2px; vertical-align: top; }
+    .property-item input[type="text"] { width: 100%; box-sizing: border-box; padding: 5px 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; }
+    .property-item textarea { width: 100%; box-sizing: border-box; padding: 5px 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; resize: vertical; min-height: 2.2em; font-family: inherit; }
+    .property-item button { width: 24px; height: 24px; padding: 0; border: none; background: #e74c3c; color: white; border-radius: 4px; cursor: pointer; font-size: 14px; line-height: 1; }
+    .btn-add-property { padding: 7px; border: 1px dashed #3498db; background: transparent; color: #3498db; border-radius: 4px; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+    .btn-add-property:hover { background: #ebf5fb; }
+    .empty-state { padding: 32px 16px; text-align: center; color: #95a5a6; font-size: 13px; }
+
+    /* Stylesheet Editor */
+    .style-rule-card { border: 1px solid #e0e0e0; border-radius: 5px; overflow: hidden; }
+    .style-rule-header { display: flex; align-items: center; gap: 5px; padding: 5px 7px; background: #f7f8fa; border-bottom: 1px solid #e0e0e0; }
+    .style-rule-selector { flex: 1; padding: 3px 5px; border: 1px solid #ddd; border-radius: 3px; font-size: 11px; font-family: monospace; }
+    .style-rule-selector:focus { border-color: #3498db; outline: none; }
+    .btn-icon { padding: 3px 6px; border: none; border-radius: 3px; cursor: pointer; font-size: 11px; background: transparent; color: #7f8c8d; }
+    .btn-icon:hover { background: #eee; }
+    .btn-icon.danger:hover { background: #fde; color: #e74c3c; }
+    .style-rule-props { padding: 5px 7px; display: flex; flex-direction: column; gap: 3px; }
+    .style-prop-row { display: flex; gap: 3px; align-items: center; }
+    .style-prop-row input { flex: 1; padding: 3px 5px; border: 1px solid #ddd; border-radius: 3px; font-size: 11px; font-family: monospace; min-width: 0; }
+    .style-prop-row input:focus { border-color: #3498db; outline: none; }
+    .btn-add-prop { padding: 3px 6px; border: 1px dashed #aaa; background: transparent; color: #7f8c8d; border-radius: 3px; cursor: pointer; font-size: 10px; margin-top: 2px; }
+    .btn-add-prop:hover { border-color: #3498db; color: #3498db; }
+    .btn-add-rule { padding: 8px; border: 1px dashed #3498db; background: transparent; color: #3498db; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; flex-shrink: 0; }
+    .btn-add-rule:hover { background: #ebf5fb; }
+
+    /* Context Menu */
+    #context-menu {
+      position: fixed;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      padding: 4px 0;
+      display: none;
+      z-index: 1000;
+      min-width: 160px;
+    }
+    #context-menu.show { display: block; }
+    .context-menu-item { padding: 8px 16px; cursor: pointer; font-size: 13px; color: #2c3e50; }
+    .context-menu-item:hover { background: #f5f5f5; }
+    .context-menu-item.danger { color: #e74c3c; }
+    .context-menu-separator { height: 1px; background: #eee; margin: 4px 0; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="toolbar" class="hidden">
+      <button id="add-node-btn">➕ Add Node</button>
+      <button id="add-edge-btn">🔗 Add Edge</button>
+      <div class="separator"></div>
+      <label style="font-size:12px;color:#555;">Link:</label>
+      <select id="link-type-select" title="Edge type for new connections"></select>
+      <div class="separator"></div>
+      <button id="run-layout-btn">🔄 Layout</button>
+      <select id="layout-select">
+        <option value="grid">Grid</option>
+        <option value="circle">Circle</option>
+        <option value="concentric">Concentric</option>
+        <option value="breadthfirst">Breadth First</option>
+        <option value="cose">CoSE</option>
+      </select>
+    </div>
+
+    <div class="main-area">
+      <div id="left-panel">
+        <div class="palette-header">Node Types</div>
+        <div id="palette-items"></div>
+      </div>
+
+      <div id="welcome-screen">
+        <h1>Boxes</h1>
+        <p>Choose a template to get started</p>
+        <div class="template-grid" id="template-grid"></div>
+      </div>
+
+      <div id="editor-container" class="hidden"></div>
+
+      <div id="right-panel">
+        <div class="panel-tabs">
+          <button class="panel-tab active" data-tab="properties" onclick="switchTab('properties')">Properties</button>
+          <button class="panel-tab" data-tab="stylesheet" onclick="switchTab('stylesheet')">Styles</button>
+        </div>
+        <div id="pane-properties" class="panel-pane active">
+          <div class="empty-state"><p>Select a node or edge to edit its properties</p></div>
+        </div>
+        <div id="pane-stylesheet" class="panel-pane">
+          <div id="stylesheet-rules"></div>
+          <button class="btn-add-rule" onclick="addStyleRule()">+ Add Style Rule</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="context-menu"></div>
+
+  <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+  <script type="module" src="renderer.js"></script>
+</body>
+</html>

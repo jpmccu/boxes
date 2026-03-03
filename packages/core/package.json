@@ -1,0 +1,31 @@
+{
+  "name": "@boxes/core",
+  "version": "0.1.0",
+  "description": "Core graph editor library powered by Cytoscape.js",
+  "type": "module",
+  "main": "./dist/boxes-core.umd.js",
+  "module": "./dist/boxes-core.js",
+  "exports": {
+    ".": {
+      "import": "./dist/boxes-core.js",
+      "require": "./dist/boxes-core.umd.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "cytoscape": "^3.28.1"
+  },
+  "devDependencies": {
+    "vite": "^5.1.4",
+    "vitest": "^1.3.1",
+    "happy-dom": "^13.6.2"
+  }
+}
