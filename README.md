@@ -1,247 +1,624 @@
 # Boxes
 
-A Cytoscape.js-based Labeled Property Graph (LPG) editor with CSS styling capabilities.
+A self-contained, Cytoscape.js-based Labeled Property Graph (LPG) editor. Drop it into any container element and get a full graph editing experience — canvas, sidebar, palettes, properties panel, stylesheet editor, layout controls, and undo/redo — with no external UI dependencies.
 
 ## Features
 
-- Visual graph editor powered by Cytoscape.js
-- CSS-based node and edge styling
-- Property editing for nodes and edges
-- Multiple layout algorithms
-- Import/export graphs in JSON format
-- Framework wrappers for Vue 3 and React
-- Standalone Electron desktop app
+- **Self-contained UI** — renders its own sidebar, tabs, palettes, and context menu inside whatever container you give it
+- **Labeled Property Graph** editing — nodes and edges have labels, typed properties, and CSS styles
+- **Per-element CSS styling** stored as graph data, auto-applied via dynamic Cytoscape stylesheets
+- **Edge handles** for drawing edges by hovering over a node
+- **Layout algorithms** — built-in support for cose, dagre, cola, grid, circle, concentric, breadthfirst, and any other registered Cytoscape layout
+- **Undo / redo** with 50-level history
+- **Cut / copy / paste** with cascading paste offsets
+- **Multi-selection** with box-select; Delete/Backspace removes selected elements
+- **Import / export** in Cytoscape.js JSON format
+- **Node types** and **edge type palettes** — click a type to select it; double-click the canvas to add a node of the selected type
+- **Keyboard shortcuts** — Ctrl+Z/Y (undo/redo), Ctrl+C/X/V (copy/cut/paste), Delete/Backspace
+- **Context menu** with Edit Properties, Cut, Copy, Paste, Duplicate, Delete
+- **Vue 3** and **React 18** thin-wrapper components
+- **Docker** support for the web demonstrator
 
 ## Packages
 
-- **@boxes/core** - Core library
-- **@boxes/vue** - Vue 3 component
-- **@boxes/react** - React component
-- **@boxes/electron** - Desktop application
-- **@boxes/web** - Web server (run via Node.js)
+| Package | Description |
+|---|---|
+| `@boxes/core` | Core editor library — use this in any JS project |
+| `@boxes/vue` | Vue 3 component wrapper |
+| `@boxes/react` | React 18 component wrapper |
+| `@boxes/web` | Express web server running the live demonstrator |
+| `@boxes/electron` | Standalone desktop app |
 
-## Quick Start
+---
 
-### Installation
+## Running with Docker
+
+The fastest way to try Boxes:
 
 ```bash
-# Install dependencies
+docker compose up
+```
+
+Then open **http://localhost:3001** in your browser.
+
+To rebuild after source changes:
+
+```bash
+docker compose up --build
+```
+
+---
+
+## Running locally
+
+```bash
 npm install
-
-# Build all packages
-npm run build
+npm run build            # build all packages
+npm run web:dev          # start the web demo server on :3001
 ```
 
-### Using the Electron App
+---
+
+## Using the Core Library (plain JavaScript)
+
+Install the package:
 
 ```bash
-# Run in development mode
-npm run electron:dev
+npm install @boxes/core
 ```
 
-The app will open with a welcome screen showing available templates:
-- **OWL Ontology** - Styled for semantic web ontologies with owl:Class, owl:Ontology, etc.
-- **Arrows** - Basic graph template similar to Arrows.app
-- **Blank** - Empty graph with minimal styling
+### Basic setup
 
-### Using the Web Server
-
-Run Boxes as a web application accessible via browser:
-
-```bash
-# Start the API server
-npm run web:dev
-
-# In another terminal, start Vite dev server (during development)
-cd packages/web
-npm run dev
-```
-
-Then open http://localhost:3000 in your browser.
-
-**Features:**
-- Web-based graph editor with same UI as Electron app
-- Save/Load graphs via REST API
-- Template selection
-- Export graphs to JSON
-- No installation required - just run the server
-
-**Production deployment:**
-
-```bash
-# Build the web app
-npm run build --workspace=packages/web
-
-# Start the production server (serves built files + API)
-npm run web:start
-```
-
-### Using the Core Library
-
-```javascript
+```js
 import { BoxesEditor } from '@boxes/core';
 
-const container = document.getElementById('graph-container');
-const editor = new BoxesEditor(container, {
+const editor = new BoxesEditor(document.getElementById('graph'), {
   elements: {
-    nodes: [{ data: { id: 'n1', label: 'Node 1' } }],
-    edges: []
+    nodes: [
+      { data: { id: 'n1', label: 'Alice' }, position: { x: 100, y: 150 } },
+      { data: { id: 'n2', label: 'Bob' },   position: { x: 300, y: 150 } }
+    ],
+    edges: [
+      { data: { id: 'e1', source: 'n1', target: 'n2', label: 'knows' } }
+    ]
   }
 });
-
-// Add a node
-editor.addNode({ id: 'n2', label: 'Node 2' });
-
-// Add an edge
-editor.addEdge('n1', 'n2', { label: 'connects' });
-
-// Export the graph
-const graphData = editor.exportGraph();
 ```
 
-### Using the Vue Component
+The container must have an explicit width and height (e.g. `width: 100vw; height: 100vh`). BoxesEditor fills it completely with the canvas on the left and a collapsible sidebar on the right.
+
+### Constructor options
+
+```js
+new BoxesEditor(container, {
+  // Initial graph elements in Cytoscape.js JSON format
+  elements: { nodes: [], edges: [] },
+
+  // Initial stylesheet rules (Cytoscape.js selector/style pairs)
+  style: [
+    { selector: 'node[type="person"]', style: { 'background-color': '#4A90E2' } }
+  ],
+
+  // Initial Cytoscape layout (applied when no positions are present)
+  layout: { name: 'cose' },
+
+  // Node type palette entries
+  nodeTypes: [
+    {
+      id: 'person',
+      label: 'Person',
+      color: '#4A90E2',   // fill colour shown in palette and applied to new nodes
+      shape: 'ellipse',   // Cytoscape node shape
+      data: {}            // extra data merged into each new node of this type
+    }
+  ],
+
+  // Edge type palette entries
+  edgeTypes: [
+    {
+      id: 'knows',
+      label: 'knows',
+      color: '#E24A4A',       // line/arrow colour shown in palette
+      lineStyle: 'solid'      // 'solid' | 'dashed' | 'dotted'
+    }
+  ],
+
+  // Set false to disable the edge-handle magnet (useful for read-only views)
+  edgeHandle: true
+})
+```
+
+### Programmatic graph operations
+
+```js
+// Add a node (returns the new node's JSON)
+editor.addNode(
+  { label: 'Carol', type: 'person' },   // data
+  { x: 200, y: 250 }                    // position (optional)
+);
+
+// Add a node of a palette type
+editor.addNodeOfType('person', { x: 200, y: 250 });
+
+// Add an edge
+editor.addEdge('n1', 'n2', { label: 'likes' });
+
+// Remove by ID
+editor.removeElement('n1');
+
+// Remove all currently selected elements
+editor.removeSelected();
+
+// Update data / style
+editor.updateElement('n1', { label: 'Alice (updated)' });
+editor.updateElementStyle('n1', { 'background-color': '#ff0000' });
+
+// Replace all elements
+editor.loadElements({
+  nodes: [{ data: { id: 'a', label: 'A' } }],
+  edges: []
+});
+
+// Get current elements
+const { nodes, edges } = editor.getElements();
+```
+
+### Save & load
+
+```js
+// Full serialisable snapshot (elements + stylesheet + last layout)
+const snapshot = editor.exportGraph();
+localStorage.setItem('graph', JSON.stringify(snapshot));
+
+// Restore
+const saved = JSON.parse(localStorage.getItem('graph'));
+editor.importGraph(saved);
+```
+
+### Layouts
+
+```js
+// List what's registered
+const layouts = editor.getAvailableLayouts();
+// e.g. ['cose', 'dagre', 'cola', 'grid', 'circle', 'concentric', 'breadthfirst', 'preset', 'random', 'null']
+
+// Run a layout
+editor.runLayout({ name: 'dagre', rankDir: 'TB' });
+editor.runLayout({ name: 'cose', animate: true });
+```
+
+### Undo / redo
+
+```js
+editor.undo();            // returns true if something was undone
+editor.redo();
+editor.canUndo();         // boolean
+editor.canRedo();
+```
+
+### Cut / copy / paste
+
+```js
+// Copy selected nodes (+ edges between them)
+editor.copy();
+
+// Cut (copy then delete)
+editor.cut();
+
+// Paste with a 20px cascade offset per call
+editor.paste();
+
+editor.canPaste();        // boolean — true when clipboard is non-empty
+```
+
+### Stylesheet
+
+```js
+// Get/set the full user stylesheet
+const rules = editor.getStylesheet();
+editor.setStylesheet([
+  { selector: 'node', style: { 'background-color': '#888' } }
+]);
+
+// CRUD individual rules
+editor.addStyleRule({ selector: '.highlight', style: { 'border-width': 4 } });
+editor.updateStyleRule(0, 'node', { 'background-color': '#333' });
+editor.removeStyleRule(0);
+```
+
+### Selection
+
+```js
+editor.getSelected();                   // array of Cytoscape element objects
+editor.selectElements(['n1', 'n2']);    // select by ID
+```
+
+### Raw Cytoscape instance
+
+```js
+const cy = editor.getCytoscape();
+// Full access to Cytoscape.js API
+cy.fit();
+cy.zoom(1.5);
+```
+
+### Events
+
+```js
+editor.on('nodeAdded',    ({ node })    => console.log('added', node));
+editor.on('edgeAdded',    ({ edge })    => console.log('added', edge));
+editor.on('elementRemoved', ({ element }) => console.log('removed', element));
+editor.on('select',       ({ target }) => console.log('selected', target.id()));
+editor.on('historyChange',({ canUndo, canRedo }) => updateButtons(canUndo, canRedo));
+editor.on('clipboardChange', ({ hasClipboard }) => updatePasteButton(hasClipboard));
+
+editor.off('nodeAdded', handler);  // remove a specific handler
+```
+
+| Event | Payload |
+|---|---|
+| `change` | `{ type, target }` — any graph mutation |
+| `select` / `unselect` | `{ target }` |
+| `selectionChange` | `{ type, target, selected[] }` |
+| `nodeAdded` | `{ node }` (JSON) |
+| `edgeAdded` | `{ edge }` (JSON) |
+| `elementRemoved` | `{ element }` (JSON) |
+| `elementUpdated` | `{ element }` (JSON) |
+| `styleUpdated` | `{ stylesheet }` |
+| `layoutRun` | `{ name, options }` |
+| `elementsLoaded` | `{ elements }` |
+| `graphImported` | `{ graphData }` |
+| `edgeHandleComplete` | `{ sourceId, targetId, edgeType }` |
+| `historyChange` | `{ canUndo, canRedo }` |
+| `clipboardChange` | `{ hasClipboard }` |
+| `paste` | `{ nodes, edges }` |
+
+### Cleanup
+
+```js
+editor.destroy();   // removes DOM, event listeners, and the Cytoscape instance
+```
+
+---
+
+## Using the Vue 3 Component
+
+Install:
+
+```bash
+npm install @boxes/vue @boxes/core
+```
+
+### Basic usage
 
 ```vue
 <template>
-  <BoxesEditor 
+  <BoxesEditor
     :elements="elements"
-    @nodeAdded="handleNodeAdded"
+    :node-types="nodeTypes"
+    :edge-types="edgeTypes"
+    style="width: 100%; height: 100vh"
+    @node-added="onNodeAdded"
+    @history-change="onHistoryChange"
   />
 </template>
 
 <script setup>
-import { BoxesEditor } from '@boxes/vue';
 import { ref } from 'vue';
+import { BoxesEditor } from '@boxes/vue';
 
 const elements = ref({
-  nodes: [{ data: { id: 'n1', label: 'Node 1' } }],
-  edges: []
+  nodes: [
+    { data: { id: 'n1', label: 'Alice' }, position: { x: 100, y: 150 } },
+    { data: { id: 'n2', label: 'Bob' },   position: { x: 300, y: 150 } }
+  ],
+  edges: [
+    { data: { id: 'e1', source: 'n1', target: 'n2', label: 'knows' } }
+  ]
 });
 
-function handleNodeAdded(data) {
-  console.log('Node added:', data.node);
+const nodeTypes = [
+  { id: 'person', label: 'Person', color: '#4A90E2', shape: 'ellipse' }
+];
+
+const edgeTypes = [
+  { id: 'knows', label: 'knows', color: '#E24A4A', lineStyle: 'solid' }
+];
+
+function onNodeAdded({ node }) {
+  console.log('node added:', node);
+}
+
+function onHistoryChange({ canUndo, canRedo }) {
+  console.log('undo:', canUndo, 'redo:', canRedo);
 }
 </script>
 ```
 
-### Using the React Component
+### Imperative API via template ref
+
+```vue
+<template>
+  <button @click="saveGraph">Save</button>
+  <button @click="loadGraph">Load</button>
+  <BoxesEditor ref="editorRef" :elements="elements" style="height: 80vh" />
+</template>
+
+<script setup>
+import { ref } from 'vue';
+import { BoxesEditor } from '@boxes/vue';
+
+const editorRef = ref(null);
+const elements = ref({ nodes: [], edges: [] });
+
+function saveGraph() {
+  const data = editorRef.value?.exportGraph();
+  localStorage.setItem('graph', JSON.stringify(data));
+}
+
+function loadGraph() {
+  const saved = JSON.parse(localStorage.getItem('graph') || 'null');
+  if (saved) editorRef.value?.importGraph(saved);
+}
+</script>
+```
+
+### Props
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `elements` | `Object` | `{ nodes:[], edges:[] }` | Initial graph elements |
+| `style` | `Array` | `[]` | Stylesheet rules |
+| `layout` | `Object` | `{ name: 'preset' }` | Layout config |
+| `nodeTypes` | `Array` | `[]` | Node palette types |
+| `edgeTypes` | `Array` | `[]` | Edge palette types |
+
+> **Watching elements:** The component watches `elements` for changes and calls `loadElements` automatically. This replaces the entire graph, so prefer using the ref API (`addNode`, `addEdge`) for incremental updates.
+
+### Events
+
+The Vue component forwards all core events as kebab-case Vue events: `@node-added`, `@edge-added`, `@element-removed`, `@history-change`, `@clipboard-change`, etc. See the event table in the core section for the full list.
+
+### Exposed ref methods
+
+All methods from the core API are available via the template ref: `addNode`, `addEdge`, `removeElement`, `removeSelected`, `updateElement`, `runLayout`, `exportGraph`, `importGraph`, `undo`, `redo`, `copy`, `cut`, `paste`, `getStylesheet`, `setStylesheet`, `getCytoscape`, and more.
+
+---
+
+## Using the React Component
+
+Install:
+
+```bash
+npm install @boxes/react @boxes/core
+```
+
+### Basic usage
+
+```jsx
+import { BoxesEditor } from '@boxes/react';
+
+export default function App() {
+  const nodeTypes = [
+    { id: 'person', label: 'Person', color: '#4A90E2', shape: 'ellipse' }
+  ];
+  const edgeTypes = [
+    { id: 'knows', label: 'knows', color: '#E24A4A', lineStyle: 'solid' }
+  ];
+
+  return (
+    <BoxesEditor
+      elements={{
+        nodes: [
+          { data: { id: 'n1', label: 'Alice' }, position: { x: 100, y: 150 } },
+          { data: { id: 'n2', label: 'Bob' },   position: { x: 300, y: 150 } }
+        ],
+        edges: [
+          { data: { id: 'e1', source: 'n1', target: 'n2', label: 'knows' } }
+        ]
+      }}
+      nodeTypes={nodeTypes}
+      edgeTypes={edgeTypes}
+      onNodeAdded={({ node }) => console.log('added', node)}
+      onHistoryChange={({ canUndo, canRedo }) => console.log(canUndo, canRedo)}
+      style={{ width: '100%', height: '100vh' }}
+    />
+  );
+}
+```
+
+### Imperative API via ref
 
 ```jsx
 import { useRef } from 'react';
 import { BoxesEditor } from '@boxes/react';
 
-function App() {
-  const editorRef = useRef();
+export default function App() {
+  const editorRef = useRef(null);
 
-  const handleAddNode = () => {
-    editorRef.current?.addNode({ 
-      id: 'n1', 
-      label: 'New Node' 
-    });
+  const handleSave = () => {
+    const data = editorRef.current?.exportGraph();
+    localStorage.setItem('graph', JSON.stringify(data));
   };
 
+  const handleLoad = () => {
+    const saved = JSON.parse(localStorage.getItem('graph') || 'null');
+    if (saved) editorRef.current?.importGraph(saved);
+  };
+
+  const handleUndo = () => editorRef.current?.undo();
+  const handleRedo = () => editorRef.current?.redo();
+
   return (
-    <>
-      <button onClick={handleAddNode}>Add Node</button>
-      <BoxesEditor 
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+      <div>
+        <button onClick={handleSave}>Save</button>
+        <button onClick={handleLoad}>Load</button>
+        <button onClick={handleUndo}>Undo</button>
+        <button onClick={handleRedo}>Redo</button>
+      </div>
+      <BoxesEditor
         ref={editorRef}
-        onNodeAdded={(data) => console.log('Added:', data)}
+        style={{ flex: 1 }}
+        onEdgeHandleComplete={({ sourceId, targetId }) =>
+          console.log(`Edge: ${sourceId} → ${targetId}`)
+        }
       />
-    </>
+    </div>
   );
 }
 ```
 
+### Props
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `elements` | `Object` | `{ nodes:[], edges:[] }` | Initial graph elements |
+| `style` | `Array` | `[]` | Stylesheet rules |
+| `layout` | `Object` | `{ name: 'preset' }` | Layout config |
+| `nodeTypes` | `Array` | `[]` | Node palette types |
+| `edgeTypes` | `Array` | `[]` | Edge palette types |
+| `onChange` | `Function` | — | Called on any graph mutation |
+| `onSelect` | `Function` | — | Called when an element is selected |
+| `onUnselect` | `Function` | — | Called when an element is deselected |
+| `onSelectionChange` | `Function` | — | Called on any selection change |
+| `onNodeAdded` | `Function` | — | Called when a node is added |
+| `onEdgeAdded` | `Function` | — | Called when an edge is added |
+| `onElementRemoved` | `Function` | — | Called when an element is removed |
+| `onElementUpdated` | `Function` | — | Called when element data/style changes |
+| `onStyleUpdated` | `Function` | — | Called when the stylesheet changes |
+| `onLayoutRun` | `Function` | — | Called after a layout runs |
+| `onElementsLoaded` | `Function` | — | Called after `loadElements` |
+| `onGraphImported` | `Function` | — | Called after `importGraph` |
+| `onEdgeHandleComplete` | `Function` | — | Called when a new edge is drawn |
+| `onHistoryChange` | `Function` | — | `{ canUndo, canRedo }` |
+| `onClipboardChange` | `Function` | — | `{ hasClipboard }` |
+
+> **Note:** The editor initialises once on mount. Prop changes (other than `elements` / `layout` in the Vue wrapper) do not re-initialise the editor. Use the `ref` API to drive graph changes programmatically.
+
+### Exposed ref methods
+
+`addNode`, `addEdge`, `addNodeOfType`, `removeElement`, `removeSelected`, `updateElement`, `updateElementStyle`, `runLayout`, `getAvailableLayouts`, `getElements`, `loadElements`, `exportGraph`, `importGraph`, `getSelected`, `selectElements`, `getCytoscape`, `getNodeTypes`, `getEdgeTypes`, `getEdgeType`, `setEdgeType`, `getStylesheet`, `setStylesheet`, `addStyleRule`, `updateStyleRule`, `removeStyleRule`, `undo`, `redo`, `canUndo`, `canRedo`, `copy`, `cut`, `paste`, `canPaste`.
+
+---
+
+## Data formats
+
+### Elements JSON
+
+```js
+{
+  nodes: [
+    {
+      data: {
+        id: 'n1',          // required — must be unique
+        label: 'Alice',    // displayed as the node label
+        type: 'person',    // optional — used for palette-based styling
+        _style: {          // optional — per-element CSS overrides
+          'background-color': '#4A90E2',
+          'width': '80px'
+        }
+        // ...any other application-specific properties
+      },
+      position: { x: 100, y: 150 }   // omit to let the layout place the node
+    }
+  ],
+  edges: [
+    {
+      data: {
+        id: 'e1',
+        source: 'n1',      // required
+        target: 'n2',      // required
+        label: 'knows',
+        _style: { 'line-color': '#E24A4A' }
+      }
+    }
+  ]
+}
+```
+
+### Exported graph snapshot
+
+`exportGraph()` returns an object suitable for JSON serialisation and re-loading with `importGraph()`:
+
+```js
+{
+  version: '1.0.0',
+  elements: { nodes: [...], edges: [...] },  // full Cytoscape JSON
+  userStylesheet: [{ selector, style }, ...],
+  lastLayout: { name: 'dagre', options: { rankDir: 'TB' } }
+}
+```
+
+---
+
+## Keyboard shortcuts
+
+| Shortcut | Action |
+|---|---|
+| Double-click canvas | Add node of selected type |
+| Ctrl/⌘ + Z | Undo |
+| Ctrl/⌘ + Y / Shift+Z | Redo |
+| Ctrl/⌘ + C | Copy selected |
+| Ctrl/⌘ + X | Cut selected |
+| Ctrl/⌘ + V | Paste |
+| Delete / Backspace | Remove selected elements |
+
+---
+
 ## Development
 
-### Project Structure
+### Project structure
 
 ```
 boxes/
 ├── packages/
-│   ├── core/           # Core library (Cytoscape.js wrapper)
-│   ├── vue/            # Vue 3 integration
-│   ├── react/          # React integration
-│   ├── electron/       # Electron desktop app
-│   └── web/            # Web server and browser app
-├── package.json        # Root package.json with workspaces
-└── ...
+│   ├── core/           # Core editor — all UI and graph logic
+│   ├── vue/            # Thin Vue 3 wrapper
+│   ├── react/          # Thin React 18 wrapper
+│   ├── web/            # Express server + browser demonstrator
+│   └── electron/       # Desktop app
+├── Dockerfile
+├── docker-compose.yml
+└── package.json
 ```
 
-### Build Commands
+### Build commands
 
 ```bash
-# Build all packages
-npm run build
-
-# Build specific package
-npm run build --workspace=packages/core
-
-# Watch mode for development
-npm run dev --workspace=packages/core
+npm install                                     # install all workspaces
+npm run build                                   # build every package
+npm run build --workspace=packages/core         # build one package
+npm run dev --workspace=packages/core           # watch mode
 ```
 
 ### Testing
 
 ```bash
-# Run all tests
-npm test
-
-# Run tests in watch mode
-npm run test:watch
-
-# Run tests for specific package
-npm run test --workspace=packages/core
+npm test                  # run all tests
+npm run test:watch        # watch mode
 ```
 
-**Note:** Tests that require Cytoscape.js rendering need a real browser environment. The happy-dom test environment lacks full Canvas support. Template and basic structure tests will pass.
+> Tests that exercise Cytoscape rendering require a real browser (`canvas.getContext` is not available in happy-dom). Core graph-logic tests pass; rendering tests are best run in a headless Chromium via Playwright or similar.
 
 ### Linting
 
 ```bash
-# Lint all files
 npm run lint
-
-# Fix auto-fixable issues
 npm run lint:fix
 ```
 
-### Building Electron Distributables
+---
 
-```bash
-# Create distributable (AppImage, snap, etc.)
-npm run build:dist --workspace=packages/electron
+## Architecture notes
 
-# Platform-specific builds
-npm run build:mac --workspace=packages/electron
-npm run build:win --workspace=packages/electron
-npm run build:linux --workspace=packages/electron
-```
-
-## Architecture
-
-See [.github/copilot-instructions.md](.github/copilot-instructions.md) for detailed development guidelines, architecture overview, and conventions.
-
-## Key Concepts
-
-### Cytoscape.js Styling
-
-Boxes uses a hybrid approach to handle CSS styling:
-- Styles are stored in element `data._style` objects
-- Dynamic stylesheets are generated from these stored styles
-- Cytoscape's selector-based styling is used for rendering
-
-### Templates
-
-Templates provide starting points with predefined styles:
-- Define element structures and stylesheet rules
-- Can be extended with custom templates in Electron app
-- Located in `packages/electron/templates/`
-
-### Layout Algorithms
-
-Built-in layouts: grid, circle, concentric, breadthfirst, cose. Additional Cytoscape.js layouts can be added as needed.
+- **Self-contained core** — `BoxesEditor` renders its entire UI (canvas + sidebar) into the container using `_injectCSS()` and `_createUI()`. Framework wrappers are single-`<div>` mount points.
+- **Stylesheet strategy** — per-element styles are stored in `data._style`; `_generateElementStyles()` turns these into `node[id="n1"]` CSS rules and merges them with user stylesheet rules each time the graph changes.
+- **Undo / redo** — each mutation calls `_pushUndo()` which serialises the full graph via `exportGraph()` (stripping transient edgehandles classes). History is capped at 50 entries.
+- **Edge handles** — uses `cytoscape-edgehandles` with a custom DOM handle div positioned over the bottom of hovered nodes.
+- **Layouts** — registered layouts are discovered at runtime by probing the Cytoscape extensions registry; the layout panel is built dynamically.
 
 ## License
 
 MIT
+
