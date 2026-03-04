@@ -12,11 +12,11 @@ export const defaultTemplates = {
       { id: 'owl:Class',      label: 'Class',        data: { '@type': 'owl:Class','@id':'', 'skos:definition':'' },        color: '#E6F3FF', borderColor: '#2471A3', shape: 'roundrectangle' }
     ],
     edgeTypes: [
-      { id: 'default',                label: 'relates to',        data: {} },
-      { id: 'owl:ObjectProperty',     label: 'ObjectProperty',    data: { '@type': 'owl:ObjectProperty' } },
-      { id: 'owl:DatatypeProperty',   label: 'DatatypeProperty',  data: { '@type': 'owl:DatatypeProperty' } },
-      { id: 'rdfs:subClassOf',        label: 'are',        data: { '@type': 'rdfs:subClassOf' } },
-      { id: 'rdf:type',               label: 'a',          data: { '@type': 'rdf:type' } }
+      { id: 'default',                label: 'relates to',        data: {},                                   color: '#666666', lineStyle: 'solid' },
+      { id: 'owl:ObjectProperty',     label: 'ObjectProperty',    data: { '@type': 'owl:ObjectProperty' },    color: '#2471A3', lineStyle: 'solid' },
+      { id: 'owl:DatatypeProperty',   label: 'DatatypeProperty',  data: { '@type': 'owl:DatatypeProperty' },  color: '#1E8449', lineStyle: 'dashed' },
+      { id: 'rdfs:subClassOf',        label: 'are',               data: { '@type': 'rdfs:subClassOf' },       color: '#555555', lineStyle: 'solid' },
+      { id: 'rdf:type',               label: 'a',                 data: { '@type': 'rdf:type' },              color: '#8E44AD', lineStyle: 'solid' }
     ],
     elements: {
       nodes: [],
@@ -144,7 +144,7 @@ export const defaultTemplates = {
       { id: 'default', label: 'Node', data: {}, color: '#6FB1FC', borderColor: '#3A7CC5', shape: 'ellipse' }
     ],
     edgeTypes: [
-      { id: 'default', label: 'RELATES_TO', data: {} }
+      { id: 'default', label: 'RELATES_TO', data: {}, color: '#6FB1FC', lineStyle: 'solid' }
     ],
     elements: {
       nodes: [],
@@ -191,7 +191,7 @@ export const defaultTemplates = {
       { id: 'default', label: 'Node', data: {}, color: '#CCCCCC', borderColor: '#888888', shape: 'rectangle' }
     ],
     edgeTypes: [
-      { id: 'default', label: 'edge', data: {} }
+      { id: 'default', label: 'edge', data: {}, color: '#666666', lineStyle: 'solid' }
     ],
     elements: {
       nodes: [],

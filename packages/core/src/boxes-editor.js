@@ -214,57 +214,651 @@ const LAYOUT_DEFINITIONS = {
  */
 export class BoxesEditor {
   constructor(container, options = {}) {
-    if (!container) {
-      throw new Error('Container element is required');
-    }
-
+    if (!container) throw new Error('Container element is required');
     this.container = container;
-    this.options = {
-      layout: options.layout || { name: 'preset' },
-      ...options
-    };
-
-    // Unique ID for this instance (used for SVG marker IDs, etc.)
+    this.options = { layout: options.layout || { name: 'preset' }, ...options };
     this._instanceId = Math.random().toString(36).slice(2, 9);
-
-    // userStylesheet = the per-graph editable rules (saved with the document)
-    this.userStylesheet = (options.style || []).map(rule => ({
-      selector: rule.selector,
-      style: { ...rule.style }
-    }));
-
-    // Node and edge type definitions (from template or passed directly)
+    this.userStylesheet = (options.style || []).map(rule => ({ selector: rule.selector, style: { ...rule.style } }));
     this._nodeTypes = (options.nodeTypes || []).map(t => ({ ...t }));
     this._edgeTypes = (options.edgeTypes || []).map(t => ({ ...t }));
-    // Track current edge type used by the edge handle
     this.currentEdgeType = this._edgeTypes[0] || null;
-
     this.cy = null;
     this.eventHandlers = new Map();
-
-    // Track the last used layout name and options (saved with file)
     this._lastLayout = { name: 'cose', options: {} };
-
-    // Undo/redo snapshot stacks
     this._undoStack = [];
     this._redoStack = [];
     this._restoringState = false;
     this._preGrabSnapshot = null;
+    this._currentNodeTypeId = this._nodeTypes[0]?.id || null;
+    this._selectedElement = null;
+    this._ctxTarget = null;
+    this._ctxPosition = null;
 
     this._init();
 
-    // Built-in edge handle (half-circle drag-to-connect); disable with edgeHandle: false
     if (options.edgeHandle !== false && typeof document !== 'undefined' && document.body) {
       this._initEdgeHandle();
     }
   }
 
-  _init() {
-    // Build complete stylesheet from options.style and element _style properties
-    const stylesheet = this._buildStylesheet();
+  _esc(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
 
+  _injectCSS() {
+    if (document.getElementById('bxe-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'bxe-styles';
+    style.textContent = `
+.bxe-wrap { display:flex; width:100%; height:100%; overflow:hidden; font-family:system-ui,sans-serif; font-size:13px; }
+.bxe-wrap *, .bxe-wrap *::before, .bxe-wrap *::after { box-sizing:border-box; }
+.bxe-canvas { flex:1; min-width:0; height:100%; }
+.bxe-sidebar { width:260px; min-width:260px; height:100%; display:flex; flex-direction:column; background:#f8f9fa; border-left:1px solid #dee2e6; overflow:hidden; }
+.bxe-toolbar { display:flex; gap:4px; padding:4px 8px; background:#fff; border-bottom:1px solid #dee2e6; flex-shrink:0; }
+.bxe-toolbar button { padding:2px 8px; font-size:13px; cursor:pointer; background:#fff; border:1px solid #ccc; border-radius:3px; }
+.bxe-toolbar button:hover:not(:disabled) { background:#f0f0f0; }
+.bxe-toolbar button:disabled { opacity:.4; cursor:default; }
+.bxe-tab-nav { display:flex; background:#fff; border-bottom:1px solid #dee2e6; flex-shrink:0; }
+.bxe-tab-btn { flex:1; padding:6px 4px; font-size:16px; cursor:pointer; background:none; border:none; border-bottom:2px solid transparent; color:#666; }
+.bxe-tab-btn:hover { background:#f0f0f0; }
+.bxe-tab-btn.active { color:#0d6efd; border-bottom-color:#0d6efd; background:#f8f9fa; }
+.bxe-tab-body { flex:1; min-height:0; overflow-y:auto; }
+.bxe-pane { display:none; padding:10px; }
+.bxe-pane.active { display:block; }
+.bxe-pane-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#888; margin-bottom:8px; }
+.bxe-pane-label { font-size:11px; font-weight:600; color:#666; margin-bottom:4px; }
+.bxe-pane-label small { font-weight:normal; color:#999; }
+.bxe-palette { display:flex; flex-direction:column; gap:4px; margin-bottom:10px; }
+.bxe-palette-item { display:flex; align-items:center; gap:8px; padding:5px 8px; border:1px solid #dee2e6; border-radius:5px; cursor:pointer; background:#fff; }
+.bxe-palette-item:hover { background:#e9f0ff; border-color:#90b8f8; }
+.bxe-palette-item.selected { background:#dce8ff; border-color:#4d90fe; }
+.bxe-palette-label { font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.bxe-node-swatch { width:20px; height:20px; border:2px solid #999; flex-shrink:0; }
+.bxe-prop-group { margin-bottom:8px; }
+.bxe-prop-group > label { display:block; font-size:11px; font-weight:600; color:#666; margin-bottom:2px; }
+.bxe-input { width:100%; padding:3px 5px; border:1px solid #ccc; border-radius:3px; font-size:12px; }
+.bxe-input[readonly] { background:#f5f5f5; color:#666; }
+.bxe-prop-table-wrap { border:1px solid #dee2e6; border-radius:4px; overflow:hidden; }
+.bxe-prop-table { width:100%; border-collapse:collapse; font-size:12px; }
+.bxe-prop-table td { padding:2px 4px; border-bottom:1px solid #f0f0f0; vertical-align:top; }
+.bxe-prop-table tr:last-child td { border-bottom:none; }
+.bxe-cell-input { width:100%; border:none; outline:none; font-size:11px; background:transparent; padding:1px 2px; min-height:22px; font-family:inherit; }
+.bxe-cell-input:focus { background:#f0f8ff; }
+.bxe-cell-textarea { resize:vertical; }
+.bxe-btn-del { background:none; border:none; color:#999; cursor:pointer; font-size:14px; line-height:1; padding:0 2px; }
+.bxe-btn-del:hover { color:#dc3545; }
+.bxe-btn-add { display:block; width:100%; margin-top:4px; padding:3px 6px; background:#fff; border:1px solid #ccc; border-radius:3px; font-size:11px; cursor:pointer; text-align:center; }
+.bxe-btn-add:hover { background:#f0f0f0; }
+.bxe-btn-danger { padding:4px 10px; background:#fff; border:1px solid #dc3545; color:#dc3545; border-radius:3px; cursor:pointer; font-size:12px; }
+.bxe-btn-danger:hover { background:#dc3545; color:#fff; }
+.bxe-style-rule { margin-bottom:8px; border:1px solid #dee2e6; border-radius:5px; overflow:hidden; }
+.bxe-style-rule-header { display:flex; align-items:center; gap:4px; background:#e9ecef; padding:4px 6px; }
+.bxe-style-rule-header input { flex:1; border:1px solid #ced4da; border-radius:3px; padding:2px 5px; font-size:11px; font-family:monospace; }
+.bxe-style-rule-props { padding:5px 6px; }
+.bxe-style-prop-row { display:flex; gap:4px; margin-bottom:3px; align-items:center; }
+.bxe-style-prop-row input { flex:1; border:1px solid #e0e0e0; border-radius:3px; padding:2px 4px; font-size:11px; }
+.bxe-btn-link { background:none; border:none; color:#0d6efd; cursor:pointer; font-size:11px; padding:2px 0; }
+.bxe-btn-link:hover { text-decoration:underline; }
+.bxe-empty { color:#999; font-size:12px; text-align:center; padding:12px 0; }
+.bxe-empty-small { color:#999; font-size:11px; padding:2px; }
+.bxe-ctx-menu { position:fixed; z-index:99999; background:#fff; border:1px solid #dee2e6; border-radius:6px; box-shadow:0 4px 16px rgba(0,0,0,.15); min-width:160px; overflow:hidden; }
+.bxe-ctx-item { padding:7px 14px; cursor:pointer; font-size:13px; color:#333; }
+.bxe-ctx-item:hover { background:#f0f4ff; }
+.bxe-ctx-item.danger { color:#dc3545; }
+.bxe-ctx-item.danger:hover { background:#fff0f0; }
+.bxe-ctx-sep { height:1px; background:#dee2e6; }
+`;
+    document.head.appendChild(style);
+  }
+
+  _createUI() {
+    this.container.style.cssText = 'display:flex;overflow:hidden;width:100%;height:100%;';
+
+    this._canvasDiv = document.createElement('div');
+    this._canvasDiv.className = 'bxe-canvas';
+    this.container.appendChild(this._canvasDiv);
+
+    this._sidebarEl = document.createElement('div');
+    this._sidebarEl.className = 'bxe-sidebar';
+
+    // Toolbar
+    const toolbar = document.createElement('div');
+    toolbar.className = 'bxe-toolbar';
+    this._undoBtn = document.createElement('button');
+    this._undoBtn.title = 'Undo (Ctrl+Z)';
+    this._undoBtn.textContent = '\u21A9';
+    this._undoBtn.disabled = true;
+    this._undoBtn.addEventListener('click', () => this.undo());
+    this._redoBtn = document.createElement('button');
+    this._redoBtn.title = 'Redo (Ctrl+Y)';
+    this._redoBtn.textContent = '\u21AA';
+    this._redoBtn.disabled = true;
+    this._redoBtn.addEventListener('click', () => this.redo());
+    toolbar.appendChild(this._undoBtn);
+    toolbar.appendChild(this._redoBtn);
+    this._sidebarEl.appendChild(toolbar);
+
+    // Tab nav
+    const tabNav = document.createElement('div');
+    tabNav.className = 'bxe-tab-nav';
+    const tabDefs = [
+      { id: 'palette', icon: '\u2726', title: 'Palette' },
+      { id: 'properties', icon: '\u2630', title: 'Properties' },
+      { id: 'stylesheet', icon: '\u270F', title: 'Stylesheet' },
+      { id: 'layout', icon: '\u2295', title: 'Layout' }
+    ];
+    this._tabBtns = {};
+    tabDefs.forEach(({ id, icon, title }) => {
+      const btn = document.createElement('button');
+      btn.className = 'bxe-tab-btn';
+      btn.textContent = icon;
+      btn.title = title;
+      btn.dataset.tab = id;
+      btn.addEventListener('click', () => this._switchPane(id));
+      this._tabBtns[id] = btn;
+      tabNav.appendChild(btn);
+    });
+    this._sidebarEl.appendChild(tabNav);
+
+    // Tab body
+    const tabBody = document.createElement('div');
+    tabBody.className = 'bxe-tab-body';
+    this._panes = {};
+
+    // ── Palette pane ──
+    const palettePane = document.createElement('div');
+    palettePane.className = 'bxe-pane';
+    palettePane.dataset.pane = 'palette';
+    const palTitle = document.createElement('div');
+    palTitle.className = 'bxe-pane-title';
+    palTitle.textContent = 'Palette';
+    palettePane.appendChild(palTitle);
+    const nodeLabel = document.createElement('div');
+    nodeLabel.className = 'bxe-pane-label';
+    nodeLabel.innerHTML = 'Node type <small>(double-click canvas to add)</small>';
+    palettePane.appendChild(nodeLabel);
+    this._nodePaletteEl = document.createElement('div');
+    palettePane.appendChild(this._nodePaletteEl);
+    const edgeLabel = document.createElement('div');
+    edgeLabel.className = 'bxe-pane-label';
+    edgeLabel.innerHTML = 'Edge type <small>(drag handle to connect)</small>';
+    palettePane.appendChild(edgeLabel);
+    this._edgePaletteEl = document.createElement('div');
+    palettePane.appendChild(this._edgePaletteEl);
+    this._nodePaletteEl.addEventListener('click', (e) => {
+      const item = e.target.closest('.bxe-palette-item');
+      if (item) this._selectNodeType(item.dataset.typeId);
+    });
+    this._edgePaletteEl.addEventListener('click', (e) => {
+      const item = e.target.closest('.bxe-palette-item');
+      if (item) this.setEdgeType(item.dataset.typeId);
+    });
+    this._panes['palette'] = palettePane;
+
+    // ── Properties pane ──
+    const propsPane = document.createElement('div');
+    propsPane.className = 'bxe-pane';
+    propsPane.dataset.pane = 'properties';
+    const propsTitle = document.createElement('div');
+    propsTitle.className = 'bxe-pane-title';
+    propsTitle.textContent = 'Properties';
+    propsPane.appendChild(propsTitle);
+    this._propsContentEl = document.createElement('div');
+    propsPane.appendChild(this._propsContentEl);
+    propsPane.addEventListener('input', (e) => this._handlePropertiesEvent(e));
+    propsPane.addEventListener('change', (e) => this._handlePropertiesEvent(e));
+    propsPane.addEventListener('blur', (e) => this._handlePropertiesEvent(e), true);
+    propsPane.addEventListener('click', (e) => this._handlePropertiesEvent(e));
+    this._panes['properties'] = propsPane;
+
+    // ── Stylesheet pane ──
+    const stylePane = document.createElement('div');
+    stylePane.className = 'bxe-pane';
+    stylePane.dataset.pane = 'stylesheet';
+    const styleTitle = document.createElement('div');
+    styleTitle.className = 'bxe-pane-title';
+    styleTitle.textContent = 'Stylesheet';
+    stylePane.appendChild(styleTitle);
+    this._stylesheetRulesEl = document.createElement('div');
+    stylePane.appendChild(this._stylesheetRulesEl);
+    const addRuleBtn = document.createElement('button');
+    addRuleBtn.className = 'bxe-btn-add';
+    addRuleBtn.textContent = '+ Add Rule';
+    addRuleBtn.addEventListener('click', () => { this.addStyleRule('node', {}); this._switchPane('stylesheet'); });
+    stylePane.appendChild(addRuleBtn);
+    stylePane.addEventListener('change', (e) => this._handleStylesheetEvent(e));
+    stylePane.addEventListener('click', (e) => this._handleStylesheetEvent(e));
+    this._panes['stylesheet'] = stylePane;
+
+    // ── Layout pane ──
+    const layoutPane = document.createElement('div');
+    layoutPane.className = 'bxe-pane';
+    layoutPane.dataset.pane = 'layout';
+    const layoutTitle = document.createElement('div');
+    layoutTitle.className = 'bxe-pane-title';
+    layoutTitle.textContent = 'Layout';
+    layoutPane.appendChild(layoutTitle);
+    this._layoutPaneContentEl = document.createElement('div');
+    layoutPane.appendChild(this._layoutPaneContentEl);
+    this._panes['layout'] = layoutPane;
+
+    [palettePane, propsPane, stylePane, layoutPane].forEach(p => tabBody.appendChild(p));
+    this._sidebarEl.appendChild(tabBody);
+    this.container.appendChild(this._sidebarEl);
+
+    // Context menu (appended to body)
+    this._ctxMenu = document.createElement('div');
+    this._ctxMenu.className = 'bxe-ctx-menu';
+    this._ctxMenu.style.display = 'none';
+    this._ctxMenu.addEventListener('click', (e) => {
+      const item = e.target.closest('.bxe-ctx-item');
+      if (!item) return;
+      const action = item.dataset.action;
+      if (action === 'edit-props') {
+        if (this._ctxTarget) { this._refreshProperties(this._ctxTarget); this._switchPane('properties'); }
+      } else if (action === 'duplicate') {
+        if (this._ctxTarget?.isNode()) {
+          const data = { ...this._ctxTarget.data() };
+          delete data.id;
+          data.label = (data.label || 'Node') + ' (copy)';
+          const pos = this._ctxTarget.position();
+          this.addNode(data, { x: pos.x + 50, y: pos.y + 50 });
+        }
+      } else if (action === 'delete') {
+        const numSel = this.cy.$(':selected').length;
+        if (numSel > 0) this.removeSelected();
+        else if (this._ctxTarget) this.removeElement(this._ctxTarget.id());
+        this._clearProperties();
+      } else if (action === 'add-node-here') {
+        if (this._ctxPosition) this._addNodeAtPosition(this._ctxPosition);
+      }
+      this._hideContextMenu();
+    });
+    document.body.appendChild(this._ctxMenu);
+
+    // Keyboard handler
+    this._keydownHandler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault(); this.undo();
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault(); this.redo();
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        const tag = document.activeElement?.tagName;
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+          this.removeSelected();
+        }
+      }
+    };
+    document.addEventListener('keydown', this._keydownHandler);
+
+    this._switchPane('palette');
+  }
+
+  _switchPane(name) {
+    Object.entries(this._panes).forEach(([id, pane]) => {
+      pane.classList.toggle('active', id === name);
+    });
+    Object.entries(this._tabBtns).forEach(([id, btn]) => {
+      btn.classList.toggle('active', id === name);
+    });
+  }
+
+  _renderPalette() {
+    const nodeTypes = this._nodeTypes;
+    const edgeTypes = this._edgeTypes;
+    if (!this._nodePaletteEl) return;
+
+    if (!nodeTypes.length) {
+      this._nodePaletteEl.innerHTML = '<div class="bxe-empty-small">No node types defined</div>';
+    } else {
+      this._nodePaletteEl.innerHTML = '';
+      const palette = document.createElement('div');
+      palette.className = 'bxe-palette';
+      nodeTypes.forEach((type, i) => {
+        const radius = type.shape === 'ellipse' ? '50%' : type.shape === 'roundrectangle' ? '5px' : '2px';
+        const bg = type.color || '#e0e0e0';
+        const border = type.borderColor || '#999';
+        const item = document.createElement('div');
+        item.className = 'bxe-palette-item' + (i === 0 ? ' selected' : '');
+        item.dataset.typeId = type.id;
+        const swatch = document.createElement('div');
+        swatch.className = 'bxe-node-swatch';
+        swatch.style.cssText = `background:${bg};border-color:${border};border-radius:${radius}`;
+        const label = document.createElement('span');
+        label.className = 'bxe-palette-label';
+        label.textContent = type.label;
+        item.appendChild(swatch);
+        item.appendChild(label);
+        palette.appendChild(item);
+      });
+      this._nodePaletteEl.appendChild(palette);
+    }
+
+    if (!edgeTypes.length) {
+      this._edgePaletteEl.innerHTML = '<div class="bxe-empty-small">No edge types defined</div>';
+    } else {
+      this._edgePaletteEl.innerHTML = '';
+      const palette = document.createElement('div');
+      palette.className = 'bxe-palette';
+      edgeTypes.forEach((type, i) => {
+        const color = type.color || '#666666';
+        const dashArray = type.lineStyle === 'dashed' ? '6,3' : type.lineStyle === 'dotted' ? '2,3' : 'none';
+        const markerId = `bxe-arr-${this._instanceId}-${String(type.id).replace(/[^a-zA-Z0-9]/g, '_')}`;
+        const item = document.createElement('div');
+        item.className = 'bxe-palette-item' + (i === 0 ? ' selected' : '');
+        item.dataset.typeId = type.id;
+        const svgLine = dashArray === 'none'
+          ? `<line x1="4" y1="11" x2="34" y2="11" stroke="${color}" stroke-width="2" marker-end="url(#${markerId})"/>`
+          : `<line x1="4" y1="11" x2="34" y2="11" stroke="${color}" stroke-width="2" stroke-dasharray="${dashArray}" marker-end="url(#${markerId})"/>`;
+        item.innerHTML = `<svg width="44" height="22" style="flex-shrink:0;overflow:visible"><defs><marker id="${markerId}" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="${color}"/></marker></defs>${svgLine}</svg><span class="bxe-palette-label">${this._esc(type.label)}</span>`;
+        palette.appendChild(item);
+      });
+      this._edgePaletteEl.appendChild(palette);
+    }
+
+    this._currentNodeTypeId = nodeTypes[0]?.id || null;
+    if (edgeTypes[0]) {
+      this.currentEdgeType = edgeTypes[0];
+    }
+  }
+
+  _selectNodeType(typeId) {
+    this._currentNodeTypeId = typeId;
+    if (this._nodePaletteEl) {
+      this._nodePaletteEl.querySelectorAll('.bxe-palette-item').forEach(el => {
+        el.classList.toggle('selected', el.dataset.typeId === typeId);
+      });
+    }
+  }
+
+  _addNodeAtPosition(position) {
+    if (this._currentNodeTypeId) {
+      this.addNodeOfType(this._currentNodeTypeId, position);
+    } else {
+      this.addNode({ label: 'New Node' }, position);
+    }
+  }
+
+  _refreshProperties(element) {
+    this._selectedElement = element;
+    if (!this._propsContentEl) return;
+    const data = element.data();
+    const isNode = element.isNode();
+    const exclude = new Set(['id', 'label', 'source', 'target', '_style']);
+    const props = Object.keys(data).filter(k => !exclude.has(k));
+    const elId = this._esc(data.id || '');
+
+    let html = `
+    <div class="bxe-prop-group">
+      <label>ID</label>
+      <input class="bxe-input" type="text" value="${elId}" readonly data-field="id">
+    </div>
+    <div class="bxe-prop-group">
+      <label>Label</label>
+      <input class="bxe-input" type="text" value="${this._esc(data.label || '')}" placeholder="Enter label" data-field="label" data-element-id="${elId}">
+    </div>`;
+
+    if (!isNode) {
+      html += `
+    <div class="bxe-prop-group">
+      <label>Source → Target</label>
+      <input class="bxe-input" type="text" value="${this._esc(data.source)} → ${this._esc(data.target)}" readonly>
+    </div>`;
+    }
+
+    let propsRows = '';
+    if (!props.length) {
+      propsRows = `<tr class="bxe-no-props-row"><td colspan="3" class="bxe-empty-small">No properties</td></tr>`;
+    } else {
+      props.forEach(key => {
+        propsRows += `
+        <tr class="bxe-prop-row" data-key="${this._esc(key)}">
+          <td><input class="bxe-cell-input" type="text" value="${this._esc(key)}" placeholder="key" data-field="key"></td>
+          <td><textarea class="bxe-cell-input bxe-cell-textarea" placeholder="value" data-field="value" rows="1">${this._esc(String(data[key] ?? ''))}</textarea></td>
+          <td><button class="bxe-btn-del" data-action="del-prop" title="Remove">×</button></td>
+        </tr>`;
+      });
+    }
+
+    html += `
+    <div class="bxe-prop-group">
+      <label>Properties</label>
+      <div class="bxe-prop-table-wrap">
+        <table class="bxe-prop-table">
+          <colgroup><col style="width:35%"><col style="width:55%"><col style="width:22px"></colgroup>
+          <tbody class="bxe-props-tbody" data-element-id="${elId}">${propsRows}</tbody>
+        </table>
+      </div>
+      <button class="bxe-btn-add" data-action="add-prop">+ Add Property</button>
+    </div>
+    <div style="padding-top:8px;border-top:1px solid #eee;">
+      <button class="bxe-btn-danger" data-action="delete-el" data-element-id="${elId}">Delete</button>
+    </div>`;
+
+    this._propsContentEl.innerHTML = html;
+  }
+
+  _clearProperties() {
+    this._selectedElement = null;
+    if (this._propsContentEl) {
+      this._propsContentEl.innerHTML = '<div class="bxe-empty">Select a node or edge<br>to edit its properties</div>';
+    }
+  }
+
+  _handlePropertiesEvent(e) {
+    const el = e.target;
+    if (!el || !this._selectedElement) return;
+
+    if (e.type === 'input' && el.dataset.field === 'label') {
+      const id = this._selectedElement.id();
+      this.updateElement(id, { label: el.value });
+      return;
+    }
+
+    if (e.type === 'input' && el.dataset.field === 'value') {
+      const tr = el.closest('tr.bxe-prop-row');
+      if (!tr) return;
+      const key = tr.dataset.key;
+      if (!key) return;
+      this.updateElement(this._selectedElement.id(), { [key]: el.value });
+      return;
+    }
+
+    if (e.type === 'blur' && el.dataset.field === 'key') {
+      const tr = el.closest('tr.bxe-prop-row');
+      if (!tr) return;
+      const oldKey = tr.dataset.key;
+      const newKey = el.value.trim();
+      if (!newKey) return;
+      const id = this._selectedElement.id();
+      if (oldKey && oldKey !== newKey) {
+        const valEl = tr.querySelector('[data-field="value"]');
+        const val = valEl ? valEl.value : '';
+        this.updateElement(id, { [oldKey]: undefined, [newKey]: val });
+      } else if (!oldKey && newKey) {
+        const valEl = tr.querySelector('[data-field="value"]');
+        const val = valEl ? valEl.value : '';
+        this.updateElement(id, { [newKey]: val });
+      }
+      tr.dataset.key = newKey;
+      return;
+    }
+
+    if (e.type === 'click' && el.dataset.action === 'add-prop') {
+      const tbody = this._propsContentEl?.querySelector('.bxe-props-tbody');
+      if (!tbody) return;
+      tbody.querySelector('.bxe-no-props-row')?.remove();
+      const tr = document.createElement('tr');
+      tr.className = 'bxe-prop-row';
+      tr.dataset.key = '';
+      tr.innerHTML = `
+      <td><input class="bxe-cell-input" type="text" value="" placeholder="key" data-field="key"></td>
+      <td><textarea class="bxe-cell-input bxe-cell-textarea" placeholder="value" data-field="value" rows="1"></textarea></td>
+      <td><button class="bxe-btn-del" data-action="del-prop" title="Remove">×</button></td>`;
+      tbody.appendChild(tr);
+      tr.querySelector('[data-field="key"]').focus();
+      return;
+    }
+
+    if (e.type === 'click' && el.dataset.action === 'del-prop') {
+      const tr = el.closest('tr.bxe-prop-row');
+      if (!tr) return;
+      const key = tr.dataset.key;
+      if (key) this.updateElement(this._selectedElement.id(), { [key]: undefined });
+      tr.remove();
+      const tbody = this._propsContentEl?.querySelector('.bxe-props-tbody');
+      if (tbody && !tbody.querySelector('.bxe-prop-row')) {
+        tbody.innerHTML = '<tr class="bxe-no-props-row"><td colspan="3" class="bxe-empty-small">No properties</td></tr>';
+      }
+      return;
+    }
+
+    if (e.type === 'click') {
+      const btn = el.closest('[data-action="delete-el"]');
+      if (btn) {
+        const numSel = this.cy.$(':selected').length;
+        if (numSel > 0) this.removeSelected();
+        else {
+          const id = this._selectedElement.id();
+          this.removeElement(id);
+        }
+        this._clearProperties();
+      }
+    }
+  }
+
+  _refreshStylesheet() {
+    if (!this._stylesheetRulesEl) return;
+    const rules = this.userStylesheet;
+    if (!rules.length) {
+      this._stylesheetRulesEl.innerHTML = '<div class="bxe-empty">No style rules yet.</div>';
+      return;
+    }
+    this._stylesheetRulesEl.innerHTML = rules.map((rule, i) => {
+      const props = Object.entries(rule.style || {});
+      const propsHtml = props.map(([prop, val]) => `
+      <div class="bxe-style-prop-row">
+        <input type="text" value="${this._esc(prop)}" placeholder="property" data-field="key" data-rule="${i}" data-prop="${this._esc(prop)}">
+        <input type="text" value="${this._esc(val)}" placeholder="value" data-field="value" data-rule="${i}" data-prop="${this._esc(prop)}">
+        <button class="bxe-btn-del" data-action="del-prop" data-rule="${i}" data-prop="${this._esc(prop)}" title="Remove">×</button>
+      </div>`).join('');
+      return `
+      <div class="bxe-style-rule" data-rule="${i}">
+        <div class="bxe-style-rule-header">
+          <input type="text" value="${this._esc(rule.selector)}" placeholder="selector" data-field="selector" data-rule="${i}">
+          <button class="bxe-btn-del" data-action="del-rule" data-rule="${i}" title="Delete rule">🗑</button>
+        </div>
+        <div class="bxe-style-rule-props">
+          ${propsHtml}
+          <button class="bxe-btn-link" data-action="add-prop" data-rule="${i}">+ property</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  _handleStylesheetEvent(e) {
+    const el = e.target;
+    if (!el) return;
+
+    if (e.type === 'change') {
+      if (el.dataset.field === 'selector') {
+        const ri = parseInt(el.dataset.rule);
+        const rule = this.userStylesheet[ri];
+        if (rule) this.updateStyleRule(ri, el.value, rule.style);
+        return;
+      }
+      if (el.dataset.field === 'key') {
+        const ri = parseInt(el.dataset.rule);
+        const oldKey = el.dataset.prop;
+        const newKey = el.value.trim();
+        if (!newKey) return;
+        const rule = this.userStylesheet[ri];
+        if (!rule) return;
+        const style = { ...rule.style };
+        const val = style[oldKey];
+        delete style[oldKey];
+        style[newKey] = val;
+        this.updateStyleRule(ri, rule.selector, style);
+        return;
+      }
+      if (el.dataset.field === 'value') {
+        const ri = parseInt(el.dataset.rule);
+        const prop = el.dataset.prop;
+        const rule = this.userStylesheet[ri];
+        if (!rule) return;
+        this.updateStyleRule(ri, rule.selector, { ...rule.style, [prop]: el.value });
+        return;
+      }
+    }
+
+    if (e.type === 'click') {
+      if (el.dataset.action === 'del-rule') {
+        this.removeStyleRule(parseInt(el.dataset.rule));
+        return;
+      }
+      if (el.dataset.action === 'del-prop') {
+        const ri = parseInt(el.dataset.rule);
+        const prop = el.dataset.prop;
+        const rule = this.userStylesheet[ri];
+        if (!rule) return;
+        const style = { ...rule.style };
+        delete style[prop];
+        this.updateStyleRule(ri, rule.selector, style);
+        return;
+      }
+      if (el.dataset.action === 'add-prop') {
+        const ri = parseInt(el.dataset.rule);
+        const key = prompt('CSS property name (e.g. background-color):');
+        if (!key) return;
+        const val = prompt(`Value for "${key}":`) ?? '';
+        const rule = this.userStylesheet[ri];
+        if (!rule) return;
+        this.updateStyleRule(ri, rule.selector, { ...rule.style, [key]: val });
+        return;
+      }
+    }
+  }
+
+  _showContextMenu(x, y, target) {
+    this._ctxTarget = target;
+    const isNode = target.isNode();
+    const numSel = this.cy.$(':selected').length;
+    const deleteLabel = numSel > 1 ? `Delete (${numSel})` : 'Delete';
+    this._ctxMenu.innerHTML = `
+    <div class="bxe-ctx-item" data-action="edit-props">Edit Properties</div>
+    ${isNode ? '<div class="bxe-ctx-sep"></div><div class="bxe-ctx-item" data-action="duplicate">Duplicate</div>' : ''}
+    <div class="bxe-ctx-sep"></div>
+    <div class="bxe-ctx-item danger" data-action="delete">${this._esc(deleteLabel)}</div>`;
+    this._ctxMenu.style.left = x + 'px';
+    this._ctxMenu.style.top = y + 'px';
+    this._ctxMenu.style.display = 'block';
+    setTimeout(() => document.addEventListener('click', () => this._hideContextMenu(), { once: true }), 50);
+  }
+
+  _showBackgroundContextMenu(x, y) {
+    this._ctxMenu.innerHTML = `<div class="bxe-ctx-item" data-action="add-node-here">Add Node Here</div>`;
+    this._ctxMenu.style.left = x + 'px';
+    this._ctxMenu.style.top = y + 'px';
+    this._ctxMenu.style.display = 'block';
+    setTimeout(() => document.addEventListener('click', () => this._hideContextMenu(), { once: true }), 50);
+  }
+
+  _hideContextMenu() {
+    if (this._ctxMenu) this._ctxMenu.style.display = 'none';
+  }
+
+  _updateHistoryButtons() {
+    if (this._undoBtn) this._undoBtn.disabled = !this.canUndo();
+    if (this._redoBtn) this._redoBtn.disabled = !this.canRedo();
+  }
+
+  _init() {
+    this._injectCSS();
+    this._createUI();
+
+    const stylesheet = this._buildStylesheet();
     this.cy = cytoscape({
-      container: this.container,
+      container: this._canvasDiv,
       elements: this.options.elements || { nodes: [], edges: [] },
       style: stylesheet,
       layout: this.options.layout,
@@ -273,13 +867,14 @@ export class BoxesEditor {
       boxSelectionEnabled: true
     });
 
-    // Setup default event handlers
     this._setupEvents();
+    this._renderPalette();
+    this.createLayoutPanel(this._layoutPaneContentEl);
+    this._refreshStylesheet();
   }
 
   _buildStylesheet() {
     const baseStyles = [
-      // Default node styles
       {
         selector: 'node',
         style: {
@@ -293,7 +888,6 @@ export class BoxesEditor {
           'height': '60px'
         }
       },
-      // Default edge styles
       {
         selector: 'edge',
         style: {
@@ -306,7 +900,6 @@ export class BoxesEditor {
           'font-size': '10px'
         }
       },
-      // Selected element styles
       {
         selector: ':selected',
         style: {
@@ -317,7 +910,6 @@ export class BoxesEditor {
           'border-color': '#4A90E2'
         }
       },
-      // cytoscape-edgehandles ghost/preview styles (handle is DOM-based via popper)
       {
         selector: '.eh-source',
         style: { 'border-width': 3, 'border-color': '#3498db' }
@@ -342,10 +934,7 @@ export class BoxesEditor {
       }
     ];
 
-    // Add custom styles from per-graph userStylesheet
     const customStyles = this.userStylesheet;
-
-    // Add element-specific styles from _style data property
     const elementStyles = this._generateElementStyles();
 
     return [...baseStyles, ...customStyles, ...elementStyles];
@@ -354,7 +943,6 @@ export class BoxesEditor {
   _generateElementStyles() {
     const styles = [];
 
-    // If cy is initialized, read live elements; otherwise fall back to options
     if (this.cy) {
       this.cy.elements().forEach(el => {
         const style = el.data('_style');
@@ -384,32 +972,26 @@ export class BoxesEditor {
   }
 
   _setupEvents() {
-    // Emit change events for graph modifications
     this.cy.on('add remove data', (evt) => {
       this._emit('change', { type: evt.type, target: evt.target });
     });
 
-    // Emit both 'select'/'unselect' (element-level) and 'selectionChange' (aggregate)
     this.cy.on('select', (evt) => {
       this._emit('select', { target: evt.target });
-      this._emit('selectionChange', {
-        type: 'select',
-        target: evt.target,
-        selected: this.cy.$(':selected').jsons()
-      });
+      this._emit('selectionChange', { type: 'select', target: evt.target, selected: this.cy.$(':selected').jsons() });
+      this._selectedElement = evt.target;
+      this._refreshProperties(evt.target);
+      this._switchPane('properties');
     });
 
     this.cy.on('unselect', (evt) => {
       this._emit('unselect', { target: evt.target });
-      this._emit('selectionChange', {
-        type: 'unselect',
-        target: evt.target,
-        selected: this.cy.$(':selected').jsons()
-      });
+      this._emit('selectionChange', { type: 'unselect', target: evt.target, selected: this.cy.$(':selected').jsons() });
+      if (!this.cy.$(':selected').length) this._clearProperties();
     });
 
-    // Drag undo: snapshot position before grab; commit to undo stack only if position changed
     this.cy.on('grabon', 'node', (evt) => {
+      if (this._restoringState || this._ehDrawing) return;
       const node = evt.target;
       const pos = node.position();
       this._preGrabPos = { x: pos.x, y: pos.y };
@@ -417,7 +999,7 @@ export class BoxesEditor {
     });
 
     this.cy.on('free', 'node', (evt) => {
-      if (!this._preGrabSnapshot) return;
+      if (this._restoringState || this._ehDrawing || !this._preGrabSnapshot) return;
       const node = evt.target;
       const pos = node.position();
       if (pos.x !== this._preGrabPos.x || pos.y !== this._preGrabPos.y) {
@@ -429,13 +1011,29 @@ export class BoxesEditor {
       this._preGrabSnapshot = null;
       this._preGrabPos = null;
     });
+
+    this.cy.on('dbltap', (evt) => {
+      if (evt.target === this.cy) this._addNodeAtPosition(evt.position);
+    });
+
+    this.cy.on('cxttap', 'node,edge', (evt) => {
+      evt.preventDefault();
+      this._showContextMenu(evt.originalEvent.clientX, evt.originalEvent.clientY, evt.target);
+    });
+
+    this.cy.on('cxttap', (evt) => {
+      if (evt.target === this.cy) {
+        evt.preventDefault();
+        this._ctxPosition = evt.position;
+        this._showBackgroundContextMenu(evt.originalEvent.clientX, evt.originalEvent.clientY);
+      }
+    });
+
+    this.cy.on('tap', () => this._hideContextMenu());
   }
 
   /**
    * Add a node to the graph
-   * @param {Object} data - Node data (id, label, etc.)
-   * @param {Object} [position] - Optional {x, y} position
-   * @param {Object} [style] - Optional style overrides
    */
   addNode(data, position = null, style = {}) {
     this._pushUndo();
@@ -506,10 +1104,9 @@ export class BoxesEditor {
       return false;
     }
 
-    // Preserve existing _style if not updating style
     const currentData = element.data();
     const newData = { ...data };
-    
+
     if (style !== null) {
       newData._style = { ...currentData._style, ...style };
     } else if (currentData._style) {
@@ -518,7 +1115,6 @@ export class BoxesEditor {
 
     element.data(newData);
 
-    // Update stylesheet if style changed
     if (style !== null) {
       this._updateStylesheet();
     }
@@ -539,7 +1135,7 @@ export class BoxesEditor {
 
     const currentStyle = element.data('_style') || {};
     const newStyle = { ...currentStyle, ...style };
-    
+
     element.data('_style', newStyle);
     this._updateStylesheet();
 
@@ -556,8 +1152,7 @@ export class BoxesEditor {
   }
 
   /**
-   * Run a layout algorithm. Accepts a layout name string or full options object.
-   * Saves the chosen layout and options as lastLayout.
+   * Run a layout algorithm.
    */
   runLayout(layoutOptions) {
     this._pushUndo();
@@ -580,8 +1175,7 @@ export class BoxesEditor {
   }
 
   /**
-   * Get available layout algorithms — built-ins always included; extensions only if registered.
-   * Returns array of { name, label, params } objects.
+   * Get available layout algorithms
    */
   getAvailableLayouts() {
     return Object.entries(LAYOUT_DEFINITIONS)
@@ -597,7 +1191,6 @@ export class BoxesEditor {
   /** Check whether a layout extension is registered with Cytoscape */
   _isLayoutRegistered(name) {
     try {
-      // cytoscape.prototype.layout creates a layout object; if name is unknown it throws
       const l = this.cy.layout({ name, stop: () => {} });
       if (l && typeof l.run === 'function') return true;
       return false;
@@ -617,12 +1210,10 @@ export class BoxesEditor {
    * Load elements into the graph, replacing any existing elements
    */
   loadElements(elements) {
-    // Normalize to flat array to avoid any format ambiguity
-    const nodes = elements.nodes || (Array.isArray(elements) ? elements.filter(e => e.group === 'nodes' || !e.data?.source) : []);
-    const edges = elements.edges || (Array.isArray(elements) ? elements.filter(e => e.group === 'edges' || e.data?.source) : []);
+    const nodes = elements.nodes || (Array.isArray(elements) ? elements.filter(e => e.group === 'nodes') : []);
+    const edges = elements.edges || (Array.isArray(elements) ? elements.filter(e => e.group === 'edges') : []);
 
     this.cy.elements().remove();
-    // Add nodes first, then edges (edges need source/target to exist)
     if (nodes.length) this.cy.add(nodes);
     if (edges.length) this.cy.add(edges);
 
@@ -634,8 +1225,23 @@ export class BoxesEditor {
    * Export graph data including elements, user stylesheet, and last layout.
    */
   exportGraph() {
+    const els = this.cy.json().elements;
+    // Strip edgehandles transient classes from snapshot to avoid polluting undo history
+    const cleanEl = (el) => {
+      if (!el.classes) return el;
+      const classes = el.classes.split(' ').filter(c => !c.startsWith('eh-')).join(' ');
+      return classes !== el.classes ? { ...el, classes } : el;
+    };
+    // Exclude edgehandles ghost/preview elements (they are temporary)
+    const isEhGhost = (el) => {
+      const cls = el.classes || '';
+      return cls.includes('eh-ghost') || cls.includes('eh-preview');
+    };
     return {
-      elements: this.cy.json().elements,
+      elements: {
+        nodes: (els.nodes || []).filter(el => !isEhGhost(el)).map(cleanEl),
+        edges: (els.edges || []).filter(el => !isEhGhost(el)).map(cleanEl)
+      },
       userStylesheet: this.userStylesheet.map(rule => ({
         selector: rule.selector,
         style: { ...rule.style }
@@ -646,13 +1252,12 @@ export class BoxesEditor {
   }
 
   /**
-   * Import graph data. If the loaded nodes have no position info, applies lastLayout (or cose).
+   * Import graph data.
    */
   importGraph(graphData) {
     if (graphData.elements) {
       this.loadElements(graphData.elements);
     }
-    // Support both 'userStylesheet' (new format) and legacy 'stylesheet'
     const incoming = graphData.userStylesheet || graphData.stylesheet;
     if (incoming) {
       this.userStylesheet = incoming.map(rule => ({
@@ -662,24 +1267,22 @@ export class BoxesEditor {
       this._updateStylesheet();
       this._emit('stylesheetChanged', { stylesheet: this.userStylesheet });
     }
-    // Restore last layout preference
     if (graphData.lastLayout) {
       this._lastLayout = {
         name: graphData.lastLayout.name || 'cose',
         options: { ...(graphData.lastLayout.options || {}) }
       };
-      // Sync the panel UI if it exists
       if (this._layoutPanel) this._layoutPanelSync();
     }
-    // Auto-run layout if nodes have no meaningful positions (all at origin)
     if (this._nodesNeedLayout()) {
       const { name, options } = this._lastLayout;
       this.runLayout({ name, ...options });
     }
     this._emit('graphImported', { graphData });
+    if (this._stylesheetRulesEl) this._refreshStylesheet();
   }
 
-  /** Return true if loaded nodes have no real position data (all at 0,0 or graph is empty) */
+  /** Return true if loaded nodes have no real position data */
   _nodesNeedLayout() {
     const nodes = this.cy.nodes();
     if (!nodes.length) return false;
@@ -708,6 +1311,7 @@ export class BoxesEditor {
     }));
     this._updateStylesheet();
     this._emit('stylesheetChanged', { stylesheet: this.userStylesheet });
+    if (this._stylesheetRulesEl) this._refreshStylesheet();
   }
 
   /** Append a new rule */
@@ -716,7 +1320,8 @@ export class BoxesEditor {
     this.userStylesheet.push({ selector, style: { ...style } });
     this._updateStylesheet();
     this._emit('stylesheetChanged', { stylesheet: this.userStylesheet });
-    return this.userStylesheet.length - 1; // return index
+    if (this._stylesheetRulesEl) this._refreshStylesheet();
+    return this.userStylesheet.length - 1;
   }
 
   /** Update rule at index */
@@ -726,6 +1331,7 @@ export class BoxesEditor {
     this.userStylesheet[index] = { selector, style: { ...style } };
     this._updateStylesheet();
     this._emit('stylesheetChanged', { stylesheet: this.userStylesheet });
+    if (this._stylesheetRulesEl) this._refreshStylesheet();
     return true;
   }
 
@@ -736,6 +1342,7 @@ export class BoxesEditor {
     this.userStylesheet.splice(index, 1);
     this._updateStylesheet();
     this._emit('stylesheetChanged', { stylesheet: this.userStylesheet });
+    if (this._stylesheetRulesEl) this._refreshStylesheet();
     return true;
   }
 
@@ -747,13 +1354,12 @@ export class BoxesEditor {
   }
 
   /**
-   * Remove all currently selected elements (nodes + edges) in one undo step.
+   * Remove all currently selected elements in one undo step.
    */
   removeSelected() {
     const selected = this.cy.$(':selected');
     if (!selected.length) return 0;
     this._pushUndo();
-    // Also remove edges connected to selected nodes (cy handles connected edges automatically)
     selected.forEach(el => {
       const json = el.json();
       this.cy.remove(el);
@@ -767,7 +1373,9 @@ export class BoxesEditor {
 
   _pushUndo() {
     if (this._restoringState) return;
-    this._undoStack.push(this.exportGraph());
+    const snap = this.exportGraph();
+    console.debug('[Boxes] pushUndo: snapshot has', snap.elements.nodes?.length, 'nodes,', snap.elements.edges?.length, 'edges');
+    this._undoStack.push(snap);
     if (this._undoStack.length > 50) this._undoStack.shift();
     this._redoStack.length = 0;
     this._emitHistoryChange();
@@ -775,6 +1383,7 @@ export class BoxesEditor {
 
   _emitHistoryChange() {
     this._emit('historyChange', { canUndo: this.canUndo(), canRedo: this.canRedo() });
+    this._updateHistoryButtons();
   }
 
   _restoreSnapshot(snapshot) {
@@ -797,23 +1406,37 @@ export class BoxesEditor {
       this._restoringState = false;
     }
     this._emit('graphImported', { graphData: snapshot });
+    if (this._stylesheetRulesEl) this._refreshStylesheet();
+    if (this._selectedElement) {
+      const el = this.cy.getElementById(this._selectedElement.id());
+      if (el.length) this._refreshProperties(el);
+      else this._clearProperties();
+    }
   }
 
-  /** Undo the last action. Returns true if an undo was performed. */
+  /** Undo the last action. */
   undo() {
     if (!this._undoStack.length) return false;
+    // Clear any pending drag state so a stale 'free' event can't corrupt redo stack
+    this._preGrabSnapshot = null;
+    this._preGrabPos = null;
     this._redoStack.push(this.exportGraph());
     const snapshot = this._undoStack.pop();
+    console.debug('[Boxes] undo: restoring snapshot with', snapshot.elements.nodes?.length, 'nodes,', snapshot.elements.edges?.length, 'edges');
     this._restoreSnapshot(snapshot);
     this._emitHistoryChange();
     return true;
   }
 
-  /** Redo the last undone action. Returns true if a redo was performed. */
+  /** Redo the last undone action. */
   redo() {
     if (!this._redoStack.length) return false;
+    // Clear any pending drag state so a stale 'free' event can't corrupt undo stack
+    this._preGrabSnapshot = null;
+    this._preGrabPos = null;
     this._undoStack.push(this.exportGraph());
     const snapshot = this._redoStack.pop();
+    console.debug('[Boxes] redo: restoring snapshot with', snapshot.elements.nodes?.length, 'nodes,', snapshot.elements.edges?.length, 'edges');
     this._restoreSnapshot(snapshot);
     this._emitHistoryChange();
     return true;
@@ -879,6 +1502,18 @@ export class BoxesEditor {
       this.cy = null;
     }
     this.eventHandlers.clear();
+    if (this._ctxMenu) {
+      this._ctxMenu.parentNode?.removeChild(this._ctxMenu);
+      this._ctxMenu = null;
+    }
+    if (this._keydownHandler) {
+      document.removeEventListener('keydown', this._keydownHandler);
+      this._keydownHandler = null;
+    }
+    if (this.container) {
+      this.container.innerHTML = '';
+      this.container.style.cssText = '';
+    }
   }
 
   // ─── Node / Edge Type API ─────────────────────────────────────────────────
@@ -895,7 +1530,6 @@ export class BoxesEditor {
 
   /**
    * Add a node of a named type at an optional position.
-   * If position is omitted, places it at the viewport centre with a small cascade offset.
    */
   addNodeOfType(typeId, position = null) {
     const type = this._nodeTypes.find(t => t.id === typeId);
@@ -904,9 +1538,10 @@ export class BoxesEditor {
     if (!position) {
       const pan = this.cy.pan(), zoom = this.cy.zoom();
       const offset = this.cy.nodes().length * 15;
+      const canvasEl = this._canvasDiv || this.container;
       position = {
-        x: (this.container.offsetWidth  / 2 - pan.x) / zoom + (offset % 150) - 75,
-        y: (this.container.offsetHeight / 2 - pan.y) / zoom + Math.floor(offset / 150) * 80
+        x: (canvasEl.offsetWidth  / 2 - pan.x) / zoom + (offset % 150) - 75,
+        y: (canvasEl.offsetHeight / 2 - pan.y) / zoom + Math.floor(offset / 150) * 80
       };
     }
     return this.addNode(nodeData, position);
@@ -914,12 +1549,16 @@ export class BoxesEditor {
 
   /**
    * Set the current edge type used by the built-in edge handle.
-   * @param {string} typeId - id from edgeTypes, or null to reset to first type
    */
   setEdgeType(typeId) {
     const type = this._edgeTypes.find(t => t.id === typeId) || null;
     this.currentEdgeType = type;
     this._emit('edgeTypeChanged', { edgeType: this.currentEdgeType });
+    if (this._edgePaletteEl) {
+      this._edgePaletteEl.querySelectorAll('.bxe-palette-item').forEach(el => {
+        el.classList.toggle('selected', el.dataset.typeId === typeId);
+      });
+    }
   }
 
   /** Return the currently active edge type */
@@ -927,7 +1566,7 @@ export class BoxesEditor {
     return this.currentEdgeType ? { ...this.currentEdgeType } : null;
   }
 
-  // ─── Edge Handle (popper-based, uses cytoscape-edgehandles v4) ──────────
+  // ─── Edge Handle ──────────────────────────────────────────────────────────
 
   _initEdgeHandle() {
     this._eh = this.cy.edgehandles({
@@ -943,7 +1582,6 @@ export class BoxesEditor {
       disableBrowserGestures: true
     });
 
-    // DOM-handle state (manually positioned relative to node's rendered bounding box)
     this._ehHandleDiv = null;
     this._ehHandleNode = null;
     this._ehDrawing = false;
@@ -955,7 +1593,7 @@ export class BoxesEditor {
       const bottom = containerRect.top + bb.y2;
       const w = 16, h = 8;
       div.style.left = `${cx - w / 2}px`;
-      div.style.top  = `${bottom - h / 2}px`; // straddle the bottom edge
+      div.style.top  = `${bottom - h / 2}px`;
     };
 
     const removeHandle = () => {
@@ -1007,7 +1645,6 @@ export class BoxesEditor {
     this.cy.on('zoom pan', this._ehRemoveHandler);
     window.addEventListener('mouseup', this._ehWindowMouseup);
 
-    // When an edge is completed, update styles and emit our events
     this._ehCompleteHandler = (event, sourceNode, targetNode, addedEdges) => {
       this._updateStylesheet();
       addedEdges.forEach(edge => {
@@ -1043,7 +1680,6 @@ export class BoxesEditor {
       window.removeEventListener('mouseup', this._ehWindowMouseup);
       this._ehWindowMouseup = null;
     }
-    // Clean up any lingering handle div
     if (this._ehHandleDiv) {
       this._ehHandleDiv.parentNode?.removeChild(this._ehHandleDiv);
       this._ehHandleDiv = null;
@@ -1054,18 +1690,15 @@ export class BoxesEditor {
     }
   }
 
-  // ─── Layout Panel (renders into a caller-provided element) ──────────────
+  // ─── Layout Panel ─────────────────────────────────────────────────────────
 
   /**
    * Render the layout configuration UI into `targetEl`.
-   * Call this after creating the editor, passing any container element (e.g. a tab pane).
-   * Can be called again after destroy+recreate to re-attach.
    */
   createLayoutPanel(targetEl) {
     if (!targetEl) return;
-    this._destroyLayoutPanel(); // clean up any prior binding
+    this._destroyLayoutPanel();
 
-    // Inject shared CSS once per page
     if (!document.getElementById('boxes-layout-panel-css')) {
       const style = document.createElement('style');
       style.id = 'boxes-layout-panel-css';
@@ -1100,7 +1733,6 @@ export class BoxesEditor {
     const wrap = document.createElement('div');
     wrap.className = 'blp-panel';
 
-    // Algorithm selector row
     const algoRow = document.createElement('div');
     algoRow.className = 'blp-algo-row';
     const algoLabel = document.createElement('label');
@@ -1116,12 +1748,10 @@ export class BoxesEditor {
     algoRow.appendChild(algoSel);
     wrap.appendChild(algoRow);
 
-    // Parameters section
     const paramsDiv = document.createElement('div');
     paramsDiv.className = 'blp-params';
     wrap.appendChild(paramsDiv);
 
-    // Run button
     const runBtn = document.createElement('button');
     runBtn.className = 'blp-run-btn';
     runBtn.textContent = '▶ Apply Layout';
@@ -1191,12 +1821,11 @@ export class BoxesEditor {
       this.runLayout({ name, ...opts });
     });
 
-    // Store references for sync
     this._layoutPanelAlgoSel = algoSel;
     this._layoutPanelParamsDiv = paramsDiv;
   }
 
-  /** Sync the panel UI to reflect the current _lastLayout (called after import) */
+  /** Sync the panel UI to reflect the current _lastLayout */
   _layoutPanelSync() {
     if (!this._layoutPanelAlgoSel) return;
     this._layoutPanelAlgoSel.value = this._lastLayout.name;
