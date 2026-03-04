@@ -229,6 +229,8 @@ export class BoxesEditor {
     this._redoStack = [];
     this._restoringState = false;
     this._preGrabSnapshot = null;
+    this._clipboard = null;   // { nodes: [...json], edges: [...json] }
+    this._pasteOffset = 0;    // increments each paste so repeated pastes cascade
     this._currentNodeTypeId = this._nodeTypes[0]?.id || null;
     this._selectedElement = null;
     this._ctxTarget = null;
@@ -464,6 +466,12 @@ export class BoxesEditor {
           const pos = this._ctxTarget.position();
           this.addNode(data, { x: pos.x + 50, y: pos.y + 50 });
         }
+      } else if (action === 'cut') {
+        this.cut();
+      } else if (action === 'copy') {
+        this.copy();
+      } else if (action === 'paste') {
+        this.paste();
       } else if (action === 'delete') {
         const numSel = this.cy.$(':selected').length;
         if (numSel > 0) this.removeSelected();
@@ -482,6 +490,21 @@ export class BoxesEditor {
         e.preventDefault(); this.undo();
       } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
         e.preventDefault(); this.redo();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        const tag = document.activeElement?.tagName;
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+          e.preventDefault(); this.copy();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'x') {
+        const tag = document.activeElement?.tagName;
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+          e.preventDefault(); this.cut();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+        const tag = document.activeElement?.tagName;
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+          e.preventDefault(); this.paste();
+        }
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         const tag = document.activeElement?.tagName;
         if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
@@ -824,10 +847,16 @@ export class BoxesEditor {
     const isNode = target.isNode();
     const numSel = this.cy.$(':selected').length;
     const deleteLabel = numSel > 1 ? `Delete (${numSel})` : 'Delete';
+    const hasSel = numSel > 0;
+    const hasPaste = !!this._clipboard;
     this._ctxMenu.innerHTML = `
     <div class="bxe-ctx-item" data-action="edit-props">Edit Properties</div>
-    ${isNode ? '<div class="bxe-ctx-sep"></div><div class="bxe-ctx-item" data-action="duplicate">Duplicate</div>' : ''}
     <div class="bxe-ctx-sep"></div>
+    ${hasSel ? `<div class="bxe-ctx-item" data-action="cut">Cut${numSel > 1 ? ` (${numSel})` : ''}</div>` : ''}
+    ${hasSel ? `<div class="bxe-ctx-item" data-action="copy">Copy${numSel > 1 ? ` (${numSel})` : ''}</div>` : ''}
+    ${hasPaste ? `<div class="bxe-ctx-item" data-action="paste">Paste</div>` : ''}
+    ${(hasSel || hasPaste) ? '<div class="bxe-ctx-sep"></div>' : ''}
+    ${isNode && !hasSel ? '<div class="bxe-ctx-item" data-action="duplicate">Duplicate</div><div class="bxe-ctx-sep"></div>' : ''}
     <div class="bxe-ctx-item danger" data-action="delete">${this._esc(deleteLabel)}</div>`;
     this._ctxMenu.style.left = x + 'px';
     this._ctxMenu.style.top = y + 'px';
@@ -836,7 +865,10 @@ export class BoxesEditor {
   }
 
   _showBackgroundContextMenu(x, y) {
-    this._ctxMenu.innerHTML = `<div class="bxe-ctx-item" data-action="add-node-here">Add Node Here</div>`;
+    const hasPaste = !!this._clipboard;
+    this._ctxMenu.innerHTML = `
+    <div class="bxe-ctx-item" data-action="add-node-here">Add Node Here</div>
+    ${hasPaste ? '<div class="bxe-ctx-sep"></div><div class="bxe-ctx-item" data-action="paste">Paste</div>' : ''}`;
     this._ctxMenu.style.left = x + 'px';
     this._ctxMenu.style.top = y + 'px';
     this._ctxMenu.style.display = 'block';
@@ -1369,7 +1401,101 @@ export class BoxesEditor {
     return selected.length;
   }
 
-  // ─── Undo / Redo ─────────────────────────────────────────────────────────
+  // ─── Clipboard ───────────────────────────────────────────────────────────
+
+  /**
+   * Copy selected nodes (and edges between them) to the internal clipboard.
+   * Returns true if anything was copied.
+   */
+  copy() {
+    const selectedNodes = this.cy.$('node:selected');
+    if (!selectedNodes.length) return false;
+
+    const selectedNodeIds = new Set(selectedNodes.map(n => n.id()));
+    // Include edges where BOTH endpoints are selected
+    const edges = this.cy.$('edge:selected').filter(e =>
+      selectedNodeIds.has(e.data('source')) && selectedNodeIds.has(e.data('target'))
+    ).add(
+      // Also pick up unselected edges that connect two selected nodes
+      this.cy.edges().filter(e =>
+        selectedNodeIds.has(e.data('source')) && selectedNodeIds.has(e.data('target'))
+      )
+    );
+
+    this._clipboard = {
+      nodes: selectedNodes.map(n => n.json()),
+      edges: edges.map(e => e.json())
+    };
+    this._pasteOffset = 0;
+    this._emit('clipboardChange', { hasClipboard: true });
+    return true;
+  }
+
+  /**
+   * Cut selected elements (copy then delete).
+   * Returns true if anything was cut.
+   */
+  cut() {
+    if (!this.copy()) return false;
+    this.removeSelected();
+    return true;
+  }
+
+  /**
+   * Paste the clipboard contents into the graph.
+   * Each paste cascades by 20px. Returns the newly added elements or false.
+   */
+  paste() {
+    if (!this._clipboard) return false;
+    this._pushUndo();
+
+    this._pasteOffset += 20;
+    const offset = this._pasteOffset;
+
+    // Map old node IDs → new node IDs
+    const idMap = {};
+    const newNodes = [];
+    const newEdges = [];
+
+    this._clipboard.nodes.forEach(nodeJson => {
+      const newId = 'node-' + Math.random().toString(36).slice(2, 9);
+      idMap[nodeJson.data.id] = newId;
+
+      const newData = { ...nodeJson.data, id: newId };
+      const newPos = nodeJson.position
+        ? { x: nodeJson.position.x + offset, y: nodeJson.position.y + offset }
+        : undefined;
+
+      const entry = { group: 'nodes', data: newData };
+      if (newPos) entry.position = newPos;
+      newNodes.push(entry);
+    });
+
+    this._clipboard.edges.forEach(edgeJson => {
+      const newSrc = idMap[edgeJson.data.source];
+      const newTgt = idMap[edgeJson.data.target];
+      if (!newSrc || !newTgt) return; // skip if endpoints weren't in clipboard
+      const newId = 'edge-' + Math.random().toString(36).slice(2, 9);
+      newEdges.push({
+        group: 'edges',
+        data: { ...edgeJson.data, id: newId, source: newSrc, target: newTgt }
+      });
+    });
+
+    // Add to graph and select the new elements
+    this.cy.$(':selected').unselect();
+    const added = this.cy.add([...newNodes, ...newEdges]);
+    added.select();
+
+    this._updateStylesheet();
+    this._emit('paste', { nodes: newNodes, edges: newEdges });
+    return added;
+  }
+
+  /** Returns true if there is something in the clipboard to paste. */
+  canPaste() { return !!this._clipboard; }
+
+
 
   _pushUndo() {
     if (this._restoringState) return;
