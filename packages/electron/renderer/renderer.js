@@ -39,8 +39,7 @@ function startWithTemplate(templateId, customTemplate = null) {
   document.getElementById('welcome-screen').style.display = 'none';
   document.getElementById('editor-container').classList.remove('hidden');
   document.getElementById('toolbar').classList.remove('hidden');
-  document.getElementById('right-panel').classList.add('show');
-  document.getElementById('left-panel').classList.add('show');
+  document.getElementById('right-panel').classList.remove('hidden-panel');
 
   const container = document.getElementById('editor-container');
   editor = new BoxesEditor(container, {
@@ -51,6 +50,7 @@ function startWithTemplate(templateId, customTemplate = null) {
     layout: { name: 'preset' }
   });
 
+  editor.createLayoutPanel(document.getElementById('pane-layout'));
   setupEditorEvents();
   renderStylesheet();
   renderPalette();
@@ -73,6 +73,7 @@ function setupEditorEvents() {
   });
 
   editor.on('stylesheetChanged', () => renderStylesheet());
+  editor.on('historyChange', updateUndoRedoButtons);
 
   editor.on('unselect', () => {
     if (!editor.getSelected().length) {
@@ -219,8 +220,13 @@ window.removePropertyRow = function (button) {
 };
 
 window.deleteElement = function () {
-  if (!selectedElement) return;
-  if (confirm('Delete this element?')) {
+  if (!editor) return;
+  const numSelected = editor.getSelected().length;
+  if (numSelected > 0) {
+    editor.removeSelected();
+    selectedElement = null;
+    hidePropertyPanel();
+  } else if (selectedElement) {
     editor.removeElement(selectedElement.id());
     selectedElement = null;
     hidePropertyPanel();
@@ -446,21 +452,34 @@ document.getElementById('add-edge-btn').addEventListener('click', () => {
   }
 });
 
-document.getElementById('run-layout-btn').addEventListener('click', () => {
-  if (!editor) return;
-  editor.runLayout({ name: document.getElementById('layout-select').value });
-});
-
 // Sync link-type selector → core edge type
 document.getElementById('link-type-select').addEventListener('change', (e) => {
   editor?.setEdgeType(e.target.value);
 });
 
-// ─── Delete key ───────────────────────────────────────────────────────────────
+// ─── Undo / Redo ──────────────────────────────────────────────────────────────
+
+function updateUndoRedoButtons() {
+  const undoBtn = document.getElementById('undo-btn');
+  const redoBtn = document.getElementById('redo-btn');
+  if (!undoBtn || !redoBtn) return;
+  undoBtn.disabled = !editor?.canUndo();
+  redoBtn.disabled = !editor?.canRedo();
+}
+
+document.getElementById('undo-btn')?.addEventListener('click', () => editor?.undo());
+document.getElementById('redo-btn')?.addEventListener('click', () => editor?.redo());
+
+// ─── Delete / Undo keys ───────────────────────────────────────────────────────
 
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Delete' && selectedElement) {
-    window.deleteElement();
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); editor?.undo(); }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); editor?.redo(); }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && editor) {
+    const tag = document.activeElement?.tagName;
+    if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+      window.deleteElement();
+    }
   }
 });
 
@@ -473,8 +492,9 @@ window.electronAPI.onMenuNew(() => {
     document.getElementById('welcome-screen').style.display = '';
     document.getElementById('editor-container').classList.add('hidden');
     document.getElementById('toolbar').classList.add('hidden');
-    document.getElementById('right-panel').classList.remove('show');
+    document.getElementById('right-panel').classList.add('hidden-panel');
     hidePropertyPanel();
+    updateUndoRedoButtons();
   }
 });
 

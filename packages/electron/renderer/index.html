@@ -47,28 +47,6 @@
       position: relative;
     }
 
-    /* Left palette panel */
-    #left-panel {
-      width: 140px;
-      flex-shrink: 0;
-      background: #fafafa;
-      border-right: 1px solid #ddd;
-      display: none;
-      flex-direction: column;
-      overflow-y: auto;
-    }
-
-    #left-panel.show { display: flex; }
-
-    .palette-header {
-      padding: 7px 8px 4px;
-      font-size: 10px;
-      font-weight: 700;
-      color: #95a5a6;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
     .palette-item {
       display: flex;
       align-items: center;
@@ -141,17 +119,17 @@
 
     #editor-container.hidden { display: none; }
 
-    /* Right Panel with tabs */
+    /* Right Panel with tabs — always visible */
     #right-panel {
-      width: 300px;
+      width: 240px;
       background: white;
       border-left: 1px solid #ddd;
-      display: none;
+      display: flex;
       flex-direction: column;
       flex-shrink: 0;
     }
 
-    #right-panel.show { display: flex; }
+    #right-panel.hidden-panel { display: none; }
 
     .panel-tabs {
       display: flex;
@@ -161,19 +139,22 @@
 
     .panel-tab {
       flex: 1;
-      padding: 9px 6px;
+      padding: 7px 2px;
       border: none;
       background: #f9f9f9;
       cursor: pointer;
-      font-size: 12px;
-      font-weight: 600;
+      font-size: 16px;
       color: #7f8c8d;
       border-bottom: 3px solid transparent;
       transition: all 0.15s;
+      line-height: 1;
     }
 
     .panel-tab:hover { color: #2c3e50; background: #f0f0f0; }
     .panel-tab.active { color: #3498db; background: white; border-bottom-color: #3498db; }
+    .edge-type-section { display: flex; flex-direction: column; gap: 6px; }
+    .edge-type-section label { font-size: 11px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.04em; }
+    .edge-type-section select { font-size: 12px; padding: 4px 6px; border: 1px solid #ccc; border-radius: 4px; }
 
     .panel-pane {
       display: none;
@@ -255,28 +236,14 @@
 <body>
   <div id="app">
     <div id="toolbar" class="hidden">
+      <button id="undo-btn" title="Undo (Ctrl+Z)" disabled>↩</button>
+      <button id="redo-btn" title="Redo (Ctrl+Y)" disabled>↪</button>
+      <div class="separator"></div>
       <button id="add-node-btn">➕ Add Node</button>
       <button id="add-edge-btn">🔗 Add Edge</button>
-      <div class="separator"></div>
-      <label style="font-size:12px;color:#555;">Link:</label>
-      <select id="link-type-select" title="Edge type for new connections"></select>
-      <div class="separator"></div>
-      <button id="run-layout-btn">🔄 Layout</button>
-      <select id="layout-select">
-        <option value="grid">Grid</option>
-        <option value="circle">Circle</option>
-        <option value="concentric">Concentric</option>
-        <option value="breadthfirst">Breadth First</option>
-        <option value="cose">CoSE</option>
-      </select>
     </div>
 
     <div class="main-area">
-      <div id="left-panel">
-        <div class="palette-header">Node Types</div>
-        <div id="palette-items"></div>
-      </div>
-
       <div id="welcome-screen">
         <h1>Boxes</h1>
         <p>Choose a template to get started</p>
@@ -285,18 +252,28 @@
 
       <div id="editor-container" class="hidden"></div>
 
-      <div id="right-panel">
+      <div id="right-panel" class="hidden-panel">
         <div class="panel-tabs">
-          <button class="panel-tab active" data-tab="properties" onclick="switchTab('properties')">Properties</button>
-          <button class="panel-tab" data-tab="stylesheet" onclick="switchTab('stylesheet')">Styles</button>
+          <button class="panel-tab active" data-tab="nodes" onclick="switchTab('nodes')" title="New">✦</button>
+          <button class="panel-tab" data-tab="properties" onclick="switchTab('properties')" title="Properties">☰</button>
+          <button class="panel-tab" data-tab="stylesheet" onclick="switchTab('stylesheet')" title="Styles">🎨</button>
+          <button class="panel-tab" data-tab="layout" onclick="switchTab('layout')" title="Layout">⊞</button>
         </div>
-        <div id="pane-properties" class="panel-pane active">
+        <div id="pane-nodes" class="panel-pane active">
+          <div id="palette-items"></div>
+          <div class="edge-type-section">
+            <label>Edge Type</label>
+            <select id="link-type-select" title="Edge type for new connections"></select>
+          </div>
+        </div>
+        <div id="pane-properties" class="panel-pane">
           <div class="empty-state"><p>Select a node or edge to edit its properties</p></div>
         </div>
         <div id="pane-stylesheet" class="panel-pane">
           <div id="stylesheet-rules"></div>
           <button class="btn-add-rule" onclick="addStyleRule()">+ Add Style Rule</button>
         </div>
+        <div id="pane-layout" class="panel-pane"></div>
       </div>
     </div>
   </div>

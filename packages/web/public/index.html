@@ -134,7 +134,7 @@
       padding: 12px 20px;
       background: #fff;
       border-bottom: 1px solid #ddd;
-      display: none;
+      display: flex;
       align-items: center;
       gap: 12px;
     }
@@ -216,28 +216,6 @@
       overflow: hidden;
     }
 
-    /* Left palette panel */
-    #left-panel {
-      width: 148px;
-      flex-shrink: 0;
-      background: #fafafa;
-      border-right: 1px solid #ddd;
-      display: none;
-      flex-direction: column;
-      overflow-y: auto;
-    }
-
-    #left-panel.show { display: flex; }
-
-    .palette-header {
-      padding: 8px 10px 4px;
-      font-size: 10px;
-      font-weight: 700;
-      color: #95a5a6;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
     .palette-item {
       display: flex;
       align-items: center;
@@ -268,20 +246,18 @@
 
     /* Edge handle CSS is injected by BoxesEditor core */
 
-    
-
-    /* Right panel: tabs + content */
+    /* Right panel: tabs + content — always visible */
     #right-panel {
-      width: 320px;
+      width: 260px;
       flex-shrink: 0;
       background: white;
       border-left: 1px solid #ddd;
-      display: none;
+      display: flex;
       flex-direction: column;
       box-shadow: -2px 0 6px rgba(0,0,0,0.06);
     }
 
-    #right-panel.show { display: flex; }
+    #right-panel.hidden-panel { display: none; }
 
     .panel-tabs {
       display: flex;
@@ -291,19 +267,23 @@
 
     .panel-tab {
       flex: 1;
-      padding: 10px 8px;
+      padding: 8px 4px;
       border: none;
       background: #f9f9f9;
       cursor: pointer;
-      font-size: 13px;
-      font-weight: 600;
+      font-size: 16px;
       color: #7f8c8d;
       border-bottom: 3px solid transparent;
       transition: all 0.15s;
+      line-height: 1;
     }
 
     .panel-tab:hover { color: #2c3e50; background: #f0f0f0; }
     .panel-tab.active { color: #3498db; background: white; border-bottom-color: #3498db; }
+
+    .edge-type-section { display: flex; flex-direction: column; gap: 6px; }
+    .edge-type-section label { font-size: 11px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.04em; }
+    .edge-type-section select { font-size: 12px; padding: 4px 6px; border: 1px solid #ccc; border-radius: 4px; }
 
     .panel-pane {
       display: none;
@@ -714,30 +694,16 @@
     </div>
 
     <div id="toolbar" class="hidden">
+      <button id="undo-btn" title="Undo (Ctrl+Z)" disabled>↩</button>
+      <button id="redo-btn" title="Redo (Ctrl+Y)" disabled>↪</button>
+      <div class="separator"></div>
       <button id="add-node-btn">➕ Add Node</button>
       <button id="add-edge-btn">🔗 Add Edge</button>
-      <div class="separator"></div>
-      <label style="font-size:13px;color:#555;">Link type:</label>
-      <select id="link-type-select" title="Edge type for new connections"></select>
-      <div class="separator"></div>
-      <button id="run-layout-btn">🔄 Run Layout</button>
-      <select id="layout-select">
-        <option value="grid">Grid</option>
-        <option value="circle">Circle</option>
-        <option value="concentric">Concentric</option>
-        <option value="breadthfirst">Breadth First</option>
-        <option value="cose">CoSE</option>
-      </select>
       <div class="separator"></div>
       <button id="export-btn">💾 Export</button>
     </div>
 
     <div id="content-area">
-      <div id="left-panel">
-        <div class="palette-header">Node Types</div>
-        <div id="palette-items"></div>
-      </div>
-
       <div id="welcome-screen">
         <h2>Welcome to Boxes</h2>
         <p>Choose a template to get started</p>
@@ -750,14 +716,25 @@
       <div id="editor-container" class="hidden"></div>
 
       <!-- Right panel with tabs -->
-      <div id="right-panel">
+      <div id="right-panel" class="hidden">
         <div class="panel-tabs">
-          <button class="panel-tab active" data-tab="properties" onclick="switchTab('properties')">Properties</button>
-          <button class="panel-tab" data-tab="stylesheet" onclick="switchTab('stylesheet')">Styles</button>
+          <button class="panel-tab active" data-tab="nodes" onclick="switchTab('nodes')" title="New">✦</button>
+          <button class="panel-tab" data-tab="properties" onclick="switchTab('properties')" title="Properties">☰</button>
+          <button class="panel-tab" data-tab="stylesheet" onclick="switchTab('stylesheet')" title="Styles">🎨</button>
+          <button class="panel-tab" data-tab="layout" onclick="switchTab('layout')" title="Layout">⊞</button>
+        </div>
+
+        <!-- New pane: node palette + edge type picker -->
+        <div id="pane-nodes" class="panel-pane active">
+          <div id="palette-items"></div>
+          <div class="edge-type-section">
+            <label>Edge Type</label>
+            <select id="link-type-select" title="Edge type for new connections"></select>
+          </div>
         </div>
 
         <!-- Element Properties pane -->
-        <div id="pane-properties" class="panel-pane active">
+        <div id="pane-properties" class="panel-pane">
           <div class="empty-state"><p>Select a node or edge to edit its properties</p></div>
         </div>
 
@@ -766,6 +743,9 @@
           <div id="stylesheet-rules"></div>
           <button class="btn-add-rule" onclick="addStyleRule()">+ Add Style Rule</button>
         </div>
+
+        <!-- Layout pane -->
+        <div id="pane-layout" class="panel-pane"></div>
       </div>
     </div>
 

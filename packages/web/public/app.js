@@ -28,8 +28,7 @@ function startWithTemplate(templateId) {
   document.getElementById('welcome-screen').classList.add('hidden');
   document.getElementById('editor-container').classList.remove('hidden');
   document.getElementById('toolbar').classList.remove('hidden');
-  document.getElementById('right-panel').classList.add('show');
-  document.getElementById('left-panel').classList.add('show');
+  document.getElementById('right-panel').classList.remove('hidden');
 
   const container = document.getElementById('editor-container');
   editor = new BoxesEditor(container, {
@@ -40,6 +39,7 @@ function startWithTemplate(templateId) {
     layout: { name: 'preset' }
   });
 
+  editor.createLayoutPanel(document.getElementById('pane-layout'));
   setupEditorEvents();
   renderStylesheet();
   renderPalette();
@@ -61,6 +61,7 @@ function setupEditorEvents() {
   });
 
   editor.on('stylesheetChanged', () => renderStylesheet());
+  editor.on('historyChange', updateUndoRedoButtons);
 
   editor.cy.on('cxttap', 'node,edge', (evt) => {
     evt.preventDefault();
@@ -240,8 +241,13 @@ window.removePropertyRow = function(button) {
 };
 
 window.deleteElement = function() {
-  if (!selectedElement) return;
-  if (confirm('Delete this element?')) {
+  if (!editor) return;
+  const numSelected = editor.getSelected().length;
+  if (numSelected > 0) {
+    editor.removeSelected();
+    selectedElement = null;
+    clearPropertyPanel();
+  } else if (selectedElement) {
     editor.removeElement(selectedElement.id());
     selectedElement = null;
     clearPropertyPanel();
@@ -466,8 +472,8 @@ document.getElementById('new-btn').addEventListener('click', () => {
     document.getElementById('welcome-screen').classList.remove('hidden');
     document.getElementById('editor-container').classList.add('hidden');
     document.getElementById('toolbar').classList.add('hidden');
-    document.getElementById('right-panel').classList.remove('show');
-    document.getElementById('left-panel').classList.remove('show');
+    document.getElementById('right-panel').classList.add('hidden');
+    updateUndoRedoButtons();
   }
 });
 
@@ -499,16 +505,28 @@ document.getElementById('add-edge-btn').addEventListener('click', () => {
   }
 });
 
-document.getElementById('run-layout-btn').addEventListener('click', () => {
-  if (!editor) return;
-  editor.runLayout({ name: document.getElementById('layout-select').value });
-});
-
 document.getElementById('export-btn').addEventListener('click', saveToFile);
 
 // Sync link-type selector → core edge type
 document.getElementById('link-type-select').addEventListener('change', (e) => {
   editor?.setEdgeType(e.target.value);
+});
+
+// ─── Undo / Redo ──────────────────────────────────────────────────────────────
+
+function updateUndoRedoButtons() {
+  const undoBtn = document.getElementById('undo-btn');
+  const redoBtn = document.getElementById('redo-btn');
+  if (!undoBtn || !redoBtn) return;
+  undoBtn.disabled = !editor?.canUndo();
+  redoBtn.disabled = !editor?.canRedo();
+}
+
+document.getElementById('undo-btn')?.addEventListener('click', () => {
+  editor?.undo();
+});
+document.getElementById('redo-btn')?.addEventListener('click', () => {
+  editor?.redo();
 });
 
 // ─── Keyboard Shortcuts ───────────────────────────────────────────────────────
@@ -517,7 +535,15 @@ document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveToFile(); }
   if ((e.ctrlKey || e.metaKey) && e.key === 'o') { e.preventDefault(); document.getElementById('file-input').click(); }
   if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); document.getElementById('new-btn').click(); }
-  if (e.key === 'Delete' && selectedElement) window.deleteElement();
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); editor?.undo(); }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); editor?.redo(); }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && editor) {
+    // Only fire if not typing in an input/textarea
+    const tag = document.activeElement?.tagName;
+    if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+      window.deleteElement();
+    }
+  }
 });
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
