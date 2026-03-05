@@ -1,0 +1,43 @@
+# DemoControl deployment for Boxes
+# Usage: docker compose -f docker-compose.democontrol.yml up -d
+
+x-democontrol:
+  routing:
+    main_ui: web
+
+name: boxes
+
+services:
+  web:
+    container_name: boxes-web
+    build:
+      context: .
+      dockerfile: Dockerfile
+    expose:
+      - "3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    volumes:
+      - boxes_web_data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - boxes-demo-network
+      - democontrol-network
+
+volumes:
+  boxes_web_data:
+    name: boxes-web-data
+
+networks:
+  boxes-demo-network:
+    name: boxes-demo-network
+    driver: bridge
+  democontrol-network:
+    name: democontrol-network
+    external: true
