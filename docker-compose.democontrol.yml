@@ -9,12 +9,12 @@ name: boxes
 
 services:
   web:
-    container_name: boxes-web
     build:
       context: .
       dockerfile: Dockerfile
-    expose:
-      - "3001"
+    container_name: boxes-web
+    ports:
+      - "3001:3001"
     environment:
       - NODE_ENV=production
       - PORT=3001
@@ -32,7 +32,6 @@ services:
 
 volumes:
   boxes_web_data:
-    name: boxes-web-data
 
 networks:
   boxes-demo-network:
