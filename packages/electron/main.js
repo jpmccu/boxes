@@ -73,6 +73,17 @@ function createMenu() {
         },
         { type: 'separator' },
         {
+          label: 'Import Turtle...',
+          accelerator: 'CmdOrCtrl+Shift+I',
+          click: importTurtle
+        },
+        {
+          label: 'Export as Turtle...',
+          accelerator: 'CmdOrCtrl+Shift+E',
+          click: exportTurtle
+        },
+        { type: 'separator' },
+        {
           label: 'Exit',
           role: 'quit'
         }
@@ -165,6 +176,50 @@ async function saveFileAs() {
     currentFilePath = result.filePath;
     await saveFile();
     mainWindow.setTitle(`Boxes - ${path.basename(currentFilePath)}`);
+  }
+}
+
+async function importTurtle() {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile'],
+    filters: [
+      { name: 'Turtle / RDF Files', extensions: ['ttl', 'turtle', 'n3'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  });
+
+  if (!result.canceled && result.filePaths.length > 0) {
+    const filePath = result.filePaths[0];
+    try {
+      const content = await fs.readFile(filePath, 'utf-8');
+      mainWindow.webContents.send('import-turtle', content);
+    } catch (error) {
+      dialog.showErrorBox('Error Opening File', error.message);
+    }
+  }
+}
+
+async function exportTurtle() {
+  try {
+    const turtle = await new Promise((resolve, reject) => {
+      mainWindow.webContents.send('request-turtle-export');
+      const timer = setTimeout(() => reject(new Error('Export timed out')), 10000);
+      ipcMain.once('turtle-export-data', (event, data) => {
+        clearTimeout(timer);
+        if (data.error) reject(new Error(data.error));
+        else resolve(data.content);
+      });
+    });
+
+    const result = await dialog.showSaveDialog(mainWindow, {
+      filters: [{ name: 'Turtle Files', extensions: ['ttl'] }]
+    });
+
+    if (!result.canceled && result.filePath) {
+      await fs.writeFile(result.filePath, turtle, 'utf-8');
+    }
+  } catch (error) {
+    dialog.showErrorBox('Error Exporting Turtle', error.message);
   }
 }
 

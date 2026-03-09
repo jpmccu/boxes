@@ -1,6 +1,6 @@
 // Cytoscape is loaded as a global via the script tag in index.html.
 // We import BoxesEditor from the built core package (resolved by electron's file loader).
-import { BoxesEditor, defaultTemplates } from '../../core/dist/boxes-core.js';
+import { BoxesEditor, defaultTemplates, exportToTurtle, importFromTurtle } from '../../core/dist/boxes-core.js';
 
 let editor = null;
 let selectedElement = null;
@@ -47,6 +47,7 @@ function startWithTemplate(templateId, customTemplate = null) {
     style: currentTemplate.style || [],
     nodeTypes: currentTemplate.nodeTypes || [],
     edgeTypes: currentTemplate.edgeTypes || [],
+    context: currentTemplate.context || {},
     layout: { name: 'preset' }
   });
 
@@ -513,6 +514,38 @@ window.electronAPI.onRequestGraphData(() => {
     const graphData = editor.exportGraph();
     graphData.templateId = currentTemplateId;
     window.electronAPI.sendGraphData(graphData);
+  }
+});
+
+window.electronAPI.onImportTurtle((content) => {
+  try {
+    const options = {
+      context:   editor?.context         || (currentTemplate?.context   || {}),
+      edgeTypes: editor?.getEdgeTypes?.() || (currentTemplate?.edgeTypes || []),
+    };
+    const graphData = importFromTurtle(content, options);
+    if (!editor) startWithTemplate(currentTemplateId || 'blank');
+    editor.importGraph(graphData);
+    renderStylesheet();
+    renderPalette();
+    renderEdgeTypes();
+  } catch (err) {
+    alert(`Turtle import failed: ${err.message}`);
+    console.error(err);
+  }
+});
+
+window.electronAPI.onRequestTurtleExport(() => {
+  try {
+    if (!editor) { window.electronAPI.sendTurtleExportData({ error: 'No graph to export' }); return; }
+    const graphData = editor.exportGraph();
+    const content = exportToTurtle(graphData, {
+      context:   editor.context           || {},
+      edgeTypes: editor.getEdgeTypes?.()  || [],
+    });
+    window.electronAPI.sendTurtleExportData({ content });
+  } catch (err) {
+    window.electronAPI.sendTurtleExportData({ error: err.message });
   }
 });
 
