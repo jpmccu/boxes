@@ -55,7 +55,7 @@ npm run dev
 
 - **Don't close the browser tab mid-demo** — there is no server-side persistence; all state is in memory until saved.
 - **Don't import a Turtle file built outside the app** unless you've verified the prefixes match the template context — mismatched prefixes will create uncompressed IRI node IDs.
-- **Don't run layout on the whole graph without checking** — on a large graph it will reposition everything and can't be undone easily (Ctrl+Z works, but positions are lost).
+- **Don't run layout on the whole graph without checking** — on a large graph it will reposition everything. Use **Ctrl+Z** to undo immediately; any in-progress animated layout will be stopped before positions are restored.
 
 ---
 

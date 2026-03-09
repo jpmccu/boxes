@@ -259,7 +259,12 @@ export class BoxesEditor {
     style.textContent = `
 .bxe-wrap { display:flex; width:100%; height:100%; overflow:hidden; font-family:system-ui,sans-serif; font-size:13px; }
 .bxe-wrap *, .bxe-wrap *::before, .bxe-wrap *::after { box-sizing:border-box; }
-.bxe-canvas { flex:1; min-width:0; height:100%; }
+.bxe-canvas-wrap { flex:1; min-width:0; height:100%; position:relative; overflow:hidden; }
+.bxe-canvas { width:100%; height:100%; }
+.bxe-panzoom { position:absolute; bottom:12px; right:12px; display:flex; flex-direction:column; gap:3px; z-index:10; }
+.bxe-pz-btn { width:28px; height:28px; background:#fff; border:1px solid #aaa; border-radius:4px; cursor:pointer; font-size:15px; font-weight:bold; line-height:1; padding:0; color:#444; display:flex; align-items:center; justify-content:center; box-shadow:0 1px 3px rgba(0,0,0,.15); }
+.bxe-pz-btn:hover { background:#f0f0f0; border-color:#888; }
+.bxe-pz-btn:active { background:#e0e0e0; }
 .bxe-sidebar { width:260px; min-width:260px; height:100%; display:flex; flex-direction:column; background:#f8f9fa; border-left:1px solid #dee2e6; overflow:hidden; }
 .bxe-toolbar { display:flex; gap:4px; padding:4px 8px; background:#fff; border-bottom:1px solid #dee2e6; flex-shrink:0; }
 .bxe-toolbar button { padding:2px 8px; font-size:13px; cursor:pointer; background:#fff; border:1px solid #ccc; border-radius:3px; }
@@ -325,9 +330,14 @@ export class BoxesEditor {
   _createUI() {
     this.container.style.cssText = 'display:flex;overflow:hidden;width:100%;height:100%;';
 
+    // Canvas wrapper holds both the cy container and the panzoom overlay.
+    this._canvasWrap = document.createElement('div');
+    this._canvasWrap.className = 'bxe-canvas-wrap';
+    this.container.appendChild(this._canvasWrap);
+
     this._canvasDiv = document.createElement('div');
     this._canvasDiv.className = 'bxe-canvas';
-    this.container.appendChild(this._canvasDiv);
+    this._canvasWrap.appendChild(this._canvasDiv);
 
     this._sidebarEl = document.createElement('div');
     this._sidebarEl.className = 'bxe-sidebar';
@@ -929,6 +939,7 @@ export class BoxesEditor {
       boxSelectionEnabled: true
     });
 
+    this._initPanzoomControls();
     this._setupEvents();
     this._renderPalette();
     this.createLayoutPanel(this._layoutPaneContentEl);
@@ -1229,9 +1240,23 @@ export class BoxesEditor {
       ? selectedNodes.add(selectedNodes.edgesWith(selectedNodes))
       : this.cy;
 
+    // Stop any previously running layout so it doesn't overwrite restored positions
+    // if the user undoes while an animated layout is still in progress.
+    this._stopRunningLayout();
+
     const layout = target.layout(layoutOptions);
+    this._runningLayout = layout;
+    layout.one('layoutstop', () => { this._runningLayout = null; });
     layout.run();
     this._emit('layoutRun', { options: layoutOptions });
+  }
+
+  /** Stop the currently running async layout, if any. */
+  _stopRunningLayout() {
+    if (this._runningLayout) {
+      try { this._runningLayout.stop(); } catch (_) { /* ignore */ }
+      this._runningLayout = null;
+    }
   }
 
   /** Return the last used layout { name, options } */
@@ -1283,9 +1308,13 @@ export class BoxesEditor {
     const nodes = elements.nodes || (Array.isArray(elements) ? elements.filter(e => e.group === 'nodes') : []);
     const edges = elements.edges || (Array.isArray(elements) ? elements.filter(e => e.group === 'edges') : []);
 
-    this.cy.elements().remove();
-    if (nodes.length) this.cy.add(nodes);
-    if (edges.length) this.cy.add(edges);
+    // Use batch() so Cytoscape renders once after all elements are added,
+    // avoiding partial render states (e.g., edges drawn before nodes exist).
+    this.cy.batch(() => {
+      this.cy.elements().remove();
+      if (nodes.length) this.cy.add(nodes);
+      if (edges.length) this.cy.add(edges);
+    });
 
     this._updateStylesheet();
     this._emit('elementsLoaded', { elements });
@@ -1559,6 +1588,10 @@ export class BoxesEditor {
     this._restoringState = true;
     try {
       this.loadElements(snapshot.elements || {});
+      // Layouts (e.g. Dagre) call cy.fit() when they run, shifting the viewport.
+      // After restoring pre-layout positions the nodes may be off-screen, so
+      // re-fit whenever there are nodes to show.
+      if (this.cy.nodes().length) this.cy.fit(undefined, 30);
       if (snapshot.userStylesheet) {
         this.userStylesheet = snapshot.userStylesheet.map(r => ({
           selector: r.selector,
@@ -1586,6 +1619,9 @@ export class BoxesEditor {
   /** Undo the last action. */
   undo() {
     if (!this._undoStack.length) return false;
+    // Stop any async layout that is still animating — if left running it would
+    // overwrite the positions we're about to restore.
+    this._stopRunningLayout();
     // Clear any pending drag state so a stale 'free' event can't corrupt redo stack
     this._preGrabSnapshot = null;
     this._preGrabPos = null;
@@ -1600,6 +1636,8 @@ export class BoxesEditor {
   /** Redo the last undone action. */
   redo() {
     if (!this._redoStack.length) return false;
+    // Stop any async layout that is still animating.
+    this._stopRunningLayout();
     // Clear any pending drag state so a stale 'free' event can't corrupt undo stack
     this._preGrabSnapshot = null;
     this._preGrabPos = null;
@@ -1733,6 +1771,31 @@ export class BoxesEditor {
   /** Return the currently active edge type */
   getEdgeType() {
     return this.currentEdgeType ? { ...this.currentEdgeType } : null;
+  }
+
+  // ─── Panzoom Controls ─────────────────────────────────────────────────────
+
+  _initPanzoomControls() {
+    const controls = document.createElement('div');
+    controls.className = 'bxe-panzoom';
+    // Zoom-in, fit, zoom-out, zoom level display
+    controls.innerHTML = `
+      <button class="bxe-pz-btn" data-pz="zoom-in"  title="Zoom in">+</button>
+      <button class="bxe-pz-btn" data-pz="fit"       title="Fit graph">⊡</button>
+      <button class="bxe-pz-btn" data-pz="zoom-out"  title="Zoom out">−</button>
+    `;
+    this._canvasWrap.appendChild(controls);
+
+    controls.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-pz]');
+      if (!btn) return;
+      const cy = this.cy;
+      switch (btn.dataset.pz) {
+        case 'zoom-in':  cy.zoom({ level: cy.zoom() * 1.3, renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } }); break;
+        case 'zoom-out': cy.zoom({ level: cy.zoom() / 1.3, renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } }); break;
+        case 'fit':      cy.fit(undefined, 30); break;
+      }
+    });
   }
 
   // ─── Edge Handle ──────────────────────────────────────────────────────────
