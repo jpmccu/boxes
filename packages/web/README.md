@@ -77,7 +77,7 @@ python -m http.server 3001
 ### With Node.js
 
 ```bash
-npm start
+npm run web:dev
 ```
 
 ### Docker

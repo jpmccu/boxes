@@ -7,5 +7,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onFileSaved: (callback) => ipcRenderer.on('file-saved', callback),
   sendGraphData: (data) => ipcRenderer.send('graph-data', data),
   notifyGraphChanged: () => ipcRenderer.send('graph-changed'),
-  getTemplates: () => ipcRenderer.invoke('get-templates')
+  getTemplates: () => ipcRenderer.invoke('get-templates'),
+  onImportTurtle: (callback) => ipcRenderer.on('import-turtle', (event, content) => callback(content)),
+  onRequestTurtleExport: (callback) => ipcRenderer.on('request-turtle-export', callback),
+  sendTurtleExportData: (data) => ipcRenderer.send('turtle-export-data', data),
 });

@@ -2,11 +2,15 @@ import cytoscape from 'cytoscape';
 import cytoscapeEdgehandles from 'cytoscape-edgehandles';
 import cytoscapeDagre from 'cytoscape-dagre';
 import cytoscapeCola from 'cytoscape-cola';
+import cytoscapeKlay from 'cytoscape-klay';
+import cytoscapeEuler from 'cytoscape-euler';
 
 // Register Cytoscape extensions once at module load (idempotent)
 cytoscape.use(cytoscapeEdgehandles);
 cytoscape.use(cytoscapeDagre);
 cytoscape.use(cytoscapeCola);
+cytoscape.use(cytoscapeKlay);
+cytoscape.use(cytoscapeEuler);
 
 // Module-level counter ensures unique IDs even when elements are created in the same millisecond
 let _idCounter = 0;
@@ -235,6 +239,7 @@ export class BoxesEditor {
     this._selectedElement = null;
     this._ctxTarget = null;
     this._ctxPosition = null;
+    this.context = { ...(options.context || {}) };
 
     this._init();
 
@@ -309,6 +314,10 @@ export class BoxesEditor {
 .bxe-ctx-item.danger { color:#dc3545; }
 .bxe-ctx-item.danger:hover { background:#fff0f0; }
 .bxe-ctx-sep { height:1px; background:#dee2e6; }
+.bxe-ctx-row { display:flex; align-items:center; gap:3px; padding:3px 0; border-bottom:1px solid #f0f0f0; }
+.bxe-ctx-key { width:80px; flex-shrink:0; font-family:monospace; }
+.bxe-ctx-val { flex:1; min-width:0; font-family:monospace; font-size:11px; }
+.bxe-ctx-colon { color:#999; font-size:11px; flex-shrink:0; }
 `;
     document.head.appendChild(style);
   }
@@ -347,7 +356,8 @@ export class BoxesEditor {
       { id: 'palette', icon: '\u2726', title: 'Palette' },
       { id: 'properties', icon: '\u2630', title: 'Properties' },
       { id: 'stylesheet', icon: '\u270F', title: 'Stylesheet' },
-      { id: 'layout', icon: '\u2295', title: 'Layout' }
+      { id: 'layout', icon: '\u2295', title: 'Layout' },
+      { id: 'context', icon: '@', title: 'Context' }
     ];
     this._tabBtns = {};
     tabDefs.forEach(({ id, icon, title }) => {
@@ -444,7 +454,26 @@ export class BoxesEditor {
     layoutPane.appendChild(this._layoutPaneContentEl);
     this._panes['layout'] = layoutPane;
 
-    [palettePane, propsPane, stylePane, layoutPane].forEach(p => tabBody.appendChild(p));
+    // ── Context pane ──
+    const contextPane = document.createElement('div');
+    contextPane.className = 'bxe-pane';
+    contextPane.dataset.pane = 'context';
+    const ctxTitle = document.createElement('div');
+    ctxTitle.className = 'bxe-pane-title';
+    ctxTitle.textContent = 'JSON-LD Context';
+    contextPane.appendChild(ctxTitle);
+    this._contextEntriesEl = document.createElement('div');
+    contextPane.appendChild(this._contextEntriesEl);
+    const addCtxBtn = document.createElement('button');
+    addCtxBtn.className = 'bxe-btn-add';
+    addCtxBtn.textContent = '+ Add Entry';
+    addCtxBtn.addEventListener('click', () => this._addContextEntry());
+    contextPane.appendChild(addCtxBtn);
+    contextPane.addEventListener('change', (e) => this._handleContextEvent(e));
+    contextPane.addEventListener('click', (e) => this._handleContextEvent(e));
+    this._panes['context'] = contextPane;
+
+    [palettePane, propsPane, stylePane, layoutPane, contextPane].forEach(p => tabBody.appendChild(p));
     this._sidebarEl.appendChild(tabBody);
     this.container.appendChild(this._sidebarEl);
 
@@ -515,6 +544,7 @@ export class BoxesEditor {
     document.addEventListener('keydown', this._keydownHandler);
 
     this._switchPane('palette');
+    this._renderContextPane();
   }
 
   _switchPane(name) {
@@ -1191,7 +1221,15 @@ export class BoxesEditor {
     if (typeof layoutOptions === 'string') layoutOptions = { name: layoutOptions };
     const { name, ...rest } = layoutOptions;
     this._lastLayout = { name, options: { ...rest } };
-    const layout = this.cy.layout(layoutOptions);
+
+    // When nodes are selected, apply the layout only to those nodes
+    // (plus the edges between them so the algorithm has topology to work with).
+    const selectedNodes = this.cy.nodes(':selected');
+    const target = selectedNodes.length > 0
+      ? selectedNodes.add(selectedNodes.edgesWith(selectedNodes))
+      : this.cy;
+
+    const layout = target.layout(layoutOptions);
     layout.run();
     this._emit('layoutRun', { options: layoutOptions });
   }
@@ -1279,6 +1317,7 @@ export class BoxesEditor {
         style: { ...rule.style }
       })),
       lastLayout: this.getLastLayout(),
+      context: { ...this.context },
       version: '1.0.0'
     };
   }
@@ -1312,6 +1351,10 @@ export class BoxesEditor {
     }
     this._emit('graphImported', { graphData });
     if (this._stylesheetRulesEl) this._refreshStylesheet();
+    if (graphData.context) {
+      this.context = { ...graphData.context };
+      this._renderContextPane();
+    }
   }
 
   /** Return true if loaded nodes have no real position data */
@@ -1813,6 +1856,58 @@ export class BoxesEditor {
     if (this._eh) {
       this._eh.destroy();
       this._eh = null;
+    }
+  }
+
+  // ─── Context Pane ─────────────────────────────────────────────────────────
+
+  _renderContextPane() {
+    const el = this._contextEntriesEl;
+    if (!el) return;
+    const entries = Object.entries(this.context);
+    if (!entries.length) {
+      el.innerHTML = `<div class="bxe-empty">No entries. Click "+ Add Entry" to add a prefix/namespace mapping.</div>`;
+      return;
+    }
+    el.innerHTML = entries.map(([key, val]) => `
+      <div class="bxe-ctx-row" data-key="${this._esc(key)}">
+        <input class="bxe-ctx-key bxe-cell-input" type="text" value="${this._esc(key)}" placeholder="prefix" data-role="key" />
+        <span class="bxe-ctx-colon">:</span>
+        <input class="bxe-ctx-val bxe-cell-input" type="text" value="${this._esc(val)}" placeholder="URI" data-role="val" />
+        <button class="bxe-btn-del" data-role="del" title="Remove">×</button>
+      </div>`).join('');
+  }
+
+  _addContextEntry() {
+    let key = 'prefix1';
+    let n = 1;
+    while (key in this.context) key = `prefix${++n}`;
+    this.context[key] = '';
+    this._renderContextPane();
+    const inputs = this._contextEntriesEl?.querySelectorAll('.bxe-ctx-key');
+    if (inputs?.length) inputs[inputs.length - 1].focus();
+  }
+
+  _handleContextEvent(e) {
+    const row = e.target.closest('.bxe-ctx-row');
+    if (!row) return;
+    const oldKey = row.dataset.key;
+    const role = e.target.dataset.role;
+    if (role === 'del') {
+      delete this.context[oldKey];
+      this._renderContextPane();
+      this._emit('contextChanged', { context: { ...this.context } });
+    } else if (role === 'key' && e.type === 'change') {
+      const newKey = e.target.value.trim();
+      if (!newKey || newKey === oldKey) { e.target.value = oldKey; return; }
+      const rebuilt = {};
+      for (const [k, v] of Object.entries(this.context)) rebuilt[k === oldKey ? newKey : k] = v;
+      this.context = rebuilt;
+      this._renderContextPane();
+      this._emit('contextChanged', { context: { ...this.context } });
+    } else if (role === 'val' && e.type === 'change') {
+      this.context[oldKey] = e.target.value;
+      this._emit('contextChanged', { context: { ...this.context } });
     }
   }
 

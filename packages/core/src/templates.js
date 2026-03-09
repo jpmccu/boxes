@@ -4,19 +4,74 @@
 
 export const defaultTemplates = {
   'owl-ontology': {
-    name: 'OWL Ontology',
-    description: 'Template with OWL meta-types styling (CMap Ontology edition)',
+    name: 'Ontology',
+    description: 'Template with OWL and SKOS meta-types styling (CMap Ontology edition)',
+    context: {
+      'owl': 'http://www.w3.org/2002/07/owl#',
+      'rdfs': 'http://www.w3.org/2000/01/rdf-schema#',
+      'rdf': 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
+      'skos': 'http://www.w3.org/2004/02/skos/core#',
+      'sh': 'http://www.w3.org/ns/shacl#'
+    },
     nodeTypes: [
-      { id: 'default',        label: 'Instance',          data: {'@type':'', '@id':''},               color: '#FFFFFF', borderColor: '#666666', shape: 'ellipse' },
+      { id: 'owl:Class',      label: 'Class',        data: { '@type': 'owl:Class','@id':'', 'skos:definition':'' },        color: '#E6F3FF', borderColor: '#2471A3', shape: 'roundrectangle' },
+      { id: 'default',        label: 'Instance',     data: {'@type':'', '@id':''},               color: '#FFFFFF', borderColor: '#666666', shape: 'ellipse' },
+      { id: 'skos:Concept',   label: 'Concept',        data: { '@type': 'skos:Concept','@id':'', 'skos:definition':'' },        color: '#E6F3FF', borderColor: '#2471A3', shape: 'roundrectangle' },
       { id: 'owl:Ontology',   label: 'Ontology',     data: { '@type': 'owl:Ontology', '@id':''},     color: '#FFFACD', borderColor: '#B8860B', shape: 'roundrectangle' },
-      { id: 'owl:Class',      label: 'Class',        data: { '@type': 'owl:Class','@id':'', 'skos:definition':'' },        color: '#E6F3FF', borderColor: '#2471A3', shape: 'roundrectangle' }
     ],
     edgeTypes: [
-      { id: 'default',                label: 'relates to',        data: {},                                   color: '#666666', lineStyle: 'solid' },
-      { id: 'owl:ObjectProperty',     label: 'ObjectProperty',    data: { '@type': 'owl:ObjectProperty' },    color: '#2471A3', lineStyle: 'solid' },
-      { id: 'owl:DatatypeProperty',   label: 'DatatypeProperty',  data: { '@type': 'owl:DatatypeProperty' },  color: '#1E8449', lineStyle: 'dashed' },
-      { id: 'rdfs:subClassOf',        label: 'are',               data: { '@type': 'rdfs:subClassOf' },       color: '#555555', lineStyle: 'solid' },
-      { id: 'rdf:type',               label: 'a',                 data: { '@type': 'rdf:type' },              color: '#8E44AD', lineStyle: 'solid' }
+      { id: 'rdfs:subClassOf',        label: 'are',     data: { '@id': 'rdfs:subClassOf' },       color: '#555555', lineStyle: 'solid' },
+      { id: 'rdf:type',               label: 'a',       data: { '@id': 'rdf:type' },              color: '#8E44AD', lineStyle: 'solid' },
+      { id: 'skos:related',                label: 'related',        data: {'@id':'skos:related'},                         color: '#666666', lineStyle: 'solid' },
+      { id: 'skos:broader',                label: 'broader',        data: {'@id':'skos:broader'},                         color: '#777777', lineStyle: 'solid' },
+      { id: 'skos:narrower',                label: 'narrower',        data: {'@id':'skos:narrower'},                         color: '#777777', lineStyle: 'solid' },
+      { 
+        id: 'owl:ObjectProperty',
+        label: 'ObjectProperty',
+        data: { '@type': 'owl:ObjectProperty' },
+        color: '#2471A3',
+        lineStyle: 'dashed',
+        // Reified property mapping
+        source_property: 'rdfs:domain',
+        target_property: 'rdfs:range',
+      },
+      { 
+        id: 'owl:DatatypeProperty',
+        label: 'DatatypeProperty',
+        data: { '@type': 'owl:DatatypeProperty' },
+        color: '#1E8449',
+        lineStyle: 'solid',
+        // Reified property mapping
+        source_property: 'rdfs:domain',
+        target_property: 'rdfs:range',
+      },
+      {
+        id: 'QualifiedPropertyShape',
+        label: 'Qualified Property Shape',
+        data: { 
+          '@type': 'sh:PropertyShape',
+          'sh:path': '', // This would be the property being qualified
+          'sh:qualifiedMinCount': 0, // Default cardinality
+        },
+        color: '#2471A3',
+        lineStyle: 'dashed',
+        // Reified property mapping for SHACL Qualified property shapes
+        target_property: 'sh:qualifiedValueShape',
+        reverse_source_property: 'sh:property' // This indicates that the source node is connected via sh:property to the QualifiedPropertyShape
+      },
+      {
+        id: 'PropertyShape',
+        label: 'Property Shape',
+        data: { 
+          '@type': 'sh:PropertyShape',
+          'sh:path': '', // This would be the property being qualified
+        },
+        color: '#2471A3',
+        lineStyle: 'dashed',
+        // Reified property mapping for SHACL Qualified property shapes
+        target_property: 'sh:node',
+        reverse_source_property: 'sh:property' // This indicates that the source node is connected via sh:property to the QualifiedPropertyShape
+      },
     ],
     elements: {
       nodes: [],
@@ -116,7 +171,7 @@ export const defaultTemplates = {
       },
       // rdfs:subClassOf - hollow triangle arrow (inheritance)
       {
-        selector: 'edge[\\@type = "rdfs:subClassOf"]',
+        selector: 'edge[\\@id = "rdfs:subClassOf"]',
         style: {
           'line-color': '#555555',
           'target-arrow-color': '#555555',
@@ -126,7 +181,7 @@ export const defaultTemplates = {
       },
       // rdf:type edge
       {
-        selector: 'edge[\\@type = "rdf:type"]',
+        selector: 'edge[\\@id = "rdf:type"]',
         style: {
           'line-color': '#884EA0',
           'target-arrow-color': '#884EA0',

@@ -26,6 +26,8 @@
     "cytoscape-cola": "^2.5.1",
     "cytoscape-dagre": "^2.5.0",
     "cytoscape-edgehandles": "^4.0.1",
+    "cytoscape-euler": "^1.2.3",
+    "cytoscape-klay": "^3.1.4",
     "cytoscape-popper": "^4.0.1",
     "dagre": "^0.8.5"
   },
