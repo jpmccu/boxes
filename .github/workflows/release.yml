@@ -24,6 +24,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build core (required by Vue/React tests)
+        run: npm run build --workspace=packages/core
+
       - name: Run tests
         run: npm test
 

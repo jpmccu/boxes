@@ -1,6 +1,6 @@
 {
   "name": "boxes-monorepo",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -10,6 +10,7 @@
     "dev": "npm run dev --workspace=packages/core",
     "dev:web": "concurrently \"npm run dev --workspace=packages/web\" \"npm run dev:vite --workspace=packages/web\"",
     "dev:vite": "vite",
+    "version": "npm version $npm_package_version --workspaces --no-git-tag-version && git add packages/*/package.json",
     "build": "npm run build --workspaces --if-present",
     "test": "vitest run",
     "test:watch": "vitest",
