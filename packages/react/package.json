@@ -1,6 +1,6 @@
 {
   "name": "@boxes/react",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "React component for Boxes graph editor",
   "type": "module",
   "main": "./dist/boxes-react.umd.js",
