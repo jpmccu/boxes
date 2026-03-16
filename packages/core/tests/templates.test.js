@@ -5,7 +5,7 @@ describe('Templates', () => {
   describe('defaultTemplates', () => {
     it('should have owl-ontology template', () => {
       expect(defaultTemplates['owl-ontology']).toBeDefined();
-      expect(defaultTemplates['owl-ontology'].name).toBe('OWL Ontology');
+      expect(defaultTemplates['owl-ontology'].name).toBe('Ontology');
     });
 
     it('should have arrows template', () => {

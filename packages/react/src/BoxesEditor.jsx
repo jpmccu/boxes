@@ -118,6 +118,7 @@ const BoxesEditor = forwardRef(({
   return (
     <div
       ref={containerRef}
+      className="boxes-editor"
       style={{ width: '100%', height: '100%' }}
     />
   );

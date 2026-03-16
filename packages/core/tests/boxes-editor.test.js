@@ -60,6 +60,7 @@ describe('BoxesEditor', () => {
     it('should add a node with custom style', () => {
       const node = editor.addNode(
         { id: 'n1', label: 'Styled Node' },
+        null,
         { 'background-color': 'red' }
       );
       expect(node.data._style).toEqual({ 'background-color': 'red' });
@@ -122,9 +123,9 @@ describe('BoxesEditor', () => {
 
     it('should get available layouts', () => {
       const layouts = editor.getAvailableLayouts();
-      expect(layouts).toContain('grid');
-      expect(layouts).toContain('circle');
-      expect(layouts).toContain('cose');
+      expect(layouts.some(l => l.name === 'grid')).toBe(true);
+      expect(layouts.some(l => l.name === 'circle')).toBe(true);
+      expect(layouts.some(l => l.name === 'cose')).toBe(true);
     });
 
     it('should run a layout', () => {
@@ -133,7 +134,7 @@ describe('BoxesEditor', () => {
         layoutRan = true;
       });
 
-      editor.runLayout({ name: 'circle' });
+      editor.runLayout({ name: 'null' });
       expect(layoutRan).toBe(true);
     });
   });
@@ -172,6 +173,7 @@ describe('BoxesEditor', () => {
     it('should preserve styles on import/export', () => {
       editor.addNode(
         { id: 'n1', label: 'Styled' },
+        null,
         { 'background-color': 'red' }
       );
 

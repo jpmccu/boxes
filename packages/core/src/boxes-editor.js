@@ -1311,7 +1311,11 @@ export class BoxesEditor {
    * Get all elements in Cytoscape JSON format
    */
   getElements() {
-    return this.cy.json().elements;
+    const elements = this.cy.json().elements || {};
+    return {
+      nodes: elements.nodes || [],
+      edges: elements.edges || []
+    };
   }
 
   /**
@@ -1467,7 +1471,7 @@ export class BoxesEditor {
    * Get selected elements as Cytoscape element objects
    */
   getSelected() {
-    return this.cy.$(':selected').toArray();
+    return this.cy.$(':selected').toArray().map(el => el.json());
   }
 
   /**
