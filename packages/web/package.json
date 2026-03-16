@@ -1,6 +1,6 @@
 {
   "name": "boxes-web",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Web server for Boxes graph editor",
   "type": "module",
   "main": "src/server.js",
