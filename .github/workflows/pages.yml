@@ -46,6 +46,10 @@ jobs:
         # docs demo.html iframe can load it from /demo/index.html
         run: cp -r packages/web/dist/. packages/docs/dist/demo/
 
+      - name: Disable Jekyll processing
+        # Prevents GitHub Pages from running Jekyll on the static Vite output
+        run: touch packages/docs/dist/.nojekyll
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
