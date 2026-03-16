@@ -63,6 +63,6 @@ jobs:
         run: npm run build --workspace=packages/${{ matrix.package }}
 
       - name: Publish boxes-${{ matrix.package }}
-        run: npm publish --workspace=packages/${{ matrix.package }} --provenance
+        run: npm publish --workspace=packages/${{ matrix.package }} --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
