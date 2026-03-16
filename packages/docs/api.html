@@ -287,7 +287,7 @@
           experience including node/edge manipulation, CSS styling, layout algorithms, undo/redo,
           and clipboard support.
         </p>
-        <pre><code>import { BoxesEditor } from '@boxes/core';</code></pre>
+        <pre><code>import { BoxesEditor } from 'boxes-core';</code></pre>
 
         <!-- Constructor -->
         <div class="api-entry" id="constructor">
@@ -676,7 +676,7 @@ useEffect(() => {
           Pre-configured graph templates that include node types, edge types, stylesheets,
           and JSON-LD context mappings.
         </p>
-        <pre><code>import { defaultTemplates } from '@boxes/core';</code></pre>
+        <pre><code>import { defaultTemplates } from 'boxes-core';</code></pre>
 
         <div class="api-entry">
           <div class="api-signature">
@@ -704,7 +704,7 @@ useEffect(() => {
       <div class="api-section" id="rdf-io">
         <h2 class="api-section-title">RDF / Turtle I/O</h2>
         <p class="api-section-desc">Import and export graphs as RDF/Turtle (N3 format).</p>
-        <pre><code>import { exportToTurtle, importFromTurtle, rdfExporter, rdfImporter } from '@boxes/core';</code></pre>
+        <pre><code>import { exportToTurtle, importFromTurtle, rdfExporter, rdfImporter } from 'boxes-core';</code></pre>
 
         <div class="api-entry">
           <div class="api-signature">
@@ -733,7 +733,7 @@ useEffect(() => {
       <div class="api-section" id="jsonld-io">
         <h2 class="api-section-title">JSON-LD I/O</h2>
         <p class="api-section-desc">Import and export graphs as JSON-LD documents.</p>
-        <pre><code>import { exportToJsonLD, importFromJsonLD, jsonldExporter, jsonldImporter } from '@boxes/core';</code></pre>
+        <pre><code>import { exportToJsonLD, importFromJsonLD, jsonldExporter, jsonldImporter } from 'boxes-core';</code></pre>
 
         <div class="api-entry">
           <div class="api-signature">
@@ -760,7 +760,7 @@ useEffect(() => {
       <div class="api-section" id="rdfxml-io">
         <h2 class="api-section-title">RDF/XML I/O</h2>
         <p class="api-section-desc">Import and export graphs as RDF/XML (OWL format).</p>
-        <pre><code>import { exportToRdfXml, importFromRdfXml, rdfXmlExporter, rdfXmlImporter } from '@boxes/core';</code></pre>
+        <pre><code>import { exportToRdfXml, importFromRdfXml, rdfXmlExporter, rdfXmlImporter } from 'boxes-core';</code></pre>
 
         <div class="api-entry">
           <div class="api-signature">
@@ -784,7 +784,7 @@ useEffect(() => {
           A Vue 3 single-file component wrapping the core <code>BoxesEditor</code>.
           Initializes Cytoscape in <code>onMounted</code> and exposes the editor instance via <code>defineExpose</code>.
         </p>
-        <pre><code>import { BoxesEditor } from '@boxes/vue';</code></pre>
+        <pre><code>import { BoxesEditor } from 'boxes-vue';</code></pre>
 
         <div class="api-entry">
           <h4 style="font-size:0.9rem;font-weight:700;margin-bottom:12px">Props</h4>
@@ -828,7 +828,7 @@ const editorRef = ref(null);
           A React 18 component using <code>forwardRef</code> + <code>useImperativeHandle</code>.
           Manages the Cytoscape lifecycle with <code>useEffect</code>.
         </p>
-        <pre><code>import { BoxesEditor } from '@boxes/react';</code></pre>
+        <pre><code>import { BoxesEditor } from 'boxes-react';</code></pre>
 
         <div class="api-entry">
           <h4 style="font-size:0.9rem;font-weight:700;margin-bottom:12px">Props</h4>

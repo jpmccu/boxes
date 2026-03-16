@@ -56,13 +56,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build @boxes/core (required by vue and react)
+      - name: Build boxes-core (required by vue and react)
         run: npm run build --workspace=packages/core
 
-      - name: Build @boxes/${{ matrix.package }}
+      - name: Build boxes-${{ matrix.package }}
         run: npm run build --workspace=packages/${{ matrix.package }}
 
-      - name: Publish @boxes/${{ matrix.package }}
-        run: npm publish --workspace=packages/${{ matrix.package }} --access public --provenance
+      - name: Publish boxes-${{ matrix.package }}
+        run: npm publish --workspace=packages/${{ matrix.package }} --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

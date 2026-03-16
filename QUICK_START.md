@@ -56,11 +56,11 @@ Server will run on port 3001 (or PORT environment variable).
 ### Core Library (Vanilla JS)
 
 ```bash
-npm install @boxes/core
+npm install boxes-core
 ```
 
 ```javascript
-import { BoxesEditor } from '@boxes/core';
+import { BoxesEditor } from 'boxes-core';
 
 const editor = new BoxesEditor(document.getElementById('container'), {
   elements: { nodes: [], edges: [] }
@@ -72,12 +72,12 @@ editor.addNode({ id: 'n1', label: 'My Node' });
 ### Vue 3
 
 ```bash
-npm install @boxes/vue
+npm install boxes-vue
 ```
 
 ```vue
 <script setup>
-import { BoxesEditor } from '@boxes/vue';
+import { BoxesEditor } from 'boxes-vue';
 import { ref } from 'vue';
 
 const editorRef = ref();
@@ -91,11 +91,11 @@ const editorRef = ref();
 ### React
 
 ```bash
-npm install @boxes/react
+npm install boxes-react
 ```
 
 ```jsx
-import { BoxesEditor } from '@boxes/react';
+import { BoxesEditor } from 'boxes-react';
 
 function MyComponent() {
   return <BoxesEditor />;

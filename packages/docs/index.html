@@ -327,13 +327,13 @@
               <h4>Install the package</h4>
               <p>Choose the integration that fits your project.</p>
               <pre><code># Vanilla JS / core library
-npm install @boxes/core
+npm install boxes-core
 
 # Vue 3
-npm install @boxes/vue
+npm install boxes-vue
 
 # React 18
-npm install @boxes/react</code></pre>
+npm install boxes-react</code></pre>
             </div>
           </div>
           <div class="step">
@@ -349,7 +349,7 @@ npm install @boxes/react</code></pre>
             <div class="step-num">3</div>
             <div class="step-content">
               <h4>Initialize the editor</h4>
-              <pre><code>import { BoxesEditor } from '@boxes/core';
+              <pre><code>import { BoxesEditor } from 'boxes-core';
 
 const editor = new BoxesEditor(
   document.getElementById('graph'),
@@ -384,7 +384,7 @@ editor.on('change', (graph) => {
 &lt;/template&gt;
 
 &lt;script setup&gt;
-import { BoxesEditor } from '@boxes/vue';
+import { BoxesEditor } from 'boxes-vue';
 
 const nodeTypes = [
   { id: 'person', label: 'Person',
@@ -400,7 +400,7 @@ function onGraphChange(graph) {
 &lt;/script&gt;</code></pre>
 
           <h3 style="font-size:1rem;font-weight:700;margin:24px 0 16px;">React</h3>
-          <pre><code>import { BoxesEditor } from '@boxes/react';
+          <pre><code>import { BoxesEditor } from 'boxes-react';
 
 const nodeTypes = [
   { id: 'person', label: 'Person',
@@ -434,22 +434,22 @@ function App() {
       <p class="section-subtitle">All packages share the same underlying Cytoscape.js engine and consistent API.</p>
       <div class="packages-grid">
         <div class="pkg-card">
-          <div class="pkg-name">@boxes/core</div>
+          <div class="pkg-name">boxes-core</div>
           <h3>Core Library</h3>
           <p>The pure JavaScript graph editor built directly on Cytoscape.js. Use with any framework or no framework at all.</p>
-          <div class="pkg-install">npm install @boxes/core</div>
+          <div class="pkg-install">npm install boxes-core</div>
         </div>
         <div class="pkg-card">
-          <div class="pkg-name">@boxes/vue</div>
+          <div class="pkg-name">boxes-vue</div>
           <h3>Vue 3 Component</h3>
           <p>A Vue 3 single-file component that wraps the core editor. Reactive props, emitted events, and <code>defineExpose</code> access.</p>
-          <div class="pkg-install">npm install @boxes/vue</div>
+          <div class="pkg-install">npm install boxes-vue</div>
         </div>
         <div class="pkg-card">
-          <div class="pkg-name">@boxes/react</div>
+          <div class="pkg-name">boxes-react</div>
           <h3>React Component</h3>
           <p>A React 18 component using <code>forwardRef</code> and <code>useImperativeHandle</code> for full imperative API access.</p>
-          <div class="pkg-install">npm install @boxes/react</div>
+          <div class="pkg-install">npm install boxes-react</div>
         </div>
       </div>
     </div>

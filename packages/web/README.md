@@ -1,4 +1,4 @@
-# @boxes/web
+# boxes-web
 
 Simple static file server for running Boxes graph editor in a web browser.
 

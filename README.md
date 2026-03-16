@@ -23,11 +23,11 @@ A self-contained, Cytoscape.js-based Labeled Property Graph (LPG) editor. Drop i
 
 | Package | Description |
 |---|---|
-| `@boxes/core` | Core editor library — use this in any JS project |
-| `@boxes/vue` | Vue 3 component wrapper |
-| `@boxes/react` | React 18 component wrapper |
-| `@boxes/web` | Express web server running the live demonstrator |
-| `@boxes/electron` | Standalone desktop app |
+| `boxes-core` | Core editor library — use this in any JS project |
+| `boxes-vue` | Vue 3 component wrapper |
+| `boxes-react` | React 18 component wrapper |
+| `boxes-web` | Express web server running the live demonstrator |
+| `boxes-electron` | Standalone desktop app |
 
 ---
 
@@ -64,13 +64,13 @@ npm run web:dev          # start the web demo server on :3001
 Install the package:
 
 ```bash
-npm install @boxes/core
+npm install boxes-core
 ```
 
 ### Basic setup
 
 ```js
-import { BoxesEditor } from '@boxes/core';
+import { BoxesEditor } from 'boxes-core';
 
 const editor = new BoxesEditor(document.getElementById('graph'), {
   elements: {
@@ -286,7 +286,7 @@ editor.destroy();   // removes DOM, event listeners, and the Cytoscape instance
 Install:
 
 ```bash
-npm install @boxes/vue @boxes/core
+npm install boxes-vue boxes-core
 ```
 
 ### Basic usage
@@ -305,7 +305,7 @@ npm install @boxes/vue @boxes/core
 
 <script setup>
 import { ref } from 'vue';
-import { BoxesEditor } from '@boxes/vue';
+import { BoxesEditor } from 'boxes-vue';
 
 const elements = ref({
   nodes: [
@@ -346,7 +346,7 @@ function onHistoryChange({ canUndo, canRedo }) {
 
 <script setup>
 import { ref } from 'vue';
-import { BoxesEditor } from '@boxes/vue';
+import { BoxesEditor } from 'boxes-vue';
 
 const editorRef = ref(null);
 const elements = ref({ nodes: [], edges: [] });
@@ -390,13 +390,13 @@ All methods from the core API are available via the template ref: `addNode`, `ad
 Install:
 
 ```bash
-npm install @boxes/react @boxes/core
+npm install boxes-react boxes-core
 ```
 
 ### Basic usage
 
 ```jsx
-import { BoxesEditor } from '@boxes/react';
+import { BoxesEditor } from 'boxes-react';
 
 export default function App() {
   const nodeTypes = [
@@ -431,7 +431,7 @@ export default function App() {
 
 ```jsx
 import { useRef } from 'react';
-import { BoxesEditor } from '@boxes/react';
+import { BoxesEditor } from 'boxes-react';
 
 export default function App() {
   const editorRef = useRef(null);

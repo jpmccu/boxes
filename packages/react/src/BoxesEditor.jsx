@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
-import { BoxesEditor as BoxesCore } from '@boxes/core';
+import { BoxesEditor as BoxesCore } from 'boxes-core';
 
 /**
  * React wrapper for BoxesEditor.

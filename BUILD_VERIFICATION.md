@@ -4,25 +4,25 @@
 
 All packages build successfully with the following outputs:
 
-### Core Package (@boxes/core)
+### Core Package (boxes-core)
 - ✓ ESM build: `dist/boxes-core.js` (645.69 kB, gzip: 169.11 kB)
 - ✓ UMD build: `dist/boxes-core.umd.js` (448.16 kB, gzip: 143.76 kB)
 - ✓ All core methods present and functional
 - ✓ Templates (OWL Ontology, Arrows, Blank) included
 
-### Vue Package (@boxes/vue)
+### Vue Package (boxes-vue)
 - ✓ ESM build: `dist/boxes-vue.js` (645.53 kB, gzip: 168.72 kB)
 - ✓ UMD build: `dist/boxes-vue.umd.js` (448.45 kB, gzip: 143.40 kB)
 - ✓ Component styles: `dist/style.css`
 - ✓ Vue 3 SFC with proper lifecycle hooks
 
-### React Package (@boxes/react)
+### React Package (boxes-react)
 - ✓ ESM build: `dist/boxes-react.js` (667.90 kB, gzip: 174.64 kB)
 - ✓ UMD build: `dist/boxes-react.umd.js` (463.18 kB, gzip: 148.58 kB)
 - ✓ forwardRef + useImperativeHandle implementation
 - ✓ React 18 compatibility
 
-### Electron Package (@boxes/electron)
+### Electron Package (boxes-electron)
 - ✓ No build step required (runs from source)
 - ✓ Main process: `main.js`
 - ✓ Renderer process: `renderer/index.html`, `renderer/renderer.js`

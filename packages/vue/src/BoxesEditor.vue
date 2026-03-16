@@ -4,7 +4,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, watch } from 'vue';
-import { BoxesEditor as BoxesCore } from '@boxes/core';
+import { BoxesEditor as BoxesCore } from 'boxes-core';
 
 const props = defineProps({
   elements: { type: Object, default: () => ({ nodes: [], edges: [] }) },
