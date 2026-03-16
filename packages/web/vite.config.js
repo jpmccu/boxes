@@ -3,6 +3,7 @@ import { resolve } from 'path';
 
 export default defineConfig({
   root: 'public',
+  base: './',
   resolve: {
     alias: {
       '/core/boxes-core.js': resolve(__dirname, '../core/dist/boxes-core.js')

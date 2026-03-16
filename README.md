@@ -620,5 +620,5 @@ npm run lint:fix
 
 ## License
 
-MIT
+Apache 2.0
 

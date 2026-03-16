@@ -138,4 +138,4 @@ Tested on:
 
 ## License
 
-MIT
+Apache 2.0
