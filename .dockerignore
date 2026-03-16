@@ -1,0 +1,9 @@
+node_modules
+packages/*/node_modules
+packages/*/dist
+packages/electron
+.git
+.github
+*.md
+vitest.config.js
+eslint.config.js

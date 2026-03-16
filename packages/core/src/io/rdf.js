@@ -28,14 +28,14 @@ const XSD_NS   = 'http://www.w3.org/2001/XMLSchema#';
 const RDF_TYPE = RDF_NS + 'type';
 const RDFS_LABEL = RDFS_NS + 'label';
 
-const BUILTIN_PREFIXES = {
+export const BUILTIN_PREFIXES = {
   rdf:  RDF_NS,
   rdfs: RDFS_NS,
   xsd:  XSD_NS,
 };
 
 // Data fields that are Cytoscape internals – never serialised to RDF
-const INTERNAL_FIELDS = new Set(['id', 'source', 'target', 'parent', '_style', '_classes', 'label']);
+export const INTERNAL_FIELDS = new Set(['id', 'source', 'target', 'parent', '_style', '_classes', 'label']);
 
 // ─── IRI utilities ────────────────────────────────────────────────────────────
 
@@ -453,9 +453,11 @@ function serializeToTurtle(subjectMap, prefixes) {
     out += `@base <${prefixes['@base']}> .\n`;
   }
 
-  // @prefix declarations – skip JSON-LD meta-keys like @vocab and @base
+  // @prefix declarations – skip JSON-LD meta-keys like @vocab and @base,
+  // and skip term definitions (object values like {"@type": "@id"})
   for (const [prefix, ns] of Object.entries(prefixes)) {
     if (prefix.startsWith('@')) continue;
+    if (typeof ns !== 'string') continue;   // skip term definitions
     out += `@prefix ${prefix}: <${ns}> .\n`;
   }
   out += '\n';
@@ -488,7 +490,7 @@ function serializeToTurtle(subjectMap, prefixes) {
  * Strings that expand to a known IRI are emitted as IRI resources;
  * everything else becomes a plain string literal.
  */
-function dataValueToRdfObject(val, prefixes) {
+export function dataValueToRdfObject(val, prefixes) {
   if (typeof val !== 'string') return { value: String(val) };
   if (!val) return { value: '' };
   if (val.startsWith('http://') || val.startsWith('https://') ||
@@ -507,7 +509,7 @@ function dataValueToRdfObject(val, prefixes) {
  * When multiple edge types share the same @type, we disambiguate by finding
  * the template whose data keys are most represented in the actual edge data.
  */
-function matchEdgeType(edgeData, edgeTypes, prefixes) {
+export function matchEdgeType(edgeData, edgeTypes, prefixes) {
   if (!edgeData['@type']) return null;
   const typeURI = expandIRI(edgeData['@type'], prefixes);
   const candidates = edgeTypes.filter(et =>
@@ -687,9 +689,22 @@ function buildElementData(subj, predMap, prefixes, excludePreds = new Set()) {
  *   @param {Array}  options.nodeTypes – node type definitions (currently informational)
  * @returns {object} graphData ready for editor.importGraph()
  */
-export function importFromTurtle(text, { context = {}, edgeTypes = [], nodeTypes = [] } = {}) {
-  const { prefixes: parsedPrefixes, triples } = parseTurtle(text);
-
+/**
+ * Convert a flat array of [subject, predicate, object] triples into Boxes graph data.
+ *
+ * This is the core graph-reconstruction logic shared by all RDF importers.
+ * All format-specific parsers (Turtle, JSON-LD, RDF/XML) should reduce their
+ * input to this canonical triple array, then delegate here.
+ *
+ * Triple format:
+ *   subject, predicate  – string  (full IRI or "_:blankLabel")
+ *   object              – string  (IRI/blank)  or  { value, language?, datatype? }  (literal)
+ *
+ * @param {Array}  triples        – [[s, p, o], …]
+ * @param {object} parsedPrefixes – prefix→namespace map extracted from the source document
+ * @param {object} options        – { context, edgeTypes, nodeTypes }
+ */
+export function importFromTriples(triples, parsedPrefixes, { context = {}, edgeTypes = [], nodeTypes = [] } = {}) {
   // Merge: parsed file prefixes take precedence for expansion;
   // context prefixes preferred for compression (so round-trips use the same short names)
   const expandPrefixes  = { ...BUILTIN_PREFIXES, ...parsedPrefixes };
@@ -725,6 +740,8 @@ export function importFromTurtle(text, { context = {}, edgeTypes = [], nodeTypes
   const edgeResources = new Set();  // subjects claimed as edges
   // predicate IRIs consumed by edge structure (per source subject)
   const consumedOnSubject = new Map(); // Map<subjectIRI, Set<predicateIRI>>
+  // Blank nodes that appear as edge endpoints — must be promoted to graph nodes
+  const referencedBlankNodes = new Set();
 
   const markConsumed = (subj, pred) => {
     if (!consumedOnSubject.has(subj)) consumedOnSubject.set(subj, new Set());
@@ -770,7 +787,12 @@ export function importFromTurtle(text, { context = {}, edgeTypes = [], nodeTypes
         targetURI = objs.find(o => typeof o === 'string') || null;
       }
 
-      if (!sourceURI || !targetURI) continue; // can't reconstruct → leave as node
+      if (!sourceURI || !targetURI) continue; // missing domain or range → leave as node
+
+      // Blank node endpoints indicate anonymous class expressions (owl:Restriction,
+      // owl:unionOf, etc.) that we can't meaningfully render as graph nodes.
+      // Leave the property as a standalone node in that case.
+      if (sourceURI.startsWith('_:') || targetURI.startsWith('_:')) continue;
 
       // ── Build the edge ────────────────────────────────────────────────────
       edgeResources.add(subj);
@@ -831,6 +853,10 @@ export function importFromTurtle(text, { context = {}, edgeTypes = [], nodeTypes
           },
         });
 
+        // Track blank nodes used as edge endpoints so they become graph nodes
+        if (s.startsWith('_:'))   referencedBlankNodes.add(s);
+        if (obj.startsWith('_:')) referencedBlankNodes.add(obj);
+
         // Mark this predicate as consumed so it doesn't appear in node data
         markConsumed(s, predURI);
       }
@@ -841,8 +867,8 @@ export function importFromTurtle(text, { context = {}, edgeTypes = [], nodeTypes
   for (const [subj, pm] of store) {
     if (typeof subj !== 'string') continue; // defensive: skip non-string subjects (e.g. literal keys)
     if (edgeResources.has(subj)) continue;
-    // Skip anonymous blank nodes that weren't claimed as edge resources
-    if (subj.startsWith('_:')) continue;
+    // Skip anonymous blank nodes that weren't referenced as edge endpoints
+    if (subj.startsWith('_:') && !referencedBlankNodes.has(subj)) continue;
 
     const consumed    = consumedOnSubject.get(subj) || new Set();
     const excludePreds = new Set([RDF_TYPE, ...consumed]);
@@ -865,6 +891,20 @@ export function importFromTurtle(text, { context = {}, edgeTypes = [], nodeTypes
     });
   }
 
+  // ── Ensure all referenced blank nodes exist as graph nodes ──────────────
+  // A blank node may appear as an edge endpoint but have no outgoing triples
+  // (i.e., it's not a subject in the store).  Create a minimal node for it
+  // so Cytoscape can render the edge.
+  const createdNodeIds = new Set(resultNodes.map(n => n.data.id));
+  for (const bn of referencedBlankNodes) {
+    const nodeId = compressIRI(bn, compressPrefixes);
+    if (createdNodeIds.has(nodeId)) continue;
+    resultNodes.push({
+      data: { id: nodeId, label: nodeId, '@id': nodeId },
+    });
+    createdNodeIds.add(nodeId);
+  }
+
   // Merged context: template context wins for display, parsed prefixes fill gaps
   const mergedContext = { ...parsedPrefixes, ...context };
   // Remove builtins unless the user explicitly declared them
@@ -878,6 +918,15 @@ export function importFromTurtle(text, { context = {}, edgeTypes = [], nodeTypes
     context:   mergedContext,
     version:   '1.0.0',
   };
+}
+
+/**
+ * Import a Turtle document into Boxes graph data.
+ * Parses Turtle to triples, then delegates to importFromTriples.
+ */
+export function importFromTurtle(text, options = {}) {
+  const { prefixes: parsedPrefixes, triples } = parseTurtle(text);
+  return importFromTriples(triples, parsedPrefixes, options);
 }
 
 // ─── IO plugin descriptors ────────────────────────────────────────────────────

@@ -29,7 +29,8 @@
     "cytoscape-euler": "^1.2.3",
     "cytoscape-klay": "^3.1.4",
     "cytoscape-popper": "^4.0.1",
-    "dagre": "^0.8.5"
+    "dagre": "^0.8.5",
+    "n3": "^2.0.3"
   },
   "devDependencies": {
     "happy-dom": "^13.6.2",

@@ -1,4 +1,9 @@
-import { BoxesEditor, defaultTemplates, rdfImporter, rdfExporter } from '/core/boxes-core.js';
+import {
+  BoxesEditor, defaultTemplates,
+  rdfImporter, rdfExporter,
+  jsonldImporter, jsonldExporter,
+  rdfXmlImporter, rdfXmlExporter,
+} from '/core/boxes-core.js';
 import { registerImporter, registerExporter, getImporters, getExporters, runImport, runExport } from './io/io-manager.js';
 import { lucidchartCSVImporter } from './io/importers/lucidchart-csv.js';
 import { svgExporter } from './io/exporters/svg.js';
@@ -7,8 +12,12 @@ import { startTour, isTourDone } from './tour.js';
 // ── Register built-in I/O plugins ───────────────────────────────────────────
 registerImporter('lucidchart-csv', lucidchartCSVImporter);
 registerImporter('rdf', rdfImporter);
+registerImporter('jsonld', jsonldImporter);
+registerImporter('rdfxml', rdfXmlImporter);
 registerExporter('svg', svgExporter);
 registerExporter('rdf', rdfExporter);
+registerExporter('jsonld', jsonldExporter);
+registerExporter('rdfxml', rdfXmlExporter);
 
 let editor = null;
 let currentFileName = 'graph.json';

@@ -228,7 +228,7 @@ export class BoxesEditor {
     this.currentEdgeType = this._edgeTypes[0] || null;
     this.cy = null;
     this.eventHandlers = new Map();
-    this._lastLayout = { name: 'cose', options: {} };
+    this._lastLayout = { name: 'dagre', options: { rankdir: 'LR', ranksep: 60, nodesep: 30 } };
     this._undoStack = [];
     this._redoStack = [];
     this._restoringState = false;
@@ -319,10 +319,15 @@ export class BoxesEditor {
 .bxe-ctx-item.danger { color:#dc3545; }
 .bxe-ctx-item.danger:hover { background:#fff0f0; }
 .bxe-ctx-sep { height:1px; background:#dee2e6; }
-.bxe-ctx-row { display:flex; align-items:center; gap:3px; padding:3px 0; border-bottom:1px solid #f0f0f0; }
+.bxe-ctx-row { display:flex; align-items:flex-start; gap:3px; padding:3px 0; border-bottom:1px solid #f0f0f0; }
 .bxe-ctx-key { width:80px; flex-shrink:0; font-family:monospace; }
 .bxe-ctx-val { flex:1; min-width:0; font-family:monospace; font-size:11px; }
-.bxe-ctx-colon { color:#999; font-size:11px; flex-shrink:0; }
+.bxe-ctx-colon { color:#999; font-size:11px; flex-shrink:0; padding-top:3px; }
+.bxe-ctx-obj-val { resize:vertical; min-height:44px; line-height:1.4; white-space:pre; overflow-x:auto; }
+.bxe-ctx-obj-val.bxe-ctx-invalid { border:1px solid #e74c3c !important; background:#fff5f5 !important; }
+.bxe-ctx-type-badge { font-size:9px; color:#888; font-family:monospace; letter-spacing:0; flex-shrink:0; padding-top:4px; }
+.bxe-ctx-addbtns { display:flex; gap:4px; flex-wrap:wrap; padding-top:4px; }
+.bxe-ctx-addbtns .bxe-btn-add { flex:1; }
 `;
     document.head.appendChild(style);
   }
@@ -474,11 +479,19 @@ export class BoxesEditor {
     contextPane.appendChild(ctxTitle);
     this._contextEntriesEl = document.createElement('div');
     contextPane.appendChild(this._contextEntriesEl);
-    const addCtxBtn = document.createElement('button');
-    addCtxBtn.className = 'bxe-btn-add';
-    addCtxBtn.textContent = '+ Add Entry';
-    addCtxBtn.addEventListener('click', () => this._addContextEntry());
-    contextPane.appendChild(addCtxBtn);
+    const addCtxBtns = document.createElement('div');
+    addCtxBtns.className = 'bxe-ctx-addbtns';
+    const addCtxPrefixBtn = document.createElement('button');
+    addCtxPrefixBtn.className = 'bxe-btn-add';
+    addCtxPrefixBtn.textContent = '+ Add Prefix';
+    addCtxPrefixBtn.addEventListener('click', () => this._addContextEntry('prefix'));
+    const addCtxTermBtn = document.createElement('button');
+    addCtxTermBtn.className = 'bxe-btn-add';
+    addCtxTermBtn.textContent = '+ Add Term';
+    addCtxTermBtn.addEventListener('click', () => this._addContextEntry('term'));
+    addCtxBtns.appendChild(addCtxPrefixBtn);
+    addCtxBtns.appendChild(addCtxTermBtn);
+    contextPane.appendChild(addCtxBtns);
     contextPane.addEventListener('change', (e) => this._handleContextEvent(e));
     contextPane.addEventListener('click', (e) => this._handleContextEvent(e));
     this._panes['context'] = contextPane;
@@ -1369,7 +1382,7 @@ export class BoxesEditor {
     }
     if (graphData.lastLayout) {
       this._lastLayout = {
-        name: graphData.lastLayout.name || 'cose',
+        name: graphData.lastLayout.name || 'dagre',
         options: { ...(graphData.lastLayout.options || {}) }
       };
       if (this._layoutPanel) this._layoutPanelSync();
@@ -1929,23 +1942,45 @@ export class BoxesEditor {
     if (!el) return;
     const entries = Object.entries(this.context);
     if (!entries.length) {
-      el.innerHTML = `<div class="bxe-empty">No entries. Click "+ Add Entry" to add a prefix/namespace mapping.</div>`;
+      el.innerHTML = `<div class="bxe-empty">No entries. Add a prefix mapping or term definition.</div>`;
       return;
     }
-    el.innerHTML = entries.map(([key, val]) => `
-      <div class="bxe-ctx-row" data-key="${this._esc(key)}">
-        <input class="bxe-ctx-key bxe-cell-input" type="text" value="${this._esc(key)}" placeholder="prefix" data-role="key" />
-        <span class="bxe-ctx-colon">:</span>
-        <input class="bxe-ctx-val bxe-cell-input" type="text" value="${this._esc(val)}" placeholder="URI" data-role="val" />
-        <button class="bxe-btn-del" data-role="del" title="Remove">×</button>
-      </div>`).join('');
+    el.innerHTML = entries.map(([key, val]) => {
+      const isObj = typeof val === 'object' && val !== null;
+      const keyEsc = this._esc(key);
+      if (isObj) {
+        const jsonStr = this._esc(JSON.stringify(val, null, 2));
+        return `
+          <div class="bxe-ctx-row" data-key="${keyEsc}">
+            <input class="bxe-ctx-key bxe-cell-input" type="text" value="${keyEsc}" placeholder="term" data-role="key" />
+            <span class="bxe-ctx-colon">:</span>
+            <textarea class="bxe-ctx-val bxe-cell-input bxe-ctx-obj-val" rows="2" data-role="val" data-type="object">${jsonStr}</textarea>
+            <button class="bxe-btn-del" data-role="del" title="Remove">×</button>
+          </div>`;
+      } else {
+        return `
+          <div class="bxe-ctx-row" data-key="${keyEsc}">
+            <input class="bxe-ctx-key bxe-cell-input" type="text" value="${keyEsc}" placeholder="prefix" data-role="key" />
+            <span class="bxe-ctx-colon">:</span>
+            <input class="bxe-ctx-val bxe-cell-input" type="text" value="${this._esc(String(val))}" placeholder="namespace URI" data-role="val" data-type="string" />
+            <button class="bxe-btn-del" data-role="del" title="Remove">×</button>
+          </div>`;
+      }
+    }).join('');
   }
 
-  _addContextEntry() {
-    let key = 'prefix1';
-    let n = 1;
-    while (key in this.context) key = `prefix${++n}`;
-    this.context[key] = '';
+  _addContextEntry(type) {
+    if (type === 'term') {
+      let key = 'term1';
+      let n = 1;
+      while (key in this.context) key = `term${++n}`;
+      this.context[key] = { '@type': '@id' };
+    } else {
+      let key = 'prefix1';
+      let n = 1;
+      while (key in this.context) key = `prefix${++n}`;
+      this.context[key] = '';
+    }
     this._renderContextPane();
     const inputs = this._contextEntriesEl?.querySelectorAll('.bxe-ctx-key');
     if (inputs?.length) inputs[inputs.length - 1].focus();
@@ -1956,21 +1991,39 @@ export class BoxesEditor {
     if (!row) return;
     const oldKey = row.dataset.key;
     const role = e.target.dataset.role;
+    const valType = e.target.dataset.type;
+
     if (role === 'del') {
       delete this.context[oldKey];
       this._renderContextPane();
       this._emit('contextChanged', { context: { ...this.context } });
+
     } else if (role === 'key' && e.type === 'change') {
       const newKey = e.target.value.trim();
       if (!newKey || newKey === oldKey) { e.target.value = oldKey; return; }
       const rebuilt = {};
       for (const [k, v] of Object.entries(this.context)) rebuilt[k === oldKey ? newKey : k] = v;
       this.context = rebuilt;
-      this._renderContextPane();
+      row.dataset.key = newKey;
       this._emit('contextChanged', { context: { ...this.context } });
+
     } else if (role === 'val' && e.type === 'change') {
-      this.context[oldKey] = e.target.value;
-      this._emit('contextChanged', { context: { ...this.context } });
+      if (valType === 'object') {
+        // Validate and parse JSON
+        try {
+          const parsed = JSON.parse(e.target.value);
+          if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('Must be a JSON object');
+          e.target.classList.remove('bxe-ctx-invalid');
+          this.context[oldKey] = parsed;
+          this._emit('contextChanged', { context: { ...this.context } });
+        } catch {
+          e.target.classList.add('bxe-ctx-invalid');
+          // Keep previous value; don't update context
+        }
+      } else {
+        this.context[oldKey] = e.target.value;
+        this._emit('contextChanged', { context: { ...this.context } });
+      }
     }
   }
 

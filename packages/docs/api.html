@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Reference — Boxes</title>
+  <meta name="description" content="Full API reference for Boxes: BoxesEditor class, RDF I/O, Vue and React components.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+  <link rel="stylesheet" href="/src/style.css">
+  <style>
+    .api-layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: calc(100vh - 60px);
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    @media (max-width: 900px) { .api-layout { grid-template-columns: 1fr; } }
+
+    /* ── Sidebar ────────────────────────────────────────────────────────── */
+    .api-sidebar {
+      border-right: 1px solid var(--color-border);
+      padding: 32px 0;
+      position: sticky;
+      top: 60px;
+      height: calc(100vh - 60px);
+      overflow-y: auto;
+    }
+    @media (max-width: 900px) { .api-sidebar { display: none; } }
+
+    .sidebar-section { margin-bottom: 24px; padding: 0 20px; }
+    .sidebar-heading {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--color-text-muted);
+      margin-bottom: 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .sidebar-links { list-style: none; }
+    .sidebar-links li { margin-bottom: 2px; }
+    .sidebar-links a {
+      display: block;
+      padding: 5px 8px;
+      border-radius: 5px;
+      font-size: 0.85rem;
+      color: var(--color-text-muted);
+      text-decoration: none;
+      transition: all 0.1s;
+    }
+    .sidebar-links a:hover { background: var(--color-bg-alt); color: var(--color-text); }
+    .sidebar-links a.active { background: var(--color-accent); color: var(--color-primary); font-weight: 600; }
+
+    /* ── Main content ───────────────────────────────────────────────────── */
+    .api-content {
+      padding: 48px 48px 80px;
+      min-width: 0;
+    }
+    @media (max-width: 768px) { .api-content { padding: 32px 20px; } }
+
+    .api-hero {
+      background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 100%);
+      color: white;
+      padding: 80px 0 60px;
+      margin-bottom: 0;
+    }
+    .api-hero h1 { color: white; font-size: 2.5rem; margin-bottom: 12px; }
+    .api-hero p { color: rgba(255,255,255,0.6); font-size: 1.05rem; max-width: 600px; }
+
+    /* ── API Entries ────────────────────────────────────────────────────── */
+    .api-section {
+      margin-bottom: 72px;
+      scroll-margin-top: 80px;
+    }
+    .api-section-title {
+      font-size: 1.6rem;
+      font-weight: 800;
+      margin-bottom: 8px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--color-border);
+    }
+    .api-section-desc {
+      color: var(--color-text-muted);
+      margin-bottom: 32px;
+      font-size: 0.95rem;
+    }
+
+    .api-entry {
+      margin-bottom: 40px;
+      scroll-margin-top: 80px;
+    }
+    .api-signature {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      background: var(--color-bg-alt);
+      border: 1px solid var(--color-border);
+      border-left: 3px solid var(--color-primary);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      margin-bottom: 12px;
+      font-family: var(--font-mono);
+      font-size: 0.875rem;
+      line-height: 1.5;
+      flex-wrap: wrap;
+      gap: 4px 12px;
+    }
+    .sig-badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 3px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+      margin-top: 2px;
+    }
+    .sig-badge.constructor { background: #fef3c7; color: #b45309; }
+    .sig-badge.method { background: #dbeafe; color: #1d4ed8; }
+    .sig-badge.property { background: #d1fae5; color: #065f46; }
+    .sig-badge.event { background: #ede9fe; color: #6d28d9; }
+    .sig-badge.function { background: #fee2e2; color: #991b1b; }
+    .sig-name { font-weight: 700; color: var(--color-text); }
+    .sig-params { color: #6b7280; }
+    .sig-return { color: #059669; font-weight: 600; }
+
+    .api-desc { font-size: 0.9rem; color: var(--color-text-muted); margin-bottom: 12px; line-height: 1.6; }
+    .api-desc strong { color: var(--color-text); }
+
+    .params-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+      margin-bottom: 12px;
+    }
+    .params-table th {
+      background: var(--color-bg-alt);
+      text-align: left;
+      padding: 8px 12px;
+      border: 1px solid var(--color-border);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--color-text-muted);
+    }
+    .params-table td {
+      padding: 8px 12px;
+      border: 1px solid var(--color-border);
+      vertical-align: top;
+    }
+    .params-table td:first-child { font-family: var(--font-mono); font-size: 0.8rem; color: var(--color-primary-dark); }
+    .params-table td:nth-child(2) { color: #059669; font-family: var(--font-mono); font-size: 0.8rem; }
+    .params-table td:last-child { color: var(--color-text-muted); }
+
+    .api-note {
+      background: #eff6ff;
+      border-left: 3px solid var(--color-primary);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 12px 16px;
+      font-size: 0.875rem;
+      color: #1e40af;
+      margin: 8px 0;
+    }
+    .api-note strong { color: #1e3a8a; }
+
+    .events-list { list-style: none; }
+    .events-list li {
+      display: flex;
+      gap: 16px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--color-border);
+      font-size: 0.875rem;
+    }
+    .event-name {
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: #6d28d9;
+      min-width: 120px;
+    }
+    .event-desc { color: var(--color-text-muted); }
+
+    .toc-mobile {
+      display: none;
+      background: var(--color-bg-alt);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      margin-bottom: 32px;
+    }
+    @media (max-width: 900px) { .toc-mobile { display: block; } }
+    .toc-mobile summary { font-weight: 700; cursor: pointer; }
+    .toc-mobile ul { margin-top: 8px; padding-left: 16px; }
+    .toc-mobile li { margin: 4px 0; }
+    .toc-mobile a { color: var(--color-primary); font-size: 0.875rem; }
+  </style>
+</head>
+<body class="page-top">
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="/">📦 <span>Boxes</span></a>
+      <ul class="nav-links">
+        <li><a href="/#features">Features</a></li>
+        <li><a href="/#quickstart">Quick Start</a></li>
+        <li><a href="/api.html" class="active">API Docs</a></li>
+        <li><a href="/demo.html" class="btn-nav">Live Demo →</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <div class="api-hero">
+    <div class="container">
+      <div class="section-label" style="color:#93b8f0">API Reference</div>
+      <h1>API Reference</h1>
+      <p>Complete documentation for the Boxes core library, framework components, and I/O utilities.</p>
+    </div>
+  </div>
+
+  <div class="api-layout">
+    <!-- Sidebar -->
+    <aside class="api-sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-heading">Core Library</div>
+        <ul class="sidebar-links">
+          <li><a href="#boxes-editor">BoxesEditor</a></li>
+          <li><a href="#constructor">  constructor</a></li>
+          <li><a href="#node-edge-ops">  Node &amp; Edge Ops</a></li>
+          <li><a href="#layout">  Layout</a></li>
+          <li><a href="#graph-io">  Graph I/O</a></li>
+          <li><a href="#stylesheet">  Stylesheet</a></li>
+          <li><a href="#selection">  Selection &amp; Clipboard</a></li>
+          <li><a href="#history">  History</a></li>
+          <li><a href="#types">  Types</a></li>
+          <li><a href="#events">  Events</a></li>
+          <li><a href="#advanced">  Advanced</a></li>
+        </ul>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-heading">Templates</div>
+        <ul class="sidebar-links">
+          <li><a href="#default-templates">defaultTemplates</a></li>
+        </ul>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-heading">I/O Utilities</div>
+        <ul class="sidebar-links">
+          <li><a href="#rdf-io">RDF / Turtle</a></li>
+          <li><a href="#jsonld-io">JSON-LD</a></li>
+          <li><a href="#rdfxml-io">RDF/XML</a></li>
+        </ul>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-heading">Framework Wrappers</div>
+        <ul class="sidebar-links">
+          <li><a href="#vue-component">Vue 3 Component</a></li>
+          <li><a href="#react-component">React Component</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="api-content">
+
+      <!-- Mobile TOC -->
+      <details class="toc-mobile">
+        <summary>Table of Contents</summary>
+        <ul>
+          <li><a href="#boxes-editor">BoxesEditor</a></li>
+          <li><a href="#default-templates">defaultTemplates</a></li>
+          <li><a href="#rdf-io">RDF / Turtle I/O</a></li>
+          <li><a href="#jsonld-io">JSON-LD I/O</a></li>
+          <li><a href="#rdfxml-io">RDF/XML I/O</a></li>
+          <li><a href="#vue-component">Vue 3 Component</a></li>
+          <li><a href="#react-component">React Component</a></li>
+        </ul>
+      </details>
+
+      <!-- ── BoxesEditor ─────────────────────────────────────────────── -->
+      <div class="api-section" id="boxes-editor">
+        <h2 class="api-section-title">BoxesEditor</h2>
+        <p class="api-section-desc">
+          The main graph editor class. Wraps a Cytoscape.js instance and provides a full editing
+          experience including node/edge manipulation, CSS styling, layout algorithms, undo/redo,
+          and clipboard support.
+        </p>
+        <pre><code>import { BoxesEditor } from '@boxes/core';</code></pre>
+
+        <!-- Constructor -->
+        <div class="api-entry" id="constructor">
+          <div class="api-signature">
+            <span class="sig-badge constructor">constructor</span>
+            <span><span class="sig-name">new BoxesEditor</span><span class="sig-params">(container, options?)</span></span>
+          </div>
+          <p class="api-desc">Creates a new graph editor instance attached to a DOM element.</p>
+          <table class="params-table">
+            <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td>container</td><td>HTMLElement</td><td>DOM element that will host the Cytoscape canvas. <strong>Required.</strong></td></tr>
+              <tr><td>options.elements</td><td>object</td><td>Initial graph data in Cytoscape elements format <code>{ nodes, edges }</code>.</td></tr>
+              <tr><td>options.style</td><td>array</td><td>Initial stylesheet rules array <code>[{ selector, style }]</code>.</td></tr>
+              <tr><td>options.nodeTypes</td><td>array</td><td>Node type definitions. Each type: <code>{ id, label, data, color, shape, borderColor }</code>.</td></tr>
+              <tr><td>options.edgeTypes</td><td>array</td><td>Edge type definitions. Each type: <code>{ id, label, data, color, lineStyle }</code>.</td></tr>
+              <tr><td>options.context</td><td>object</td><td>JSON-LD context for RDF export (prefix mappings).</td></tr>
+              <tr><td>options.layout</td><td>object</td><td>Initial layout options. Defaults to <code>{ name: 'preset' }</code>.</td></tr>
+              <tr><td>options.edgeHandle</td><td>boolean</td><td>Set to <code>false</code> to disable interactive edge drawing. Default: <code>true</code>.</td></tr>
+            </tbody>
+          </table>
+          <pre><code>const editor = new BoxesEditor(document.getElementById('graph'), {
+  elements: {
+    nodes: [{ data: { id: 'n1', label: 'Alice' } }],
+    edges: []
+  },
+  nodeTypes: [{ id: 'person', label: 'Person', color: '#4a7fd4' }],
+  edgeTypes: [{ id: 'knows', label: 'knows', color: '#666' }],
+  layout: { name: 'dagre' }
+});</code></pre>
+        </div>
+
+        <!-- Node & Edge Operations -->
+        <div class="api-entry" id="node-edge-ops">
+          <h3 style="font-size:1.1rem;font-weight:700;margin-bottom:20px;padding-top:16px;border-top:1px solid var(--color-border)">Node &amp; Edge Operations</h3>
+
+          <div class="api-signature">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">addNode</span><span class="sig-params">(data, position?, style?)</span> → <span class="sig-return">string</span></span>
+          </div>
+          <p class="api-desc">Adds a new node to the graph. Returns the new node's ID.</p>
+          <table class="params-table">
+            <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td>data</td><td>object</td><td>Node data. May include <code>id</code> (auto-generated if omitted), <code>label</code>, and custom properties.</td></tr>
+              <tr><td>position</td><td>{ x, y } | null</td><td>Position in graph coordinates. Defaults to a random position.</td></tr>
+              <tr><td>style</td><td>object</td><td>Inline Cytoscape style overrides for this node.</td></tr>
+            </tbody>
+          </table>
+          <pre><code>const id = editor.addNode(
+  { label: 'Bob', age: 30 },
+  { x: 200, y: 150 }
+);</code></pre>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">addEdge</span><span class="sig-params">(sourceId, targetId, data?, style?)</span> → <span class="sig-return">string</span></span>
+          </div>
+          <p class="api-desc">Adds an edge between two nodes. Returns the new edge's ID.</p>
+          <table class="params-table">
+            <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td>sourceId</td><td>string</td><td>ID of the source node.</td></tr>
+              <tr><td>targetId</td><td>string</td><td>ID of the target node.</td></tr>
+              <tr><td>data</td><td>object</td><td>Edge data. May include <code>id</code>, <code>label</code>, and custom properties.</td></tr>
+              <tr><td>style</td><td>object</td><td>Inline Cytoscape style overrides for this edge.</td></tr>
+            </tbody>
+          </table>
+          <pre><code>editor.addEdge('n1', 'n2', { label: 'knows' });</code></pre>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">removeElement</span><span class="sig-params">(elementId)</span></span>
+          </div>
+          <p class="api-desc">Removes a node or edge by ID. Removing a node also removes its connected edges.</p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">updateElement</span><span class="sig-params">(elementId, data, style?)</span></span>
+          </div>
+          <p class="api-desc">Updates the data (and optionally style) of a node or edge. Merges with existing data.</p>
+          <table class="params-table">
+            <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td>elementId</td><td>string</td><td>ID of the node or edge to update.</td></tr>
+              <tr><td>data</td><td>object</td><td>Data fields to merge. Existing fields not present here are preserved.</td></tr>
+              <tr><td>style</td><td>object | null</td><td>Style overrides to apply. Pass <code>null</code> to leave style unchanged.</td></tr>
+            </tbody>
+          </table>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">updateElementStyle</span><span class="sig-params">(elementId, style)</span></span>
+          </div>
+          <p class="api-desc">Updates only the Cytoscape style of an element without touching its data.</p>
+        </div>
+
+        <!-- Layout -->
+        <div class="api-entry" id="layout">
+          <h3 style="font-size:1.1rem;font-weight:700;margin-bottom:20px;padding-top:16px;border-top:1px solid var(--color-border)">Layout</h3>
+
+          <div class="api-signature">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">runLayout</span><span class="sig-params">(layoutOptions)</span></span>
+          </div>
+          <p class="api-desc">Runs a layout algorithm on the current graph.</p>
+          <table class="params-table">
+            <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td>layoutOptions.name</td><td>string</td><td>Layout algorithm name. One of: <code>random</code>, <code>grid</code>, <code>circle</code>, <code>concentric</code>, <code>breadthfirst</code>, <code>cose</code>, <code>dagre</code>, <code>cola</code>, <code>klay</code>, <code>euler</code>, <code>fcose</code>, <code>elk</code>, <code>spread</code>, <code>avsdf</code>, <code>cise</code>.</td></tr>
+              <tr><td>layoutOptions.*</td><td>any</td><td>Additional layout-specific parameters (padding, spacing, etc.). See <code>getLayoutParams()</code>.</td></tr>
+            </tbody>
+          </table>
+          <pre><code>editor.runLayout({ name: 'dagre', rankDir: 'LR', nodeSep: 50 });</code></pre>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">getAvailableLayouts</span><span class="sig-params">()</span> → <span class="sig-return">string[]</span></span>
+          </div>
+          <p class="api-desc">Returns names of all registered layout algorithms.</p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">getLayoutParams</span><span class="sig-params">(name)</span> → <span class="sig-return">object[]</span></span>
+          </div>
+          <p class="api-desc">Returns parameter definitions for a named layout, including labels, types, defaults, and constraints.</p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">getLastLayout</span><span class="sig-params">()</span> → <span class="sig-return">object</span></span>
+          </div>
+          <p class="api-desc">Returns the most recently applied layout's name and options.</p>
+        </div>
+
+        <!-- Graph I/O -->
+        <div class="api-entry" id="graph-io">
+          <h3 style="font-size:1.1rem;font-weight:700;margin-bottom:20px;padding-top:16px;border-top:1px solid var(--color-border)">Graph I/O</h3>
+
+          <div class="api-signature">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">exportGraph</span><span class="sig-params">()</span> → <span class="sig-return">object</span></span>
+          </div>
+          <p class="api-desc">
+            Exports the complete graph state as a plain object. The returned object includes
+            <code>elements</code> (Cytoscape JSON), <code>style</code> (stylesheet rules),
+            <code>nodeTypes</code>, <code>edgeTypes</code>, <code>context</code>, and <code>lastLayout</code>.
+          </p>
+          <pre><code>const graph = editor.exportGraph();
+const json = JSON.stringify(graph, null, 2);
+// Save or send graph...</code></pre>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">importGraph</span><span class="sig-params">(graphData)</span></span>
+          </div>
+          <p class="api-desc">
+            Loads a graph from a previously exported object. Replaces all current graph state
+            including elements, stylesheet, types, and layout settings.
+          </p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">getElements</span><span class="sig-params">()</span> → <span class="sig-return">object</span></span>
+          </div>
+          <p class="api-desc">Returns the current graph elements in Cytoscape JSON format <code>{ nodes, edges }</code>.</p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">loadElements</span><span class="sig-params">(elements)</span></span>
+          </div>
+          <p class="api-desc">Replaces graph elements without affecting stylesheet or type configuration.</p>
+        </div>
+
+        <!-- Stylesheet -->
+        <div class="api-entry" id="stylesheet">
+          <h3 style="font-size:1.1rem;font-weight:700;margin-bottom:20px;padding-top:16px;border-top:1px solid var(--color-border)">Stylesheet</h3>
+          <p class="api-desc">
+            Boxes uses a user-editable stylesheet array on top of Cytoscape.js's built-in styling.
+            Stylesheet rules are applied via Cytoscape selectors and are included in export data.
+          </p>
+
+          <div class="api-signature">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">getStylesheet</span><span class="sig-params">()</span> → <span class="sig-return">array</span></span>
+          </div>
+          <p class="api-desc">Returns the current stylesheet rules as an array of <code>{ selector, style }</code> objects.</p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">setStylesheet</span><span class="sig-params">(rules)</span></span>
+          </div>
+          <p class="api-desc">Replaces the entire user stylesheet with the provided rules array.</p>
+          <pre><code>editor.setStylesheet([
+  { selector: 'node', style: { 'background-color': '#4a7fd4', 'color': '#fff' } },
+  { selector: 'node[label="Person"]', style: { 'shape': 'ellipse' } },
+  { selector: 'edge', style: { 'line-color': '#999' } }
+]);</code></pre>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">addStyleRule</span><span class="sig-params">(selector, style?)</span></span>
+          </div>
+          <p class="api-desc">Appends a new rule to the stylesheet.</p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">updateStyleRule</span><span class="sig-params">(index, selector, style)</span></span>
+          </div>
+          <p class="api-desc">Replaces the rule at the given index.</p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">removeStyleRule</span><span class="sig-params">(index)</span></span>
+          </div>
+          <p class="api-desc">Removes the rule at the given index.</p>
+        </div>
+
+        <!-- Selection & Clipboard -->
+        <div class="api-entry" id="selection">
+          <h3 style="font-size:1.1rem;font-weight:700;margin-bottom:20px;padding-top:16px;border-top:1px solid var(--color-border)">Selection &amp; Clipboard</h3>
+
+          <div class="api-signature">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">getSelected</span><span class="sig-params">()</span> → <span class="sig-return">object</span></span>
+          </div>
+          <p class="api-desc">Returns the selected elements as <code>{ nodes, edges }</code>.</p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">selectElements</span><span class="sig-params">(elementIds)</span></span>
+          </div>
+          <p class="api-desc">Programmatically selects elements by their IDs. Deselects all others.</p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">removeSelected</span><span class="sig-params">()</span></span>
+          </div>
+          <p class="api-desc">Removes all currently selected nodes and edges.</p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">copy</span><span class="sig-params">()</span></span>
+          </div>
+          <p class="api-desc">Copies selected nodes (and their connecting edges) to the internal clipboard.</p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">cut</span><span class="sig-params">()</span></span>
+          </div>
+          <p class="api-desc">Cuts (copies then removes) selected elements.</p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">paste</span><span class="sig-params">()</span></span>
+          </div>
+          <p class="api-desc">Pastes clipboard contents, applying a position offset to avoid overlap with the originals.</p>
+        </div>
+
+        <!-- History -->
+        <div class="api-entry" id="history">
+          <h3 style="font-size:1.1rem;font-weight:700;margin-bottom:20px;padding-top:16px;border-top:1px solid var(--color-border)">History (Undo/Redo)</h3>
+
+          <div class="api-signature">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">undo</span><span class="sig-params">()</span></span>
+          </div>
+          <p class="api-desc">Undoes the last graph-changing action. Supports up to 50 levels.</p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">redo</span><span class="sig-params">()</span></span>
+          </div>
+          <p class="api-desc">Re-applies the most recently undone action.</p>
+          <div class="api-note">
+            <strong>Keyboard shortcuts:</strong> Ctrl+Z (undo), Ctrl+Y or Ctrl+Shift+Z (redo) are handled automatically when the editor container is focused.
+          </div>
+        </div>
+
+        <!-- Types -->
+        <div class="api-entry" id="types">
+          <h3 style="font-size:1.1rem;font-weight:700;margin-bottom:20px;padding-top:16px;border-top:1px solid var(--color-border)">Node &amp; Edge Types</h3>
+
+          <div class="api-signature">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">getNodeTypes</span><span class="sig-params">()</span> → <span class="sig-return">array</span></span>
+          </div>
+          <p class="api-desc">Returns the configured node type definitions.</p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">getEdgeTypes</span><span class="sig-params">()</span> → <span class="sig-return">array</span></span>
+          </div>
+          <p class="api-desc">Returns the configured edge type definitions.</p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">addNodeOfType</span><span class="sig-params">(typeId, position?)</span> → <span class="sig-return">string</span></span>
+          </div>
+          <p class="api-desc">Creates a new node using the default data and style of the given node type. Returns the new ID.</p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">setEdgeType</span><span class="sig-params">(typeId)</span></span>
+          </div>
+          <p class="api-desc">Sets the active edge type used when drawing new edges interactively.</p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">getEdgeType</span><span class="sig-params">()</span> → <span class="sig-return">object | null</span></span>
+          </div>
+          <p class="api-desc">Returns the currently active edge type definition.</p>
+        </div>
+
+        <!-- Events -->
+        <div class="api-entry" id="events">
+          <h3 style="font-size:1.1rem;font-weight:700;margin-bottom:20px;padding-top:16px;border-top:1px solid var(--color-border)">Events</h3>
+
+          <div class="api-signature">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">on</span><span class="sig-params">(eventName, handler)</span></span>
+          </div>
+          <p class="api-desc">Registers a handler for an editor event.</p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">off</span><span class="sig-params">(eventName, handler)</span></span>
+          </div>
+          <p class="api-desc">Removes a previously registered event handler.</p>
+
+          <h4 style="font-size:0.9rem;font-weight:700;margin:20px 0 12px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em">Event Reference</h4>
+          <ul class="events-list">
+            <tr>
+            <li><span class="event-name">change</span><span class="event-desc">Fired after any graph modification. Payload: <code>{ elements, style, ... }</code> (same shape as <code>exportGraph()</code>).</span></li>
+            <li><span class="event-name">select</span><span class="event-desc">Fired when the selection changes. Payload: <code>{ nodes, edges }</code>.</span></li>
+            <li><span class="event-name">node:add</span><span class="event-desc">Fired when a node is added. Payload: <code>{ id, data, position }</code>.</span></li>
+            <li><span class="event-name">edge:add</span><span class="event-desc">Fired when an edge is added. Payload: <code>{ id, source, target, data }</code>.</span></li>
+            <li><span class="event-name">element:remove</span><span class="event-desc">Fired when elements are removed. Payload: <code>{ elements }</code>.</span></li>
+          </ul>
+          <pre><code>editor.on('change', (graph) => {
+  // Persist graph to server
+  fetch('/api/graphs/1', {
+    method: 'PUT',
+    body: JSON.stringify(graph)
+  });
+});</code></pre>
+        </div>
+
+        <!-- Advanced -->
+        <div class="api-entry" id="advanced">
+          <h3 style="font-size:1.1rem;font-weight:700;margin-bottom:20px;padding-top:16px;border-top:1px solid var(--color-border)">Advanced</h3>
+
+          <div class="api-signature">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">getCytoscape</span><span class="sig-params">()</span> → <span class="sig-return">cytoscape.Core</span></span>
+          </div>
+          <p class="api-desc">
+            Returns the underlying Cytoscape.js instance for direct access to the full Cytoscape API —
+            useful for advanced queries, custom animations, or Cytoscape extension usage.
+          </p>
+          <div class="api-note">
+            <strong>Note:</strong> Direct mutations via the Cytoscape instance bypass Boxes' undo/redo system and event emission.
+          </div>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge method">method</span>
+            <span><span class="sig-name">destroy</span><span class="sig-params">()</span></span>
+          </div>
+          <p class="api-desc">
+            Destroys the editor instance, detaches all event listeners, and removes all DOM elements
+            created by Boxes. Call this in component unmount hooks to prevent memory leaks.
+          </p>
+          <pre><code>// Vue 3
+onUnmounted(() => editor.destroy());
+
+// React
+useEffect(() => {
+  return () => editor.destroy();
+}, []);</code></pre>
+        </div>
+      </div>
+
+      <!-- ── defaultTemplates ──────────────────────────────────────────── -->
+      <div class="api-section" id="default-templates">
+        <h2 class="api-section-title">defaultTemplates</h2>
+        <p class="api-section-desc">
+          Pre-configured graph templates that include node types, edge types, stylesheets,
+          and JSON-LD context mappings.
+        </p>
+        <pre><code>import { defaultTemplates } from '@boxes/core';</code></pre>
+
+        <div class="api-entry">
+          <div class="api-signature">
+            <span class="sig-badge property">property</span>
+            <span><span class="sig-name">defaultTemplates</span> → <span class="sig-return">object</span></span>
+          </div>
+          <p class="api-desc">An object whose keys are template IDs and values are template configuration objects.</p>
+          <h4 style="font-size:0.9rem;font-weight:700;margin:16px 0 8px">Available Templates</h4>
+          <table class="params-table">
+            <thead><tr><th>ID</th><th>Name</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td>blank</td><td>Blank</td><td>Empty graph with minimal defaults.</td></tr>
+              <tr><td>owl-ontology</td><td>Ontology</td><td>Full OWL/SKOS/SHACL template with node types for owl:Class, owl:Ontology, skos:Concept, and typed edge relationships. Includes JSON-LD context for common ontology prefixes.</td></tr>
+              <tr><td>arrows</td><td>Arrows</td><td>Template mimicking the Arrows.app style for simple LPG diagrams.</td></tr>
+            </tbody>
+          </table>
+          <pre><code>const editor = new BoxesEditor(container, {
+  ...defaultTemplates['owl-ontology'],
+  layout: { name: 'dagre' }
+});</code></pre>
+        </div>
+      </div>
+
+      <!-- ── RDF I/O ──────────────────────────────────────────────────── -->
+      <div class="api-section" id="rdf-io">
+        <h2 class="api-section-title">RDF / Turtle I/O</h2>
+        <p class="api-section-desc">Import and export graphs as RDF/Turtle (N3 format).</p>
+        <pre><code>import { exportToTurtle, importFromTurtle, rdfExporter, rdfImporter } from '@boxes/core';</code></pre>
+
+        <div class="api-entry">
+          <div class="api-signature">
+            <span class="sig-badge function">function</span>
+            <span><span class="sig-name">exportToTurtle</span><span class="sig-params">(graphData)</span> → <span class="sig-return">Promise&lt;string&gt;</span></span>
+          </div>
+          <p class="api-desc">Serialises a graph export object as an RDF/Turtle string. Uses the <code>context</code> field for prefix mappings.</p>
+          <pre><code>const turtle = await exportToTurtle(editor.exportGraph());
+// "@prefix owl: &lt;...&gt; .\n:Alice a :Person ..."</code></pre>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge function">function</span>
+            <span><span class="sig-name">importFromTurtle</span><span class="sig-params">(turtleString, context?)</span> → <span class="sig-return">Promise&lt;object&gt;</span></span>
+          </div>
+          <p class="api-desc">Parses a Turtle string and returns a graph data object suitable for <code>editor.importGraph()</code>.</p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge property">property</span>
+            <span><span class="sig-name">rdfExporter</span> · <span class="sig-name">rdfImporter</span></span>
+          </div>
+          <p class="api-desc">I/O plugin objects for use with the web app's <code>io-manager</code>. Implement <code>{ id, label, export/import }</code>.</p>
+        </div>
+      </div>
+
+      <!-- ── JSON-LD I/O ─────────────────────────────────────────────── -->
+      <div class="api-section" id="jsonld-io">
+        <h2 class="api-section-title">JSON-LD I/O</h2>
+        <p class="api-section-desc">Import and export graphs as JSON-LD documents.</p>
+        <pre><code>import { exportToJsonLD, importFromJsonLD, jsonldExporter, jsonldImporter } from '@boxes/core';</code></pre>
+
+        <div class="api-entry">
+          <div class="api-signature">
+            <span class="sig-badge function">function</span>
+            <span><span class="sig-name">exportToJsonLD</span><span class="sig-params">(graphData)</span> → <span class="sig-return">Promise&lt;object&gt;</span></span>
+          </div>
+          <p class="api-desc">Converts a graph export to a JSON-LD document with <code>@context</code>, <code>@graph</code>, and typed nodes.</p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge function">function</span>
+            <span><span class="sig-name">importFromJsonLD</span><span class="sig-params">(jsonldDoc, context?)</span> → <span class="sig-return">Promise&lt;object&gt;</span></span>
+          </div>
+          <p class="api-desc">Parses a JSON-LD object and returns a graph data object.</p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge function">function</span>
+            <span><span class="sig-name">graphDataToJsonLD</span><span class="sig-params">(graphData)</span> → <span class="sig-return">object</span></span>
+          </div>
+          <p class="api-desc">Synchronous version that converts graph data to a JSON-LD object (no compaction step).</p>
+        </div>
+      </div>
+
+      <!-- ── RDF/XML I/O ─────────────────────────────────────────────── -->
+      <div class="api-section" id="rdfxml-io">
+        <h2 class="api-section-title">RDF/XML I/O</h2>
+        <p class="api-section-desc">Import and export graphs as RDF/XML (OWL format).</p>
+        <pre><code>import { exportToRdfXml, importFromRdfXml, rdfXmlExporter, rdfXmlImporter } from '@boxes/core';</code></pre>
+
+        <div class="api-entry">
+          <div class="api-signature">
+            <span class="sig-badge function">function</span>
+            <span><span class="sig-name">exportToRdfXml</span><span class="sig-params">(graphData)</span> → <span class="sig-return">Promise&lt;string&gt;</span></span>
+          </div>
+          <p class="api-desc">Serialises a graph export object as an RDF/XML string.</p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge function">function</span>
+            <span><span class="sig-name">importFromRdfXml</span><span class="sig-params">(xmlString, context?)</span> → <span class="sig-return">Promise&lt;object&gt;</span></span>
+          </div>
+          <p class="api-desc">Parses an RDF/XML string and returns a graph data object.</p>
+        </div>
+      </div>
+
+      <!-- ── Vue Component ───────────────────────────────────────────── -->
+      <div class="api-section" id="vue-component">
+        <h2 class="api-section-title">Vue 3 Component</h2>
+        <p class="api-section-desc">
+          A Vue 3 single-file component wrapping the core <code>BoxesEditor</code>.
+          Initializes Cytoscape in <code>onMounted</code> and exposes the editor instance via <code>defineExpose</code>.
+        </p>
+        <pre><code>import { BoxesEditor } from '@boxes/vue';</code></pre>
+
+        <div class="api-entry">
+          <h4 style="font-size:0.9rem;font-weight:700;margin-bottom:12px">Props</h4>
+          <table class="params-table">
+            <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td>elements</td><td>object</td><td>Initial Cytoscape elements <code>{ nodes, edges }</code>.</td></tr>
+              <tr><td>style</td><td>array</td><td>Initial stylesheet rules.</td></tr>
+              <tr><td>nodeTypes</td><td>array</td><td>Node type definitions.</td></tr>
+              <tr><td>edgeTypes</td><td>array</td><td>Edge type definitions.</td></tr>
+              <tr><td>context</td><td>object</td><td>JSON-LD context for RDF export.</td></tr>
+              <tr><td>layout</td><td>object</td><td>Layout options.</td></tr>
+              <tr><td>width</td><td>string</td><td>CSS width of the container. Default: <code>'100%'</code>.</td></tr>
+              <tr><td>height</td><td>string</td><td>CSS height of the container. Default: <code>'500px'</code>.</td></tr>
+            </tbody>
+          </table>
+
+          <h4 style="font-size:0.9rem;font-weight:700;margin:16px 0 12px">Events</h4>
+          <table class="params-table">
+            <thead><tr><th>Event</th><th>Payload</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td>@change</td><td>graph object</td><td>Emitted after any graph change.</td></tr>
+              <tr><td>@select</td><td><code>{ nodes, edges }</code></td><td>Emitted on selection change.</td></tr>
+            </tbody>
+          </table>
+
+          <h4 style="font-size:0.9rem;font-weight:700;margin:16px 0 12px">Exposed (ref access)</h4>
+          <p class="api-desc">Access the <code>BoxesEditor</code> instance directly via a template ref:</p>
+          <pre><code>&lt;BoxesEditor ref="editorRef" :node-types="types" /&gt;
+
+// In script:
+const editorRef = ref(null);
+// Access: editorRef.value.editor  (the BoxesEditor instance)</code></pre>
+        </div>
+      </div>
+
+      <!-- ── React Component ─────────────────────────────────────────── -->
+      <div class="api-section" id="react-component">
+        <h2 class="api-section-title">React Component</h2>
+        <p class="api-section-desc">
+          A React 18 component using <code>forwardRef</code> + <code>useImperativeHandle</code>.
+          Manages the Cytoscape lifecycle with <code>useEffect</code>.
+        </p>
+        <pre><code>import { BoxesEditor } from '@boxes/react';</code></pre>
+
+        <div class="api-entry">
+          <h4 style="font-size:0.9rem;font-weight:700;margin-bottom:12px">Props</h4>
+          <table class="params-table">
+            <thead><tr><th>Prop</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td>elements</td><td>object</td><td>Initial Cytoscape elements <code>{ nodes, edges }</code>.</td></tr>
+              <tr><td>style</td><td>array</td><td>Initial stylesheet rules.</td></tr>
+              <tr><td>nodeTypes</td><td>array</td><td>Node type definitions.</td></tr>
+              <tr><td>edgeTypes</td><td>array</td><td>Edge type definitions.</td></tr>
+              <tr><td>context</td><td>object</td><td>JSON-LD context for RDF export.</td></tr>
+              <tr><td>layout</td><td>object</td><td>Layout options.</td></tr>
+              <tr><td>width</td><td>string</td><td>CSS width of the container. Default: <code>'100%'</code>.</td></tr>
+              <tr><td>height</td><td>string</td><td>CSS height of the container. Default: <code>'500px'</code>.</td></tr>
+              <tr><td>onChange</td><td>function</td><td>Callback fired after any graph change. Receives the full graph object.</td></tr>
+              <tr><td>onSelect</td><td>function</td><td>Callback fired on selection change. Receives <code>{ nodes, edges }</code>.</td></tr>
+            </tbody>
+          </table>
+
+          <h4 style="font-size:0.9rem;font-weight:700;margin:16px 0 12px">Imperative handle (via ref)</h4>
+          <p class="api-desc">Use <code>React.forwardRef</code> to access the underlying <code>BoxesEditor</code> instance:</p>
+          <pre><code>const editorRef = useRef(null);
+
+&lt;BoxesEditor
+  ref={editorRef}
+  nodeTypes={nodeTypes}
+  onChange={(graph) => console.log(graph)}
+/&gt;
+
+// Access the BoxesEditor instance:
+editorRef.current.editor.exportGraph();</code></pre>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <p>
+        📦 <strong style="color:rgba(255,255,255,0.8)">Boxes</strong>
+        &nbsp;·&nbsp; MIT License &nbsp;·&nbsp;
+        <a href="/">Home</a> &nbsp;·&nbsp;
+        <a href="/demo.html">Demo</a> &nbsp;·&nbsp;
+        <a href="https://github.com/boxes-project/boxes">GitHub ↗</a>
+      </p>
+    </div>
+  </footer>
+
+  <script type="module" src="/src/api.js"></script>
+</body>
+</html>

@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Boxes — LPG Editor powered by Cytoscape.js</title>
+  <meta name="description" content="Boxes is a Labeled Property Graph editor powered by Cytoscape.js with CSS styling as first-class graph data. Vue 3, React 18, and vanilla JS support.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+  <link rel="stylesheet" href="/src/style.css">
+  <style>
+    /* ── Hero ───────────────────────────────────────────────────────────── */
+    .hero {
+      background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #0d1b3e 100%);
+      color: white;
+      padding: 120px 0 80px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(74,127,212,0.2) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(74,127,212,0.15);
+      border: 1px solid rgba(74,127,212,0.3);
+      border-radius: 100px;
+      padding: 6px 16px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #93b8f0;
+      margin-bottom: 24px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .hero h1 {
+      font-size: clamp(2.5rem, 6vw, 4.5rem);
+      font-weight: 900;
+      margin-bottom: 20px;
+      letter-spacing: -0.04em;
+      line-height: 1.05;
+    }
+    .hero h1 .accent { color: #93b8f0; }
+    .hero-subtitle {
+      font-size: clamp(1rem, 2vw, 1.25rem);
+      color: rgba(255,255,255,0.65);
+      max-width: 620px;
+      margin: 0 auto 40px;
+      line-height: 1.6;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .hero-meta {
+      display: flex;
+      gap: 32px;
+      justify-content: center;
+      margin-top: 60px;
+      padding-top: 40px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      flex-wrap: wrap;
+    }
+    .hero-stat {
+      text-align: center;
+    }
+    .hero-stat-value {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #93b8f0;
+      display: block;
+    }
+    .hero-stat-label {
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.5);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    /* ── Features ───────────────────────────────────────────────────────── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      margin-top: 48px;
+    }
+    .feature-card {
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 28px;
+      transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+    }
+    .feature-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lg);
+      border-color: var(--color-primary);
+    }
+    .feature-icon {
+      font-size: 2rem;
+      margin-bottom: 12px;
+      display: block;
+    }
+    .feature-card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .feature-card p {
+      font-size: 0.875rem;
+      color: var(--color-text-muted);
+      line-height: 1.55;
+    }
+
+    /* ── Quick Start ────────────────────────────────────────────────────── */
+    .quickstart-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      align-items: start;
+      margin-top: 48px;
+    }
+    @media (max-width: 768px) { .quickstart-grid { grid-template-columns: 1fr; } }
+
+    .quickstart-steps { counter-reset: step; }
+    .step {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .step-num {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      background: var(--color-primary);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+    .step-content h4 { font-size: 0.95rem; font-weight: 700; margin-bottom: 6px; }
+    .step-content p { font-size: 0.875rem; color: var(--color-text-muted); }
+
+    /* ── Packages ───────────────────────────────────────────────────────── */
+    .packages-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 24px;
+      margin-top: 48px;
+    }
+    .pkg-card {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 28px;
+      background: var(--color-bg);
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .pkg-card:hover { border-color: var(--color-primary); box-shadow: var(--shadow-lg); }
+    .pkg-name {
+      font-family: var(--font-mono);
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--color-primary);
+      background: var(--color-accent);
+      padding: 4px 12px;
+      border-radius: 6px;
+      display: inline-block;
+      margin-bottom: 12px;
+    }
+    .pkg-card h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
+    .pkg-card p { font-size: 0.875rem; color: var(--color-text-muted); margin-bottom: 16px; }
+    .pkg-install {
+      background: var(--color-code-bg);
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--color-text);
+      border: 1px solid var(--color-border);
+    }
+
+    /* ── CTA ────────────────────────────────────────────────────────────── */
+    .cta-section {
+      background: linear-gradient(135deg, #1a1a2e 0%, #0d1b3e 100%);
+      color: white;
+      text-align: center;
+      padding: 100px 0;
+    }
+    .cta-section h2 { color: white; font-size: 2.2rem; margin-bottom: 16px; }
+    .cta-section p { color: rgba(255,255,255,0.6); font-size: 1.1rem; max-width: 500px; margin: 0 auto 40px; }
+    .cta-actions { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+  </style>
+</head>
+<body class="page-top">
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="/">📦 <span>Boxes</span></a>
+      <ul class="nav-links">
+        <li><a href="/#features">Features</a></li>
+        <li><a href="/#quickstart">Quick Start</a></li>
+        <li><a href="/api.html">API Docs</a></li>
+        <li><a href="/demo.html" class="btn-nav">Live Demo →</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-eyebrow">📦 Open Source · MIT License</div>
+      <h1>The <span class="accent">LPG Editor</span><br>for the web</h1>
+      <p class="hero-subtitle">
+        Build interactive Labeled Property Graph editors powered by Cytoscape.js.
+        CSS styles are first-class graph data. Works with Vue 3, React 18, and vanilla JS.
+      </p>
+      <div class="hero-actions">
+        <a href="/demo.html" class="btn btn-white">Try the Demo →</a>
+        <a href="/api.html" class="btn btn-outline-white">API Docs</a>
+        <a href="https://github.com/boxes-project/boxes" class="btn btn-outline-white" target="_blank" rel="noopener">GitHub ↗</a>
+      </div>
+      <div class="hero-meta">
+        <div class="hero-stat">
+          <span class="hero-stat-value">10+</span>
+          <span class="hero-stat-label">Layout Algorithms</span>
+        </div>
+        <div class="hero-stat">
+          <span class="hero-stat-value">3</span>
+          <span class="hero-stat-label">Framework Integrations</span>
+        </div>
+        <div class="hero-stat">
+          <span class="hero-stat-value">5</span>
+          <span class="hero-stat-label">Export Formats</span>
+        </div>
+        <div class="hero-stat">
+          <span class="hero-stat-value">50</span>
+          <span class="hero-stat-label">Undo/Redo Levels</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="section section-alt" id="features">
+    <div class="container">
+      <div class="section-label">Features</div>
+      <h2 class="section-title">Everything you need to build graph editors</h2>
+      <p class="section-subtitle">
+        Boxes wraps Cytoscape.js's powerful graph engine with a full-featured editing experience,
+        ready to embed in any web application.
+      </p>
+      <div class="features-grid">
+        <div class="feature-card">
+          <span class="feature-icon">🧩</span>
+          <h3>Framework Support</h3>
+          <p>First-class Vue 3 and React 18 components alongside a vanilla JS core. Consistent API across all integrations.</p>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">🎨</span>
+          <h3>CSS Styling as Data</h3>
+          <p>Cytoscape.js stylesheet rules are baked into the graph data model. Style nodes and edges declaratively and export styles with your graph.</p>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">📐</span>
+          <h3>10+ Layout Algorithms</h3>
+          <p>Built-in: Random, Grid, Circle, Concentric, Breadth-first, CoSE. Extensions: Dagre, Cola, Klay, Euler, fCoSE, ELK, and more.</p>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">🔗</span>
+          <h3>Semantic Web Ready</h3>
+          <p>Export graphs to RDF/Turtle, JSON-LD, and RDF/XML. Import from JSON-LD. Native support for OWL, RDFS, and SKOS ontologies.</p>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">↩️</span>
+          <h3>Full Undo/Redo</h3>
+          <p>50-level undo/redo history for all editing operations. Keyboard shortcuts (Ctrl+Z / Ctrl+Y) work out of the box.</p>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">✂️</span>
+          <h3>Cut, Copy & Paste</h3>
+          <p>Full clipboard support for nodes and their connected edges, with cascading paste offsets to avoid overlap.</p>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">🏷️</span>
+          <h3>Typed Graph Elements</h3>
+          <p>Define node and edge types with labels, default properties, colors, and shapes. Built-in templates for OWL ontologies and Arrows diagrams.</p>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">🖱️</span>
+          <h3>Interactive Edge Drawing</h3>
+          <p>Drag from a node handle to draw edges interactively. Context menus for quick node and edge operations.</p>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">💾</span>
+          <h3>Flexible I/O</h3>
+          <p>Import/export as Cytoscape JSON, RDF/Turtle, JSON-LD, RDF/XML, Lucidchart CSV, and SVG. Extensible I/O plugin system.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quick Start -->
+  <section class="section" id="quickstart">
+    <div class="container">
+      <div class="section-label">Quick Start</div>
+      <h2 class="section-title">Up and running in minutes</h2>
+      <div class="quickstart-grid">
+        <div class="quickstart-steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-content">
+              <h4>Install the package</h4>
+              <p>Choose the integration that fits your project.</p>
+              <pre><code># Vanilla JS / core library
+npm install @boxes/core
+
+# Vue 3
+npm install @boxes/vue
+
+# React 18
+npm install @boxes/react</code></pre>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-content">
+              <h4>Create a container element</h4>
+              <pre><code>&lt;div id="graph"
+  style="width:800px;height:500px"&gt;
+&lt;/div&gt;</code></pre>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-content">
+              <h4>Initialize the editor</h4>
+              <pre><code>import { BoxesEditor } from '@boxes/core';
+
+const editor = new BoxesEditor(
+  document.getElementById('graph'),
+  {
+    nodeTypes: [
+      { id: 'person', label: 'Person',
+        color: '#4a90d9', shape: 'ellipse',
+        data: { name: '' } }
+    ],
+    edgeTypes: [
+      { id: 'knows', label: 'knows',
+        color: '#666' }
+    ]
+  }
+);
+
+// Listen for changes
+editor.on('change', (graph) => {
+  console.log(editor.exportGraph());
+});</code></pre>
+            </div>
+          </div>
+        </div>
+        <div>
+          <h3 style="font-size:1rem;font-weight:700;margin-bottom:16px;">Vue 3</h3>
+          <pre><code>&lt;template&gt;
+  &lt;BoxesEditor
+    :node-types="nodeTypes"
+    :edge-types="edgeTypes"
+    @change="onGraphChange"
+  /&gt;
+&lt;/template&gt;
+
+&lt;script setup&gt;
+import { BoxesEditor } from '@boxes/vue';
+
+const nodeTypes = [
+  { id: 'person', label: 'Person',
+    color: '#4a90d9' }
+];
+const edgeTypes = [
+  { id: 'knows', label: 'knows' }
+];
+
+function onGraphChange(graph) {
+  console.log(graph);
+}
+&lt;/script&gt;</code></pre>
+
+          <h3 style="font-size:1rem;font-weight:700;margin:24px 0 16px;">React</h3>
+          <pre><code>import { BoxesEditor } from '@boxes/react';
+
+const nodeTypes = [
+  { id: 'person', label: 'Person',
+    color: '#4a90d9' }
+];
+const edgeTypes = [
+  { id: 'knows', label: 'knows' }
+];
+
+function App() {
+  return (
+    &lt;BoxesEditor
+      nodeTypes={nodeTypes}
+      edgeTypes={edgeTypes}
+      onChange={(graph) =&gt;
+        console.log(graph)
+      }
+    /&gt;
+  );
+}</code></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Packages -->
+  <section class="section section-alt" id="packages">
+    <div class="container">
+      <div class="section-label">Packages</div>
+      <h2 class="section-title">Choose your integration</h2>
+      <p class="section-subtitle">All packages share the same underlying Cytoscape.js engine and consistent API.</p>
+      <div class="packages-grid">
+        <div class="pkg-card">
+          <div class="pkg-name">@boxes/core</div>
+          <h3>Core Library</h3>
+          <p>The pure JavaScript graph editor built directly on Cytoscape.js. Use with any framework or no framework at all.</p>
+          <div class="pkg-install">npm install @boxes/core</div>
+        </div>
+        <div class="pkg-card">
+          <div class="pkg-name">@boxes/vue</div>
+          <h3>Vue 3 Component</h3>
+          <p>A Vue 3 single-file component that wraps the core editor. Reactive props, emitted events, and <code>defineExpose</code> access.</p>
+          <div class="pkg-install">npm install @boxes/vue</div>
+        </div>
+        <div class="pkg-card">
+          <div class="pkg-name">@boxes/react</div>
+          <h3>React Component</h3>
+          <p>A React 18 component using <code>forwardRef</code> and <code>useImperativeHandle</code> for full imperative API access.</p>
+          <div class="pkg-install">npm install @boxes/react</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section">
+    <div class="container">
+      <h2>Ready to build?</h2>
+      <p>Try the live demo or dive into the API documentation to get started.</p>
+      <div class="cta-actions">
+        <a href="/demo.html" class="btn btn-white">Open Live Demo →</a>
+        <a href="/api.html" class="btn btn-outline-white">Read the Docs</a>
+        <a href="https://github.com/boxes-project/boxes" class="btn btn-outline-white" target="_blank" rel="noopener">View on GitHub ↗</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <p>
+        📦 <strong style="color:rgba(255,255,255,0.8)">Boxes</strong>
+        &nbsp;·&nbsp;
+        MIT License
+        &nbsp;·&nbsp;
+        Built with <a href="https://js.cytoscape.org">Cytoscape.js</a>
+        &nbsp;·&nbsp;
+        <a href="https://github.com/boxes-project/boxes">GitHub</a>
+        &nbsp;·&nbsp;
+        <a href="/api.html">API Docs</a>
+        &nbsp;·&nbsp;
+        <a href="/demo.html">Demo</a>
+      </p>
+    </div>
+  </footer>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
