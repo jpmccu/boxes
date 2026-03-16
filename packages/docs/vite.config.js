@@ -11,7 +11,6 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'index.html'),
         api: resolve(__dirname, 'api.html'),
-        demo: resolve(__dirname, 'demo.html'),
       }
     }
   },
