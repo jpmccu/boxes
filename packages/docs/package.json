@@ -1,6 +1,6 @@
 {
   "name": "boxes-docs",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "GitHub Pages documentation and demo site for Boxes",
   "private": true,
   "type": "module",

@@ -1,6 +1,6 @@
 {
   "name": "boxes-vue",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Vue 3 component for Boxes graph editor",
   "type": "module",
   "main": "./dist/boxes-vue.umd.js",
