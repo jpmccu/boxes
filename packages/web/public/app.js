@@ -7,6 +7,7 @@ import {
 import { registerImporter, registerExporter, getImporters, getExporters, runImport, runExport } from './io/io-manager.js';
 import { lucidchartCSVImporter } from './io/importers/lucidchart-csv.js';
 import { svgExporter } from './io/exporters/svg.js';
+import { pdfExporter } from './io/exporters/pdf.js';
 import { startTour, isTourDone } from './tour.js';
 
 // ── Register built-in I/O plugins ───────────────────────────────────────────
@@ -15,6 +16,7 @@ registerImporter('rdf', rdfImporter);
 registerImporter('jsonld', jsonldImporter);
 registerImporter('rdfxml', rdfXmlImporter);
 registerExporter('svg', svgExporter);
+registerExporter('pdf', pdfExporter);
 registerExporter('rdf', rdfExporter);
 registerExporter('jsonld', jsonldExporter);
 registerExporter('rdfxml', rdfXmlExporter);

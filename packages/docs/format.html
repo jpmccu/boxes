@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>.boxes File Format — Boxes</title>
+  <meta name="description" content="Complete specification of the .boxes file format: elements, stylesheet, layout, and context fields. Reference for tool authors producing compatible files.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+  <link rel="stylesheet" href="./src/style.css">
+  <style>
+    /* ── Two-column layout ────────────────────────────────────────────────── */
+    .fmt-layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      min-height: calc(100vh - 60px);
+      max-width: 1300px;
+      margin: 0 auto;
+    }
+    @media (max-width: 860px) { .fmt-layout { grid-template-columns: 1fr; } }
+
+    /* ── Sidebar ──────────────────────────────────────────────────────────── */
+    .fmt-sidebar {
+      border-right: 1px solid var(--color-border);
+      padding: 32px 0;
+      position: sticky;
+      top: 60px;
+      height: calc(100vh - 60px);
+      overflow-y: auto;
+    }
+    @media (max-width: 860px) { .fmt-sidebar { display: none; } }
+    .sidebar-section { padding: 0 24px 16px; }
+    .sidebar-heading {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--color-text-muted);
+      margin-bottom: 8px;
+    }
+    .sidebar-links { list-style: none; padding: 0; margin: 0; }
+    .sidebar-links li a {
+      display: block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      color: var(--color-text-secondary);
+      text-decoration: none;
+      transition: background 0.15s, color 0.15s;
+    }
+    .sidebar-links li a:hover,
+    .sidebar-links li a.active { background: var(--color-bg-alt); color: var(--color-text); }
+    .sidebar-links li a.indent { padding-left: 20px; font-size: 0.82rem; }
+
+    /* ── Content ──────────────────────────────────────────────────────────── */
+    .fmt-content {
+      padding: 48px 52px 80px;
+      max-width: 860px;
+    }
+    @media (max-width: 860px) { .fmt-content { padding: 32px 24px 60px; } }
+
+    /* ── Page intro ───────────────────────────────────────────────────────── */
+    .page-intro { margin-bottom: 48px; }
+    .page-intro .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(74,127,212,0.08);
+      border: 1px solid rgba(74,127,212,0.2);
+      border-radius: 100px;
+      padding: 4px 14px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--color-accent);
+      margin-bottom: 16px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .page-intro h1 {
+      font-size: clamp(1.6rem, 3vw, 2.2rem);
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      margin-bottom: 12px;
+    }
+    .page-intro .lead {
+      font-size: 1.05rem;
+      color: var(--color-text-secondary);
+      line-height: 1.65;
+      max-width: 680px;
+    }
+
+    /* ── Sections ─────────────────────────────────────────────────────────── */
+    .fmt-section { margin-bottom: 60px; }
+    .fmt-section h2 {
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin: 0 0 6px;
+      padding-top: 48px;
+      border-top: 1px solid var(--color-border);
+    }
+    .fmt-section h2:first-child { padding-top: 0; border-top: none; }
+    .fmt-section .section-lead {
+      color: var(--color-text-secondary);
+      line-height: 1.6;
+      margin: 0 0 20px;
+    }
+    .fmt-section h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin: 28px 0 8px;
+      color: var(--color-text);
+    }
+    .fmt-section p {
+      line-height: 1.65;
+      color: var(--color-text-secondary);
+      margin: 0 0 14px;
+    }
+
+    /* ── Schema table ─────────────────────────────────────────────────────── */
+    .schema-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 16px 0 24px;
+    }
+    .schema-table th {
+      text-align: left;
+      padding: 8px 12px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--color-text-muted);
+      border-bottom: 2px solid var(--color-border);
+      background: var(--color-bg-alt);
+    }
+    .schema-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--color-border);
+      vertical-align: top;
+    }
+    .schema-table tr:last-child td { border-bottom: none; }
+    .schema-table .field-name {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--color-text);
+      white-space: nowrap;
+    }
+    .schema-table .field-type {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--color-accent);
+      white-space: nowrap;
+    }
+    .badge-req {
+      display: inline-block;
+      background: rgba(239,68,68,0.1);
+      color: #dc2626;
+      border: 1px solid rgba(239,68,68,0.25);
+      border-radius: 4px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 1px 7px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .badge-opt {
+      display: inline-block;
+      background: rgba(107,114,128,0.1);
+      color: var(--color-text-muted);
+      border: 1px solid rgba(107,114,128,0.2);
+      border-radius: 4px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 1px 7px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Callout / note ───────────────────────────────────────────────────── */
+    .callout {
+      background: rgba(74,127,212,0.06);
+      border-left: 3px solid var(--color-accent);
+      border-radius: 0 6px 6px 0;
+      padding: 12px 18px;
+      margin: 16px 0;
+      font-size: 0.9rem;
+      line-height: 1.6;
+      color: var(--color-text-secondary);
+    }
+    .callout strong { color: var(--color-text); }
+    .callout.warn {
+      background: rgba(245,158,11,0.06);
+      border-left-color: #d97706;
+    }
+
+    /* ── Property reference grids ─────────────────────────────────────────── */
+    .prop-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 10px;
+      margin: 16px 0;
+    }
+    .prop-card {
+      border: 1px solid var(--color-border);
+      border-radius: 6px;
+      padding: 10px 14px;
+      background: var(--color-bg-alt);
+      font-size: 0.85rem;
+    }
+    .prop-card .prop-name {
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--color-text);
+      display: block;
+      margin-bottom: 4px;
+    }
+    .prop-card .prop-desc {
+      color: var(--color-text-muted);
+      font-size: 0.8rem;
+      line-height: 1.4;
+    }
+
+    /* ── Mobile TOC ───────────────────────────────────────────────────────── */
+    .toc-mobile {
+      display: none;
+      margin-bottom: 32px;
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 0.9rem;
+    }
+    @media (max-width: 860px) { .toc-mobile { display: block; } }
+    .toc-mobile summary { font-weight: 700; cursor: pointer; }
+    .toc-mobile ul { margin: 12px 0 0 16px; padding: 0; }
+    .toc-mobile li { margin-bottom: 6px; }
+    .toc-mobile a { color: var(--color-accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+
+  <nav class="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="./">📦 <span>Boxes</span></a>
+      <ul class="nav-links">
+        <li><a href="./#features">Features</a></li>
+        <li><a href="./#quickstart">Quick Start</a></li>
+        <li><a href="api.html">API Docs</a></li>
+        <li><a href="format.html" class="active">File Format</a></li>
+        <li><a href="embed.html">Embed Example</a></li>
+        <!-- <li><a href="presentation.html">▶ Slides</a></li> -->
+        <li><a href="./demo/" class="btn-nav">Use Now →</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="fmt-layout">
+
+    <!-- ── Sidebar ──────────────────────────────────────────────────────── -->
+    <aside class="fmt-sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-heading">Overview</div>
+        <ul class="sidebar-links">
+          <li><a href="#overview">Introduction</a></li>
+          <li><a href="#top-level">Top-level structure</a></li>
+        </ul>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-heading">Fields</div>
+        <ul class="sidebar-links">
+          <li><a href="#elements">elements</a></li>
+          <li><a href="#elements-nodes" class="indent">  nodes</a></li>
+          <li><a href="#elements-edges" class="indent">  edges</a></li>
+          <li><a href="#userStylesheet">userStylesheet</a></li>
+          <li><a href="#selectors" class="indent">  selectors</a></li>
+          <li><a href="#node-styles" class="indent">  node styles</a></li>
+          <li><a href="#edge-styles" class="indent">  edge styles</a></li>
+          <li><a href="#lastLayout">lastLayout</a></li>
+          <li><a href="#context">context</a></li>
+          <li><a href="#version">version</a></li>
+        </ul>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-heading">Reference</div>
+        <ul class="sidebar-links">
+          <li><a href="#full-example">Full example</a></li>
+          <li><a href="#tool-authors">For tool authors</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- ── Main content ─────────────────────────────────────────────────── -->
+    <main class="fmt-content">
+
+      <!-- Mobile TOC -->
+      <details class="toc-mobile">
+        <summary>Table of Contents</summary>
+        <ul>
+          <li><a href="#overview">Introduction</a></li>
+          <li><a href="#top-level">Top-level structure</a></li>
+          <li><a href="#elements">elements</a></li>
+          <li><a href="#userStylesheet">userStylesheet</a></li>
+          <li><a href="#lastLayout">lastLayout</a></li>
+          <li><a href="#context">context</a></li>
+          <li><a href="#version">version</a></li>
+          <li><a href="#full-example">Full example</a></li>
+          <li><a href="#tool-authors">For tool authors</a></li>
+        </ul>
+      </details>
+
+      <!-- ── Introduction ─────────────────────────────────────────────── -->
+      <div class="page-intro">
+        <div class="eyebrow">📄 Format specification</div>
+        <h1>The <code>.boxes</code> file format</h1>
+        <p class="lead">
+          A <code>.boxes</code> file is a UTF-8 encoded JSON document that captures a
+          complete Labeled Property Graph: its nodes, edges, visual stylesheet, last-used
+          layout, and optional JSON-LD context. Any tool that can produce this JSON can
+          be read directly by the Boxes editor and by Cytoscape.js.
+        </p>
+      </div>
+
+      <!-- ── Overview ─────────────────────────────────────────────────── -->
+      <div class="fmt-section">
+        <h2 id="overview">Introduction</h2>
+        <p>
+          The format is a thin envelope around two Cytoscape.js concepts — the
+          <a href="https://js.cytoscape.org/#notation/elements-json" target="_blank" rel="noopener">elements JSON format</a>
+          and the
+          <a href="https://js.cytoscape.org/#style" target="_blank" rel="noopener">stylesheet format</a>
+          — with a small amount of Boxes-specific metadata. Because both fields map
+          directly to Cytoscape.js constructor options, any valid <code>.boxes</code>
+          file can be rendered with no transformation:
+        </p>
+        <pre><code>const { elements, userStylesheet, lastLayout } = JSON.parse(boxesFileContents);
+
+cytoscape({
+  container: document.getElementById('graph'),
+  elements,
+  style:  userStylesheet,
+  layout: lastLayout ?? { name: 'preset' }
+});</code></pre>
+
+        <h3>File encoding &amp; extension</h3>
+        <table class="schema-table">
+          <thead><tr><th>Property</th><th>Value</th></tr></thead>
+          <tbody>
+            <tr><td>File extension</td><td><code>.boxes</code> (also accepted: <code>.json</code>)</td></tr>
+            <tr><td>Encoding</td><td>UTF-8</td></tr>
+            <tr><td>MIME type</td><td><code>application/json</code></td></tr>
+            <tr><td>Top-level type</td><td>JSON object <code>{}</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ── Top-level structure ───────────────────────────────────────── -->
+      <div class="fmt-section">
+        <h2 id="top-level">Top-level structure</h2>
+        <table class="schema-table">
+          <thead><tr><th>Field</th><th>Type</th><th></th><th>Description</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="field-name">elements</td>
+              <td class="field-type">object</td>
+              <td><span class="badge-req">required</span></td>
+              <td>Graph nodes and edges in Cytoscape.js elements format.</td>
+            </tr>
+            <tr>
+              <td class="field-name">userStylesheet</td>
+              <td class="field-type">array</td>
+              <td><span class="badge-opt">optional</span></td>
+              <td>Cytoscape.js stylesheet rules. Also accepted as <code>stylesheet</code> (legacy alias).</td>
+            </tr>
+            <tr>
+              <td class="field-name">lastLayout</td>
+              <td class="field-type">object</td>
+              <td><span class="badge-opt">optional</span></td>
+              <td>Name and options of the last-applied layout algorithm.</td>
+            </tr>
+            <tr>
+              <td class="field-name">context</td>
+              <td class="field-type">object</td>
+              <td><span class="badge-opt">optional</span></td>
+              <td>JSON-LD prefix context used when exporting to RDF formats.</td>
+            </tr>
+            <tr>
+              <td class="field-name">version</td>
+              <td class="field-type">string</td>
+              <td><span class="badge-opt">optional</span></td>
+              <td>Format version. Current value: <code>"1.0.0"</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+        <pre><code>{
+  "elements":       { "nodes": [...], "edges": [...] },
+  "userStylesheet": [{ "selector": "...", "style": {} }, ...],
+  "lastLayout":     { "name": "dagre", "options": {} },
+  "context":        { "owl": "http://www.w3.org/2002/07/owl#" },
+  "version":        "1.0.0"
+}</code></pre>
+      </div>
+
+      <!-- ── elements ─────────────────────────────────────────────────── -->
+      <div class="fmt-section">
+        <h2 id="elements">elements</h2>
+        <p>
+          An object with two array fields. Both follow the standard
+          <a href="https://js.cytoscape.org/#notation/elements-json" target="_blank" rel="noopener">Cytoscape.js elements JSON</a>
+          format. Either or both arrays may be empty.
+        </p>
+        <table class="schema-table">
+          <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td class="field-name">nodes</td><td class="field-type">array</td><td>Array of node objects.</td></tr>
+            <tr><td class="field-name">edges</td><td class="field-type">array</td><td>Array of edge objects.</td></tr>
+          </tbody>
+        </table>
+
+        <h3 id="elements-nodes">Node objects</h3>
+        <p>
+          Each node is a JSON object. Only <code>data.id</code> is strictly required;
+          all other fields are optional.
+        </p>
+        <table class="schema-table">
+          <thead><tr><th>Field</th><th>Type</th><th></th><th>Description</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="field-name">data.id</td>
+              <td class="field-type">string</td>
+              <td><span class="badge-req">required</span></td>
+              <td>Unique identifier for the node. Must be unique across all nodes.</td>
+            </tr>
+            <tr>
+              <td class="field-name">data.label</td>
+              <td class="field-type">string</td>
+              <td><span class="badge-opt">optional</span></td>
+              <td>Human-readable display label. Referenced by the stylesheet via <code>data(label)</code>.</td>
+            </tr>
+            <tr>
+              <td class="field-name">data.*</td>
+              <td class="field-type">any</td>
+              <td><span class="badge-opt">optional</span></td>
+              <td>Arbitrary additional properties (e.g. <code>nodeType</code>, <code>year</code>, <code>@type</code>). Addressable in stylesheet selectors.</td>
+            </tr>
+            <tr>
+              <td class="field-name">position.x</td>
+              <td class="field-type">number</td>
+              <td><span class="badge-opt">optional</span></td>
+              <td>Horizontal position in Cytoscape's model coordinate space.</td>
+            </tr>
+            <tr>
+              <td class="field-name">position.y</td>
+              <td class="field-type">number</td>
+              <td><span class="badge-opt">optional</span></td>
+              <td>Vertical position. If both x and y are 0 for all nodes, the editor auto-applies the saved layout.</td>
+            </tr>
+            <tr>
+              <td class="field-name">classes</td>
+              <td class="field-type">string</td>
+              <td><span class="badge-opt">optional</span></td>
+              <td>Space-separated CSS class names applied to the element. Usable in stylesheet selectors as <code>.className</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+        <pre><code>{
+  "data": {
+    "id": "alice",
+    "label": "Alice",
+    "nodeType": "person",
+    "department": "Engineering"
+  },
+  "position": { "x": 120, "y": 80 },
+  "classes": "highlighted"
+}</code></pre>
+
+        <h3 id="elements-edges">Edge objects</h3>
+        <p>
+          Edges have no <code>position</code>. Both <code>source</code> and <code>target</code>
+          must reference existing node IDs.
+        </p>
+        <table class="schema-table">
+          <thead><tr><th>Field</th><th>Type</th><th></th><th>Description</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="field-name">data.id</td>
+              <td class="field-type">string</td>
+              <td><span class="badge-req">required</span></td>
+              <td>Unique identifier for the edge.</td>
+            </tr>
+            <tr>
+              <td class="field-name">data.source</td>
+              <td class="field-type">string</td>
+              <td><span class="badge-req">required</span></td>
+              <td>ID of the source node.</td>
+            </tr>
+            <tr>
+              <td class="field-name">data.target</td>
+              <td class="field-type">string</td>
+              <td><span class="badge-req">required</span></td>
+              <td>ID of the target node.</td>
+            </tr>
+            <tr>
+              <td class="field-name">data.label</td>
+              <td class="field-type">string</td>
+              <td><span class="badge-opt">optional</span></td>
+              <td>Display label for the edge (relationship type).</td>
+            </tr>
+            <tr>
+              <td class="field-name">data.*</td>
+              <td class="field-type">any</td>
+              <td><span class="badge-opt">optional</span></td>
+              <td>Arbitrary additional properties.</td>
+            </tr>
+            <tr>
+              <td class="field-name">classes</td>
+              <td class="field-type">string</td>
+              <td><span class="badge-opt">optional</span></td>
+              <td>Space-separated CSS class names.</td>
+            </tr>
+          </tbody>
+        </table>
+        <pre><code>{
+  "data": {
+    "id": "e-alice-bob",
+    "source": "alice",
+    "target": "bob",
+    "label": "KNOWS",
+    "since": "2019"
+  }
+}</code></pre>
+      </div>
+
+      <!-- ── userStylesheet ────────────────────────────────────────────── -->
+      <div class="fmt-section">
+        <h2 id="userStylesheet">userStylesheet</h2>
+        <p>
+          An array of stylesheet rules. Each rule is an object with a
+          <code>selector</code> string and a <code>style</code> object.
+          Rules are applied in order; later rules override earlier ones for the same
+          property on the same element.
+        </p>
+        <pre><code>[
+  { "selector": "node",              "style": { "background-color": "#4a7fd4" } },
+  { "selector": "node[nodeType = 'person']", "style": { "shape": "ellipse" } },
+  { "selector": "edge",              "style": { "line-color": "#aaa" } }
+]</code></pre>
+
+        <div class="callout">
+          <strong>Alias:</strong> The field name <code>stylesheet</code> is accepted as a
+          legacy alias for <code>userStylesheet</code> when reading files.
+          Always write <code>userStylesheet</code> in newly produced files.
+        </div>
+
+        <h3 id="selectors">Selector syntax</h3>
+        <p>
+          Selectors follow the
+          <a href="https://js.cytoscape.org/#selectors" target="_blank" rel="noopener">Cytoscape.js selector specification</a>,
+          which is a subset of CSS selectors extended with data attribute matching.
+        </p>
+        <table class="schema-table">
+          <thead><tr><th>Selector</th><th>Matches</th></tr></thead>
+          <tbody>
+            <tr><td class="field-name">node</td><td>All nodes</td></tr>
+            <tr><td class="field-name">edge</td><td>All edges</td></tr>
+            <tr><td class="field-name">#alice</td><td>Element with <code>id = "alice"</code></td></tr>
+            <tr><td class="field-name">.highlighted</td><td>Elements with class <code>highlighted</code></td></tr>
+            <tr><td class="field-name">node[label]</td><td>Nodes where <code>label</code> property exists</td></tr>
+            <tr><td class="field-name">node[nodeType = 'person']</td><td>Nodes where <code>nodeType === "person"</code></td></tr>
+            <tr><td class="field-name">node[nodeType != 'person']</td><td>Nodes where <code>nodeType !== "person"</code></td></tr>
+            <tr><td class="field-name">node[weight &gt; 10]</td><td>Nodes where <code>weight &gt; 10</code> (numeric)</td></tr>
+            <tr><td class="field-name">node[label *= 'Ali']</td><td>Nodes where <code>label</code> contains <code>"Ali"</code></td></tr>
+            <tr><td class="field-name">node[label ^= 'Al']</td><td>Nodes where <code>label</code> starts with <code>"Al"</code></td></tr>
+            <tr><td class="field-name">node:selected</td><td>Selected nodes</td></tr>
+            <tr><td class="field-name">node.person, node.company</td><td>Comma-separated list</td></tr>
+          </tbody>
+        </table>
+        <div class="callout warn">
+          <strong>Special characters in property names:</strong> If a data property name
+          contains characters that are meaningful in CSS (e.g. <code>@type</code>), escape
+          the special character with a backslash in the JSON string:
+          <code>"selector": "node[\\@type = 'owl:Class']"</code>. After JSON parsing the
+          value becomes <code>node[\@type = 'owl:Class']</code>, which Cytoscape.js handles
+          correctly.
+        </div>
+
+        <h3 id="node-styles">Node style properties</h3>
+        <p>The most commonly used Cytoscape.js style properties for nodes:</p>
+        <div class="prop-grid">
+          <div class="prop-card"><span class="prop-name">background-color</span><span class="prop-desc">CSS colour string, e.g. <code>"#4a7fd4"</code>, <code>"blue"</code></span></div>
+          <div class="prop-card"><span class="prop-name">shape</span><span class="prop-desc"><code>ellipse</code> · <code>rectangle</code> · <code>roundrectangle</code> · <code>diamond</code> · <code>triangle</code> · <code>barrel</code> · <code>hexagon</code> · <code>star</code></span></div>
+          <div class="prop-card"><span class="prop-name">width / height</span><span class="prop-desc">Number (px) or <code>"label"</code> to size to content</span></div>
+          <div class="prop-card"><span class="prop-name">padding</span><span class="prop-desc">Extra space inside the node boundary, e.g. <code>"10px"</code></span></div>
+          <div class="prop-card"><span class="prop-name">border-width</span><span class="prop-desc">Border thickness in px</span></div>
+          <div class="prop-card"><span class="prop-name">border-color</span><span class="prop-desc">CSS colour string</span></div>
+          <div class="prop-card"><span class="prop-name">border-style</span><span class="prop-desc"><code>solid</code> · <code>dashed</code> · <code>dotted</code> · <code>double</code></span></div>
+          <div class="prop-card"><span class="prop-name">label</span><span class="prop-desc"><code>"data(label)"</code> to bind to element data, or a literal string</span></div>
+          <div class="prop-card"><span class="prop-name">color</span><span class="prop-desc">Label text colour</span></div>
+          <div class="prop-card"><span class="prop-name">font-size</span><span class="prop-desc">e.g. <code>"12px"</code></span></div>
+          <div class="prop-card"><span class="prop-name">font-weight</span><span class="prop-desc"><code>"normal"</code> · <code>"bold"</code> · <code>700</code></span></div>
+          <div class="prop-card"><span class="prop-name">text-valign</span><span class="prop-desc"><code>top</code> · <code>center</code> · <code>bottom</code></span></div>
+          <div class="prop-card"><span class="prop-name">text-halign</span><span class="prop-desc"><code>left</code> · <code>center</code> · <code>right</code></span></div>
+          <div class="prop-card"><span class="prop-name">text-wrap</span><span class="prop-desc"><code>"none"</code> · <code>"wrap"</code> · <code>"ellipsis"</code></span></div>
+          <div class="prop-card"><span class="prop-name">text-max-width</span><span class="prop-desc">Max label width before wrapping, e.g. <code>"80px"</code></span></div>
+          <div class="prop-card"><span class="prop-name">opacity</span><span class="prop-desc"><code>0</code>–<code>1</code></span></div>
+        </div>
+
+        <h3 id="edge-styles">Edge style properties</h3>
+        <div class="prop-grid">
+          <div class="prop-card"><span class="prop-name">line-color</span><span class="prop-desc">CSS colour string for the edge line</span></div>
+          <div class="prop-card"><span class="prop-name">width</span><span class="prop-desc">Line thickness in px</span></div>
+          <div class="prop-card"><span class="prop-name">line-style</span><span class="prop-desc"><code>solid</code> · <code>dashed</code> · <code>dotted</code></span></div>
+          <div class="prop-card"><span class="prop-name">curve-style</span><span class="prop-desc"><code>bezier</code> · <code>unbundled-bezier</code> · <code>straight</code> · <code>taxi</code></span></div>
+          <div class="prop-card"><span class="prop-name">target-arrow-shape</span><span class="prop-desc"><code>triangle</code> · <code>triangle-hollow</code> · <code>circle</code> · <code>square</code> · <code>none</code></span></div>
+          <div class="prop-card"><span class="prop-name">target-arrow-color</span><span class="prop-desc">Arrow head colour (should match <code>line-color</code>)</span></div>
+          <div class="prop-card"><span class="prop-name">source-arrow-shape</span><span class="prop-desc">Same values as <code>target-arrow-shape</code></span></div>
+          <div class="prop-card"><span class="prop-name">mid-target-arrow-shape</span><span class="prop-desc">Arrow in the middle of the edge</span></div>
+          <div class="prop-card"><span class="prop-name">label</span><span class="prop-desc"><code>"data(label)"</code> to bind to element data</span></div>
+          <div class="prop-card"><span class="prop-name">font-size</span><span class="prop-desc">Label text size, e.g. <code>"10px"</code></span></div>
+          <div class="prop-card"><span class="prop-name">color</span><span class="prop-desc">Label text colour</span></div>
+          <div class="prop-card"><span class="prop-name">text-background-color</span><span class="prop-desc">Background behind the label</span></div>
+          <div class="prop-card"><span class="prop-name">text-background-opacity</span><span class="prop-desc"><code>0</code>–<code>1</code>; set &gt; 0 to show the background</span></div>
+          <div class="prop-card"><span class="prop-name">opacity</span><span class="prop-desc"><code>0</code>–<code>1</code></span></div>
+        </div>
+
+        <p>
+          For the complete list of supported style properties see the
+          <a href="https://js.cytoscape.org/#style/node-body" target="_blank" rel="noopener">Cytoscape.js style documentation</a>.
+        </p>
+      </div>
+
+      <!-- ── lastLayout ────────────────────────────────────────────────── -->
+      <div class="fmt-section">
+        <h2 id="lastLayout">lastLayout</h2>
+        <p>
+          Records which layout algorithm was last applied and with what options.
+          When loading a file, the Boxes editor re-runs the layout only if all node
+          positions are <code>{ x: 0, y: 0 }</code>; otherwise saved positions are used.
+        </p>
+        <table class="schema-table">
+          <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td class="field-name">name</td><td class="field-type">string</td><td>Layout algorithm name (see below).</td></tr>
+            <tr><td class="field-name">options</td><td class="field-type">object</td><td>Algorithm-specific options (e.g. <code>rankdir</code> for dagre).</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Built-in layout names</h3>
+        <table class="schema-table">
+          <thead><tr><th>Name</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td class="field-name">preset</td><td>Restore node positions as stored. Use this when nodes have explicit <code>position</code> values.</td></tr>
+            <tr><td class="field-name">grid</td><td>Regular grid. Options: <code>rows</code>, <code>cols</code>.</td></tr>
+            <tr><td class="field-name">circle</td><td>Nodes arranged in a circle.</td></tr>
+            <tr><td class="field-name">concentric</td><td>Concentric circles by a node metric.</td></tr>
+            <tr><td class="field-name">breadthfirst</td><td>Hierarchical BFS tree. Options: <code>directed</code>, <code>root</code>.</td></tr>
+            <tr><td class="field-name">cose</td><td>Force-directed (built-in). Options: <code>idealEdgeLength</code>, <code>nodeRepulsion</code>.</td></tr>
+            <tr><td class="field-name">random</td><td>Random placement.</td></tr>
+            <tr><td class="field-name">dagre</td><td>DAG / hierarchy (extension). Options: <code>rankdir</code> (<code>"LR"</code>/<code>"TB"</code>), <code>ranksep</code>, <code>nodesep</code>.</td></tr>
+            <tr><td class="field-name">cola</td><td>Constraint-based force-directed (extension).</td></tr>
+            <tr><td class="field-name">klay</td><td>Layer-based directed layout (extension).</td></tr>
+            <tr><td class="field-name">fcose</td><td>Fast compound spring embedder (extension).</td></tr>
+          </tbody>
+        </table>
+        <pre><code>// Honour saved positions (most common for authored graphs)
+"lastLayout": { "name": "preset" }
+
+// DAG, left-to-right
+"lastLayout": { "name": "dagre", "options": { "rankdir": "LR", "ranksep": 60 } }
+
+// Circle, no options needed
+"lastLayout": { "name": "circle" }</code></pre>
+
+        <div class="callout">
+          <strong>Tip:</strong> When generating a <code>.boxes</code> file programmatically
+          without known positions, set <code>lastLayout</code> to any automatic layout (e.g.
+          <code>{ "name": "dagre" }</code>) and leave all node positions at <code>{ x:0, y:0 }</code>.
+          The editor will auto-apply the layout on load.
+        </div>
+      </div>
+
+      <!-- ── context ───────────────────────────────────────────────────── -->
+      <div class="fmt-section">
+        <h2 id="context">context</h2>
+        <p>
+          An optional JSON-LD
+          <a href="https://www.w3.org/TR/json-ld/#the-context" target="_blank" rel="noopener">context object</a>
+          that maps namespace prefixes to URIs. It is used exclusively by the
+          Boxes RDF export pipeline (Turtle, JSON-LD, RDF/XML); Cytoscape.js and the
+          embedding snippet ignore it entirely.
+        </p>
+        <pre><code>"context": {
+  "owl":  "http://www.w3.org/2002/07/owl#",
+  "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+  "skos": "http://www.w3.org/2004/02/skos/core#",
+  "ex":   "https://example.org/"
+}</code></pre>
+        <p>
+          Omit this field entirely (or pass <code>{}</code>) if the graph is not
+          intended for RDF workflows.
+        </p>
+      </div>
+
+      <!-- ── version ───────────────────────────────────────────────────── -->
+      <div class="fmt-section">
+        <h2 id="version">version</h2>
+        <p>
+          A semver string identifying the format revision. Currently
+          <code>"1.0.0"</code>. The Boxes editor reads files with or without this
+          field; tool authors should write it for forward-compatibility.
+        </p>
+        <pre><code>"version": "1.0.0"</code></pre>
+      </div>
+
+      <!-- ── Full example ───────────────────────────────────────────────── -->
+      <div class="fmt-section">
+        <h2 id="full-example">Full example</h2>
+        <p>
+          A complete, valid <code>.boxes</code> file representing a small movies graph.
+          Download it as
+          <a href="sample.boxes" download><code>sample.boxes</code></a>.
+        </p>
+        <pre><code>{
+  "version": "1.0.0",
+  "elements": {
+    "nodes": [
+      {
+        "data": { "id": "matrix",   "label": "The Matrix",          "nodeType": "movie",  "year": "1999" },
+        "position": { "x": 300, "y": 180 }
+      },
+      {
+        "data": { "id": "reloaded", "label": "The Matrix Reloaded", "nodeType": "movie",  "year": "2003" },
+        "position": { "x": 300, "y": 380 }
+      },
+      {
+        "data": { "id": "keanu",    "label": "Keanu Reeves",        "nodeType": "person" },
+        "position": { "x": 60,  "y": 280 }
+      },
+      {
+        "data": { "id": "laurence", "label": "Laurence Fishburne",  "nodeType": "person" },
+        "position": { "x": 540, "y": 280 }
+      },
+      {
+        "data": { "id": "lana",     "label": "Lana Wachowski",      "nodeType": "person" },
+        "position": { "x": 300, "y": 560 }
+      }
+    ],
+    "edges": [
+      { "data": { "id": "e1", "source": "keanu",    "target": "matrix",   "label": "ACTED_IN"   } },
+      { "data": { "id": "e2", "source": "laurence",  "target": "matrix",   "label": "ACTED_IN"   } },
+      { "data": { "id": "e3", "source": "lana",      "target": "matrix",   "label": "DIRECTED"   } },
+      { "data": { "id": "e4", "source": "keanu",    "target": "reloaded", "label": "ACTED_IN"   } },
+      { "data": { "id": "e5", "source": "laurence",  "target": "reloaded", "label": "ACTED_IN"   } },
+      { "data": { "id": "e6", "source": "lana",      "target": "reloaded", "label": "DIRECTED"   } },
+      { "data": { "id": "e7", "source": "matrix",   "target": "reloaded", "label": "PREQUEL_OF" } }
+    ]
+  },
+  "userStylesheet": [
+    {
+      "selector": "node",
+      "style": {
+        "label": "data(label)", "text-valign": "center", "text-halign": "center",
+        "color": "#ffffff", "font-size": "11px", "font-weight": "600",
+        "text-wrap": "wrap", "text-max-width": "80px",
+        "width": "90px", "height": "90px", "border-width": 2
+      }
+    },
+    {
+      "selector": "node[nodeType = 'person']",
+      "style": { "shape": "ellipse", "background-color": "#4a7fd4", "border-color": "#2c5aa0" }
+    },
+    {
+      "selector": "node[nodeType = 'movie']",
+      "style": { "shape": "roundrectangle", "background-color": "#e67e22", "border-color": "#a04000" }
+    },
+    {
+      "selector": "edge",
+      "style": {
+        "label": "data(label)", "font-size": "9px", "color": "#555",
+        "curve-style": "bezier", "target-arrow-shape": "triangle",
+        "line-color": "#bbb", "target-arrow-color": "#bbb", "width": 2,
+        "text-background-color": "#ffffff", "text-background-opacity": 0.8,
+        "text-background-padding": "2px"
+      }
+    },
+    {
+      "selector": "edge[label = 'DIRECTED']",
+      "style": { "line-color": "#e74c3c", "target-arrow-color": "#e74c3c", "line-style": "dashed", "color": "#e74c3c" }
+    },
+    {
+      "selector": "edge[label = 'PREQUEL_OF']",
+      "style": { "line-color": "#8e44ad", "target-arrow-color": "#8e44ad", "line-style": "dotted", "color": "#8e44ad" }
+    }
+  ],
+  "lastLayout": { "name": "preset" },
+  "context": {}
+}</code></pre>
+      </div>
+
+      <!-- ── For tool authors ───────────────────────────────────────────── -->
+      <div class="fmt-section">
+        <h2 id="tool-authors">For tool authors</h2>
+
+        <h3>Generating a .boxes file without positions</h3>
+        <p>
+          If your tool doesn't compute layout, omit <code>position</code> on nodes
+          (or set all positions to <code>{ x: 0, y: 0 }</code>) and choose an automatic
+          layout in <code>lastLayout</code>. The Boxes editor detects the all-zero case
+          and runs the layout on import.
+        </p>
+        <pre><code>// Tool output — positions unknown, let the editor lay it out
+{
+  "version": "1.0.0",
+  "elements": {
+    "nodes": [
+      { "data": { "id": "a", "label": "Alpha" } },
+      { "data": { "id": "b", "label": "Beta"  } }
+    ],
+    "edges": [
+      { "data": { "id": "e1", "source": "a", "target": "b", "label": "LINKS_TO" } }
+    ]
+  },
+  "userStylesheet": [
+    { "selector": "node", "style": { "label": "data(label)", "background-color": "#4a7fd4" } },
+    { "selector": "edge", "style": { "label": "data(label)", "line-color": "#aaa",
+                                     "target-arrow-shape": "triangle", "curve-style": "bezier" } }
+  ],
+  "lastLayout": { "name": "dagre", "options": { "rankdir": "LR" } }
+}</code></pre>
+
+        <h3>Minimal valid file</h3>
+        <p>Only <code>elements</code> is required. All other fields have sensible defaults.</p>
+        <pre><code>{
+  "elements": {
+    "nodes": [
+      { "data": { "id": "n1", "label": "Hello" } },
+      { "data": { "id": "n2", "label": "World" } }
+    ],
+    "edges": [
+      { "data": { "id": "e1", "source": "n1", "target": "n2" } }
+    ]
+  }
+}</code></pre>
+
+        <h3>ID rules</h3>
+        <ul style="color:var(--color-text-secondary);line-height:1.8;padding-left:20px">
+          <li>Node IDs and edge IDs share the same namespace — they must all be unique across both arrays.</li>
+          <li>IDs may contain any characters except whitespace. URL-safe alphanumeric strings are recommended.</li>
+          <li>IDs are case-sensitive: <code>"Alice"</code> and <code>"alice"</code> are different nodes.</li>
+        </ul>
+
+        <h3>Stylesheet ordering</h3>
+        <p>
+          Rules are applied in array order. Put broad selectors (e.g. <code>node</code>,
+          <code>edge</code>) early and specific selectors (e.g.
+          <code>node[nodeType = 'person']</code>) later so that specific rules correctly
+          override general ones.
+        </p>
+
+        <h3>Reading .boxes files in other tools</h3>
+        <p>
+          Because the format is plain JSON you can load it with any JSON parser.
+          The stylesheet uses the same property names as the
+          <a href="https://js.cytoscape.org/#style" target="_blank" rel="noopener">Cytoscape.js style API</a>,
+          so you can cross-reference that documentation for the full set of supported
+          properties and their allowed values.
+        </p>
+
+        <div class="callout">
+          <strong>Producing files programmatically:</strong> Call
+          <a href="api.html#graph-io"><code>editor.exportGraph()</code></a>
+          from the Boxes API to get a serialisable object, then
+          <code>JSON.stringify(graph, null, 2)</code> to write it.
+          To read it back: <a href="api.html#graph-io"><code>editor.importGraph(JSON.parse(text))</code></a>.
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-content">
+        <span>📦 Boxes — LPG Editor powered by <a href="https://js.cytoscape.org">Cytoscape.js</a></span>
+        <nav class="footer-links">
+          <a href="https://github.com/boxes-project/boxes">GitHub</a>
+          <a href="api.html">API Docs</a>
+          <a href="format.html">File Format</a>
+          <a href="embed.html">Embed Example</a>
+          <a href="./demo/">Editor</a>
+        </nav>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

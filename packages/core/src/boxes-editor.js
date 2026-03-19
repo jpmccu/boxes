@@ -12,6 +12,10 @@ cytoscape.use(cytoscapeCola);
 cytoscape.use(cytoscapeKlay);
 cytoscape.use(cytoscapeEuler);
 
+// cytoscape-pdf-export is large (bundles PDFKit with fonts).
+// It is registered lazily on first use so it splits into a separate async chunk.
+let _pdfPluginRegistered = false;
+
 // Module-level counter ensures unique IDs even when elements are created in the same millisecond
 let _idCounter = 0;
 function _uniqueId(prefix) {
@@ -1734,6 +1738,35 @@ export class BoxesEditor {
    */
   getCytoscape() {
     return this.cy;
+  }
+
+  /**
+   * Export the graph as a PDF blob.
+   * cytoscape-pdf-export is loaded lazily on first call so it does not inflate
+   * the main bundle for consumers who never use PDF export.
+   *
+   * @param {object} [options]
+   * @param {boolean} [options.full=true]           Export entire graph, not just viewport
+   * @param {string}  [options.paperSize='LETTER']  LETTER, LEGAL, A4, A3, A2, A1, A0, TABLOID, CUSTOM
+   * @param {string}  [options.orientation='LANDSCAPE'] PORTRAIT or LANDSCAPE
+   * @param {number}  [options.margin=52]           Margin in PostScript points (72 pt = 1 in)
+   * @param {string|false} [options.bg=false]       Background colour or false for transparent
+   * @returns {Promise<Blob>}
+   */
+  async exportPdf(options = {}) {
+    if (!_pdfPluginRegistered) {
+      const mod = await import('cytoscape-pdf-export');
+      const plugin = mod?.default ?? mod;
+      cytoscape.use(plugin);
+      _pdfPluginRegistered = true;
+    }
+    return this.cy.pdf({
+      full:        options.full        ?? true,
+      paperSize:   options.paperSize   ?? 'LETTER',
+      orientation: options.orientation ?? 'LANDSCAPE',
+      margin:      options.margin      ?? 52,
+      bg:          options.bg          ?? false,
+    });
   }
 
   /**

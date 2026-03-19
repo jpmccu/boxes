@@ -28,6 +28,7 @@
     "cytoscape-edgehandles": "^4.0.1",
     "cytoscape-euler": "^1.2.3",
     "cytoscape-klay": "^3.1.4",
+    "cytoscape-pdf-export": "^0.0.3",
     "cytoscape-popper": "^4.0.1",
     "dagre": "^0.8.5",
     "n3": "^2.0.3"

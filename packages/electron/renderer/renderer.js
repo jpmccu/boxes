@@ -549,5 +549,16 @@ window.electronAPI.onRequestTurtleExport(() => {
   }
 });
 
+window.electronAPI.onRequestPdfExport(async () => {
+  try {
+    if (!editor) { window.electronAPI.sendPdfExportData({ error: 'No graph to export' }); return; }
+    const blob = await editor.exportPdf();
+    const buffer = await blob.arrayBuffer();
+    window.electronAPI.sendPdfExportData({ buffer: Array.from(new Uint8Array(buffer)) });
+  } catch (err) {
+    window.electronAPI.sendPdfExportData({ error: err.message });
+  }
+});
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 loadTemplates();

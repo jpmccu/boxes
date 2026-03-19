@@ -2,9 +2,18 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 
+function suppressKnownEvalWarnings(warning, warn) {
+  if (warning.code === 'EVAL' && (
+    warning.id?.includes('cytoscape-pdf-export') ||
+    warning.id?.includes('core/dist/')
+  )) return;
+  warn(warning);
+}
+
 export default defineConfig({
   plugins: [react()],
   build: {
+    chunkSizeWarningLimit: 3500,
     lib: {
       entry: resolve(__dirname, 'src/index.js'),
       name: 'BoxesReact',
@@ -18,7 +27,8 @@ export default defineConfig({
           react: 'React',
           'react-dom': 'ReactDOM'
         }
-      }
+      },
+      onwarn: suppressKnownEvalWarnings,
     }
   }
 });

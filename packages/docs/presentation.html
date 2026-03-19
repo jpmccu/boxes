@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Boxes — Graph Editor for the Modern Web</title>
+  <meta name="description" content="An interactive presentation introducing Boxes: the Cytoscape.js-powered LPG editor with live embedded graph demos.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+
+  <!-- Reveal.js core -->
+  <link rel="stylesheet" href="https://unpkg.com/reveal.js@5/dist/reveal.css">
+  <!-- Highlight.js theme for code blocks -->
+  <link rel="stylesheet" href="https://unpkg.com/reveal.js@5/plugin/highlight/monokai.css">
+  <!-- Cytoscape.js for live graph demos -->
+  <script src="https://unpkg.com/cytoscape@3/dist/cytoscape.min.js"></script>
+
+  <style>
+    /* ── Dark background — override reveal.js base (which defaults to white) ── */
+    html, body { background: #0b1120; }
+    .reveal-viewport { background: #0b1120 !important; }
+    .reveal { background-color: #0b1120; color: rgba(255,255,255,0.82); }
+
+    /* ── Boxes brand theme for Reveal.js ───────────────────────────────────── */
+    :root {
+      --r-background-color: #0b1120;
+      --r-main-color: rgba(255,255,255,0.82);
+      --r-heading-color: #ffffff;
+      --r-link-color: #93b8f0;
+      --r-link-color-hover: #c7d9f9;
+      --r-selection-background-color: #4a7fd4;
+      --r-main-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --r-heading-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --r-code-font: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      --r-heading-font-weight: 800;
+      --r-heading-letter-spacing: -0.03em;
+      --r-heading-text-transform: none;
+      --r-main-font-size: 36px;
+    }
+
+    .reveal { font-family: var(--r-main-font); }
+    .reveal .slides section { padding: 0 48px; }
+
+    /* ── Explicit heading sizes (don't rely on theme CSS applying the variables) */
+    .reveal h1 { font-size: 2.4em; font-weight: 800; color: #ffffff; letter-spacing: -0.03em; text-transform: none; margin-bottom: 0.2em; }
+    .reveal h2 { font-size: 1.7em; font-weight: 800; color: #ffffff; letter-spacing: -0.03em; text-transform: none; margin-bottom: 0.2em; }
+    .reveal h3 { font-size: 1.2em; font-weight: 700; color: #ffffff; letter-spacing: -0.02em; text-transform: none; }
+    .reveal a { color: var(--r-link-color); }
+    .reveal code { font-family: var(--r-code-font); }
+    .reveal pre { margin: 0; box-shadow: none; }
+    .reveal pre code { font-size: 0.7em; line-height: 1.55; border-radius: 10px; padding: 18px 22px; max-height: 360px; }
+    .reveal p { color: rgba(255,255,255,0.82); }
+
+    /* ── Slide backgrounds ─────────────────────────────────────────────────── */
+    .reveal .slides section[data-background-gradient] .slide-bg { opacity: 1; }
+
+    /* ── Utility classes ───────────────────────────────────────────────────── */
+    .accent    { color: #93b8f0; }
+    .green     { color: #34d399; }
+    .orange    { color: #fb923c; }
+    .muted     { color: rgba(255,255,255,0.5); font-size: 0.7em; }
+    .tag {
+      display: inline-block;
+      background: rgba(74,127,212,0.2);
+      border: 1px solid rgba(74,127,212,0.4);
+      border-radius: 100px;
+      padding: 3px 14px;
+      font-size: 0.45em;
+      font-weight: 700;
+      color: #93b8f0;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      vertical-align: middle;
+      margin-bottom: 14px;
+    }
+
+    /* ── Stat row ──────────────────────────────────────────────────────────── */
+    .stat-row {
+      display: flex;
+      justify-content: center;
+      gap: 48px;
+      margin-top: 32px;
+    }
+    .stat { text-align: center; }
+    .stat-val { display: block; font-size: 2.2em; font-weight: 900; color: #93b8f0; line-height: 1; }
+    .stat-label { display: block; font-size: 0.38em; color: rgba(255,255,255,0.5); letter-spacing: 0.08em; text-transform: uppercase; margin-top: 4px; }
+
+    /* ── Feature list ──────────────────────────────────────────────────────── */
+    .feat-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      text-align: left;
+      display: inline-block;
+    }
+    .feat-list li {
+      padding: 8px 0;
+      font-size: 0.62em;
+      color: rgba(255,255,255,0.8);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .feat-list li:last-child { border-bottom: none; }
+    .feat-list li .icon { margin-right: 10px; }
+
+    /* ── Two-column layout ─────────────────────────────────────────────────── */
+    .cols {
+      display: grid;
+      gap: 28px;
+      align-items: start;
+      width: 100%;
+    }
+    .cols-2  { grid-template-columns: 1fr 1fr; }
+    .cols-5545 { grid-template-columns: 52% 44%; }
+    .cols-4555 { grid-template-columns: 44% 52%; }
+
+    /* ── Cytoscape graph containers ────────────────────────────────────────── */
+    .cy-wrap {
+      position: relative;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.03);
+      box-shadow: 0 0 0 1px rgba(74,127,212,0.15), 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .cy-wrap::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 14px;
+      background: radial-gradient(ellipse at 50% 0%, rgba(74,127,212,0.08) 0%, transparent 65%);
+      pointer-events: none;
+      z-index: 1;
+    }
+    .cy-demo {
+      width: 100%;
+      height: 360px;
+    }
+    .cy-demo-lg { height: 420px; }
+    .cy-caption {
+      position: absolute;
+      bottom: 10px; right: 14px;
+      font-size: 0.32em;
+      color: rgba(255,255,255,0.3);
+      font-family: var(--r-code-font);
+      z-index: 2;
+    }
+
+    /* ── Code callout box ──────────────────────────────────────────────────── */
+    .callout {
+      background: rgba(74,127,212,0.08);
+      border: 1px solid rgba(74,127,212,0.25);
+      border-radius: 10px;
+      padding: 20px 24px;
+      font-size: 0.55em;
+      color: rgba(255,255,255,0.75);
+      line-height: 1.65;
+      text-align: left;
+    }
+    .callout strong { color: #93b8f0; }
+
+    /* ── Workflow steps ────────────────────────────────────────────────────── */
+    .flow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      margin: 28px 0;
+    }
+    .flow-step {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px;
+      padding: 14px 22px;
+      font-size: 0.5em;
+      text-align: center;
+      min-width: 110px;
+    }
+    .flow-step .icon { font-size: 1.6em; display: block; margin-bottom: 5px; }
+    .flow-step .label { color: rgba(255,255,255,0.6); font-size: 0.85em; display: block; margin-top: 3px; }
+    .flow-arrow {
+      font-size: 0.7em;
+      color: rgba(255,255,255,0.25);
+      padding: 0 4px;
+    }
+
+    /* ── Title slide ───────────────────────────────────────────────────────── */
+    .title-eyebrow {
+      font-size: 0.4em;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #93b8f0;
+      margin-bottom: 16px;
+      display: block;
+    }
+    .title-logo { margin-bottom: 0; }
+
+    /* ── Section divider slides ────────────────────────────────────────────── */
+    .divider-num {
+      font-size: 6em;
+      font-weight: 900;
+      color: rgba(74,127,212,0.12);
+      line-height: 1;
+      position: absolute;
+      top: -20px;
+      left: 50%;
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+
+    /* ── Progress bar colour ───────────────────────────────────────────────── */
+    .reveal .progress span { background: #4a7fd4; }
+
+    /* ── Reveal controls colour ────────────────────────────────────────────── */
+    .reveal .controls { color: #4a7fd4; }
+    .reveal .slide-number { background: rgba(74,127,212,0.3); color: white; font-size: 0.5em; }
+  </style>
+</head>
+<body>
+
+<div class="reveal">
+<div class="slides">
+
+  <!-- ╔══════════════════════════════════════════════════════════════╗
+       ║  TITLE                                                       ║
+       ╚══════════════════════════════════════════════════════════════╝ -->
+  <section data-background-gradient="radial-gradient(ellipse at 60% 20%, rgba(74,127,212,0.25) 0%, transparent 60%), linear-gradient(160deg, #080e1c 0%, #0d1b3e 60%, #080e1c 100%)">
+    <span class="title-eyebrow">Introducing</span>
+    <h1 class="title-logo">📦 Boxes</h1>
+    <p style="font-size:0.65em;color:rgba(255,255,255,0.55);margin:16px 0 40px;letter-spacing:-0.01em">
+      A <strong style="color:rgba(255,255,255,0.85)">Labeled Property Graph editor</strong><br>
+      powered by Cytoscape.js
+    </p>
+    <div class="stat-row">
+      <div class="stat"><span class="stat-val">3</span><span class="stat-label">Framework Integrations</span></div>
+      <div class="stat"><span class="stat-val">10+</span><span class="stat-label">Layout Algorithms</span></div>
+      <div class="stat"><span class="stat-val">7</span><span class="stat-label">Export Formats</span></div>
+      <div class="stat"><span class="stat-val">50</span><span class="stat-label">Undo/Redo Levels</span></div>
+    </div>
+    <aside class="notes">Welcome. Boxes is a graph editor built on top of Cytoscape.js. Today I'll walk through what it does, show it working live in these slides, and cover the main use cases.</aside>
+  </section>
+
+  <!-- ╔══════════════════════════════════════════════════════════════╗
+       ║  THE PROBLEM                                                  ║
+       ╚══════════════════════════════════════════════════════════════╝ -->
+  <section>
+    <div class="tag">The Problem</div>
+    <h2>Graphs are <span class="accent">everywhere</span>.</h2>
+    <p style="font-size:0.6em;color:rgba(255,255,255,0.55);margin:8px 0 36px">
+      Knowledge graphs · Ontologies · Dependency trees · Org charts · API topologies
+    </p>
+    <ul class="feat-list" style="width:72%">
+      <li><span class="icon">😩</span> Building a graph editor from scratch takes weeks</li>
+      <li><span class="icon">🎨</span> Cytoscape.js is powerful — but its stylesheet is separate from your data</li>
+      <li><span class="icon">🔒</span> Styles get lost when you export or share graph data</li>
+      <li><span class="icon">🔌</span> No standard format other tools can produce and exchange</li>
+    </ul>
+    <aside class="notes">Graphs appear everywhere in modern software but building editors for them is hard. Cytoscape.js is the go-to library but it leaves styling as a separate concern, disconnected from the data.</aside>
+  </section>
+
+  <!-- ╔══════════════════════════════════════════════════════════════╗
+       ║  THE SOLUTION                                                 ║
+       ╚══════════════════════════════════════════════════════════════╝ -->
+  <section data-background-gradient="linear-gradient(135deg, #080e1c 0%, #0d1b3e 100%)">
+    <div class="tag">The Solution</div>
+    <h2>Boxes = <span class="accent">Cytoscape.js</span><br>+ CSS as data</h2>
+    <div class="cols cols-2" style="margin-top:32px;align-items:center">
+      <ul class="feat-list">
+        <li><span class="icon">✅</span> Full editing UI out of the box</li>
+        <li><span class="icon">🎨</span> Stylesheet lives <em>inside</em> the graph file</li>
+        <li><span class="icon">💾</span> One JSON format — <code>.boxes</code></li>
+        <li><span class="icon">🔗</span> Embed anywhere in 3 lines of HTML</li>
+        <li><span class="icon">🧩</span> Vue 3 &amp; React 18 components included</li>
+        <li><span class="icon">🌐</span> Export to RDF, JSON-LD, Arrows, PDF</li>
+      </ul>
+      <div style="font-size:0.5em;color:rgba(255,255,255,0.45);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:20px 24px;text-align:left;background:rgba(255,255,255,0.02)">
+        <div style="color:rgba(255,255,255,0.65);font-weight:700;margin-bottom:12px">myGraph.boxes</div>
+        <div style="font-family:monospace;line-height:1.6">
+          <span style="color:#888">{</span><br>
+          &nbsp;&nbsp;<span style="color:#93b8f0">"elements"</span>: <span style="color:#888">{ nodes, edges },</span><br>
+          &nbsp;&nbsp;<span style="color:#93b8f0">"userStylesheet"</span>: <span style="color:#34d399">[ rules… ],</span><br>
+          &nbsp;&nbsp;<span style="color:#93b8f0">"lastLayout"</span>: <span style="color:#fb923c">{ name, options },</span><br>
+          &nbsp;&nbsp;<span style="color:#93b8f0">"context"</span>: <span style="color:#a78bfa">{ prefixes… }</span><br>
+          <span style="color:#888">}</span>
+        </div>
+      </div>
+    </div>
+    <aside class="notes">Boxes packages CSS styling rules into the graph data model itself — the stylesheet travels with the graph. There's one JSON format, the .boxes file, and it maps directly onto Cytoscape.js options.</aside>
+  </section>
+
+  <!-- ╔══════════════════════════════════════════════════════════════╗
+       ║  LIVE DEMO 1 — A graph, right here in the slide              ║
+       ╚══════════════════════════════════════════════════════════════╝ -->
+  <section data-background-gradient="linear-gradient(160deg, #080e1c 0%, #0d1b3e 100%)">
+    <div class="tag">Live Demo</div>
+    <h2>A graph, <span class="accent">right here</span> in this slide</h2>
+    <div class="cy-wrap" style="margin-top:24px">
+      <div id="cy1" class="cy-demo cy-demo-lg"></div>
+      <span class="cy-caption">rendered with Cytoscape.js — drag to pan · scroll to zoom</span>
+    </div>
+    <aside class="notes">This Cytoscape.js graph is rendered live inside the presentation using the .boxes format. The data is just a JSON object on this page — no server, no build step.</aside>
+  </section>
+
+  <!-- ╔══════════════════════════════════════════════════════════════╗
+       ║  JSON → GRAPH  (auto-animate pair, slide A)                  ║
+       ╚══════════════════════════════════════════════════════════════╝ -->
+  <section data-auto-animate data-background-gradient="linear-gradient(160deg, #080e1c 0%, #0a1628 100%)">
+    <div class="tag">The .boxes Format</div>
+    <h2>That graph is <span class="accent">just JSON</span></h2>
+    <pre data-id="boxes-code" style="margin-top:24px"><code class="json" style="font-size:0.62em">{
+  "elements": {
+    "nodes": [
+      { "data": { "id": "js",   "label": "JavaScript", "type": "lang" }, "position": { "x": 300, "y": 200 } },
+      { "data": { "id": "ts",   "label": "TypeScript",  "type": "lang" }, "position": { "x": 160, "y": 100 } },
+      { "data": { "id": "node", "label": "Node.js",     "type": "rt"   }, "position": { "x": 160, "y": 300 } },
+      { "data": { "id": "react","label": "React",       "type": "lib"  }, "position": { "x": 440, "y": 100 } },
+      { "data": { "id": "vue",  "label": "Vue",         "type": "lib"  }, "position": { "x": 440, "y": 300 } }
+    ],
+    "edges": [
+      { "data": { "id": "e1", "source": "ts",   "target": "js",   "label": "compiles to" } },
+      { "data": { "id": "e2", "source": "node", "target": "js",   "label": "built on"    } },
+      { "data": { "id": "e3", "source": "react","target": "js",   "label": "built on"    } },
+      { "data": { "id": "e4", "source": "vue",  "target": "js",   "label": "built on"    } }
+    ]
+  },
+  "userStylesheet": [
+    { "selector": "node[type='lang']", "style": { "background-color": "#4a7fd4", "shape": "ellipse" } },
+    { "selector": "node[type='rt']",   "style": { "background-color": "#34d399", "shape": "rectangle" } },
+    { "selector": "node[type='lib']",  "style": { "background-color": "#fb923c", "shape": "roundrectangle" } }
+  ],
+  "lastLayout": { "name": "preset" }
+}</code></pre>
+    <aside class="notes">The graph you just saw is described entirely in this JSON. The nodes, edges, styles and layout are all self-contained in a .boxes file.</aside>
+  </section>
+
+  <!-- ╔══════════════════════════════════════════════════════════════╗
+       ║  JSON → GRAPH  (auto-animate pair, slide B)                  ║
+       ╚══════════════════════════════════════════════════════════════╝ -->
+  <section data-auto-animate data-background-gradient="linear-gradient(160deg, #080e1c 0%, #0a1628 100%)">
+    <h2>JSON <span class="accent">→</span> rendered graph</h2>
+    <div class="cols cols-5545" style="margin-top:20px;align-items:start">
+      <pre data-id="boxes-code"><code class="json" style="font-size:0.47em">{
+  "elements": {
+    "nodes": [
+      { "data": { "id": "js",    "label": "JavaScript", "type": "lang" } },
+      { "data": { "id": "ts",    "label": "TypeScript",  "type": "lang" } },
+      { "data": { "id": "node",  "label": "Node.js",     "type": "rt"   } },
+      { "data": { "id": "react", "label": "React",       "type": "lib"  } },
+      { "data": { "id": "vue",   "label": "Vue",         "type": "lib"  } }
+    ],
+    "edges": [ … ]
+  },
+  "userStylesheet": [
+    { "selector": "node[type='lang']",
+      "style": { "background-color": "#4a7fd4",
+                 "shape": "ellipse" } },
+    { "selector": "node[type='lib']",
+      "style": { "background-color": "#fb923c",
+                 "shape": "roundrectangle" } }
+  ],
+  "lastLayout": { "name": "preset" }
+}</code></pre>
+      <div class="cy-wrap">
+        <div id="cy2" class="cy-demo"></div>
+        <span class="cy-caption">live render</span>
+      </div>
+    </div>
+    <aside class="notes">The JSON maps directly to Cytoscape constructor options: elements → elements, userStylesheet → style, lastLayout → layout. No transformation needed.</aside>
+  </section>
+
+  <!-- ╔══════════════════════════════════════════════════════════════╗
+       ║  STANDALONE WEB APP                                           ║
+       ╚══════════════════════════════════════════════════════════════╝ -->
+  <section>
+    <section>
+      <div class="tag">Use Case 1</div>
+      <h2>Standalone <span class="accent">Web App</span></h2>
+      <p style="font-size:0.55em;color:rgba(255,255,255,0.55);margin:6px 0 28px">Open the editor, start drawing — no install required</p>
+      <div class="cols cols-2" style="align-items:start">
+        <ul class="feat-list">
+          <li><span class="icon">🖱️</span> Drag to create nodes, draw edges interactively</li>
+          <li><span class="icon">🏷️</span> Define typed nodes &amp; edges with custom palettes</li>
+          <li><span class="icon">🎨</span> Edit CSS styles with an inline stylesheet panel</li>
+          <li><span class="icon">↩️</span> 50-level undo/redo — Ctrl+Z / Ctrl+Y</li>
+          <li><span class="icon">✂️</span> Cut, copy &amp; paste selections</li>
+          <li><span class="icon">📐</span> 10+ auto-layout algorithms</li>
+          <li><span class="icon">💾</span> Export: JSON · PDF · SVG · RDF · Arrows</li>
+        </ul>
+        <divclass="callout">
+          <strong>Templates included:</strong><br><br>
+          📄 <strong>Blank</strong> — empty canvas, minimal defaults<br><br>
+          🦉 <strong>OWL Ontology</strong> — pre-styled owl:Class, owl:ObjectProperty, SKOS, SHACL node types with JSON-LD context<br><br>
+          🏹 <strong>Arrows</strong> — mimics Arrows.app for quick LPG diagrams
+        </div>
+      </div>
+      <aside class="notes">The standalone desktop Electron app and the web editor give you everything to author graphs visually. No coding required.</aside>
+    </section>
+
+    <!-- ── Embed anywhere ── -->
+    <section data-auto-animate>
+      <div class="tag">Use Case 2</div>
+      <h2>Embed in <span class="accent">3 lines</span></h2>
+      <p style="font-size:0.55em;color:rgba(255,255,255,0.55);margin:6px 0 24px">One CDN script. One container div. One fetch call.</p>
+      <pre data-id="embed-code"><code class="html" style="font-size:0.63em">&lt;!-- 1. CDN script — the only dependency --&gt;
+&lt;script src="https://unpkg.com/cytoscape@3/dist/cytoscape.min.js"&gt;&lt;/script&gt;
+
+&lt;!-- 2. Container --&gt;
+&lt;div id="graph" style="width:100%;height:500px"&gt;&lt;/div&gt;
+
+&lt;!-- 3. Load and render --&gt;
+&lt;script&gt;
+  fetch('my-graph.boxes')
+    .then(r =&gt; r.json())
+    .then(({ elements, userStylesheet, lastLayout }) =&gt; {
+      cytoscape({
+        container: document.getElementById('graph'),
+        elements,
+        style:  userStylesheet,
+        layout: lastLayout ?? { name: 'preset' }
+      });
+    });
+&lt;/script&gt;</code></pre>
+      <aside class="notes">Because userStylesheet maps directly to Cytoscape's style option, embedding is literally three things: the CDN, a div, and a fetch. No framework, no build tools.</aside>
+    </section>
+
+    <!-- ── Live embed demo ── -->
+    <section data-auto-animate>
+      <h2>… like <span class="accent">this</span></h2>
+      <pre data-id="embed-code" style="opacity:0.45"><code class="html" style="font-size:0.44em">fetch('my-graph.boxes').then(r=&gt;r.json()).then(({elements,userStylesheet,lastLayout})=&gt;{
+  cytoscape({ container, elements, style: userStylesheet, layout: lastLayout });
+});</code></pre>
+      <div class="cy-wrap" style="margin-top:16px">
+        <div id="cy3" class="cy-demo" style="height:310px"></div>
+        <span class="cy-caption">loaded from inline .boxes data · Cytoscape.js CDN</span>
+      </div>
+      <aside class="notes">This graph is rendered right here in the slide using exactly that pattern — just with inline data instead of a network fetch.</aside>
+    </section>
+  </section>
+
+  <!-- ╔══════════════════════════════════════════════════════════════╗
+       ║  ONTOLOGY AUTHORING                                           ║
+       ╚══════════════════════════════════════════════════════════════╝ -->
+  <section>
+    <section>
+      <div class="tag">Use Case 3</div>
+      <h2>Ontology <span class="accent">Authoring</span></h2>
+      <p style="font-size:0.55em;color:rgba(255,255,255,0.55);margin:6px 0 28px">
+        Model OWL / RDFS / SKOS ontologies visually — then export to standards-compliant RDF
+      </p>
+      <div class="cols cols-2" style="align-items:start">
+        <div class="cy-wrap">
+          <div id="cy4" class="cy-demo"></div>
+          <span class="cy-caption">OWL mini-ontology · live render</span>
+        </div>
+        <ul class="feat-list">
+          <li><span class="icon">🦉</span> Pre-styled types for <code>owl:Class</code>, <code>owl:ObjectProperty</code>, <code>owl:DatatypeProperty</code></li>
+          <li><span class="icon">🔗</span> <code>rdfs:subClassOf</code>, <code>rdfs:domain</code>, <code>rdfs:range</code> edge types</li>
+          <li><span class="icon">🌐</span> JSON-LD context maps prefixes to URIs</li>
+          <li><span class="icon">📤</span> Export as RDF/Turtle, JSON-LD, or RDF/XML</li>
+          <li><span class="icon">📥</span> Import existing Turtle or JSON-LD files</li>
+          <li><span class="icon">📎</span> Round-trip: edit → export → import → edit</li>
+        </ul>
+      </div>
+      <aside class="notes">The OWL Ontology template ships pre-configured with all the node and edge types an ontologist needs, plus JSON-LD context for common prefixes.</aside>
+    </section>
+
+    <!-- ── RDF export ── -->
+    <section>
+      <h2>Export to <span class="accent">RDF / Turtle</span></h2>
+      <div class="cols cols-2" style="margin-top:24px;align-items:start">
+        <pre><code class="javascript">import { exportToTurtle } from 'boxes-core';
+
+const turtle = await exportToTurtle(
+  editor.exportGraph()
+);
+
+// "@prefix owl: &lt;...&gt; .
+// :Person a owl:Class ;
+//   rdfs:subClassOf :Agent .
+// :Employee a owl:Class ;
+//   rdfs:subClassOf :Person .
+// :worksFor a owl:ObjectProperty ;
+//   rdfs:domain :Employee ;
+//   rdfs:range :Organization ."</code></pre>
+        <div>
+          <div class="callout" style="margin-bottom:16px">
+            <strong>Also available:</strong><br><br>
+            📄 <strong>JSON-LD</strong> — <code>exportToJsonLD()</code><br>
+            📄 <strong>RDF/XML</strong> — <code>exportToRdfXml()</code><br>
+            🏹 <strong>Arrows.app</strong> — <code>exportToArrows()</code><br>
+            🖨️ <strong>PDF</strong> — <code>editor.exportPdf()</code>
+          </div>
+          <div class="callout">
+            <strong>Import from:</strong><br><br>
+            JSON-LD · RDF/Turtle · Arrows.app JSON · Lucidchart CSV · Cytoscape JSON
+          </div>
+        </div>
+      </div>
+      <aside class="notes">The RDF export pipeline uses the JSON-LD context stored in the .boxes file to produce prefixed, standards-compliant Turtle. Every format is available as a standalone function, usable outside the editor.</aside>
+    </section>
+  </section>
+
+  <!-- ╔══════════════════════════════════════════════════════════════╗
+       ║  APPS PRODUCING GRAPHS                                        ║
+       ╚══════════════════════════════════════════════════════════════╝ -->
+  <section>
+    <section>
+      <div class="tag">Use Case 4</div>
+      <h2>Apps that <span class="accent">produce</span> graphs</h2>
+      <p style="font-size:0.55em;color:rgba(255,255,255,0.55);margin:6px 0 24px">
+        Your backend outputs a <code>.boxes</code> file. Your frontend renders it — editable, exportable.
+      </p>
+      <div class="flow">
+        <div class="flow-step"><span class="icon">🗄️</span>Database<span class="label">entities &amp; relations</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step"><span class="icon">⚙️</span>API / Script<span class="label">query &amp; map</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step" style="border-color:rgba(74,127,212,0.4)"><span class="icon">📄</span>.boxes file<span class="label">JSON output</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step"><span class="icon">📦</span>Boxes editor<span class="label">view &amp; edit</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step"><span class="icon">📤</span>Export<span class="label">RDF · PDF · SVG</span></div>
+      </div>
+      <divclass="callout" style="font-size:0.5em">
+        <strong>The .boxes format is simple enough to generate from any language.</strong>
+        Build the JSON object, serialize it, serve it. That's it — see the
+        <a href="format.html" style="color:#93b8f0">format reference</a> for the full schema.
+      </div>
+      <aside class="notes">Any backend that can produce JSON can produce a .boxes file. The format is documented fully and maps directly to Cytoscape.js — no special library needed to generate it.</aside>
+    </section>
+
+    <!-- ── Live: microservices graph ── -->
+    <section>
+      <h2>Example: <span class="accent">service topology</span></h2>
+      <p style="font-size:0.5em;color:rgba(255,255,255,0.45);margin:4px 0 18px">Graph produced by a deployment pipeline and rendered for engineers to inspect</p>
+      <div class="cy-wrap">
+        <div id="cy5" class="cy-demo cy-demo-lg"></div>
+        <span class="cy-caption">microservices topology · .boxes format · Cytoscape.js CDN</span>
+      </div>
+      <aside class="notes">A deployment pipeline generates this service topology as a .boxes file. Engineers can open it in Boxes, rearrange nodes, add annotations, and export to PDF for documentation.</aside>
+    </section>
+  </section>
+
+  <!-- ╔══════════════════════════════════════════════════════════════╗
+       ║  GENERATIVE AI PRODUCING GRAPHS                               ║
+       ╚══════════════════════════════════════════════════════════════╝ -->
+  <section>
+    <section>
+      <div class="tag">Use Case 5</div>
+      <h2>Generative AI <span class="accent">→</span> Graphs</h2>
+      <p style="font-size:0.55em;color:rgba(255,255,255,0.55);margin:6px 0 24px">
+        Ask an LLM to describe relationships. It produces a <code>.boxes</code> file. You visualise and edit it.
+      </p>
+      <div class="cols cols-2" style="align-items:start">
+        <pre><code class="markdown" style="font-size:0.56em">You are a knowledge graph generator.
+Output a .boxes JSON file describing
+the key concepts in machine learning
+and their relationships.
+
+Format: { elements: { nodes, edges },
+  userStylesheet: [...], lastLayout: {...} }
+
+Use node types: concept, technique,
+  component, application
+Use edge labels: uses, enables,
+  requires, type_of, produces
+Ensure nodes have positions.</code></pre>
+        <div class="callout">
+          <strong>Why this works:</strong><br><br>
+          The <code>.boxes</code> format is simple enough that LLMs generate it reliably — it's just JSON with Cytoscape.js conventions.<br><br>
+          The user gets an <strong>editable, exportable graph</strong> they can refine in the Boxes editor rather than a static image or plain text.
+        </div>
+      </div>
+      <aside class="notes">LLMs are very good at generating structured JSON. The .boxes format is simple enough that you can prompt for it directly. The output is immediately renderable and editable.</aside>
+    </section>
+
+    <!-- ── Live: AI knowledge graph ── -->
+    <section>
+      <h2>AI-produced: <span class="accent">ML concepts</span></h2>
+      <p style="font-size:0.5em;color:rgba(255,255,255,0.45);margin:4px 0 18px">This graph was described as a <code>.boxes</code> JSON object — ready to edit and export</p>
+      <div class="cy-wrap">
+        <div id="cy6" class="cy-demo cy-demo-lg"></div>
+        <span class="cy-caption">AI-generated knowledge graph · machine learning concepts</span>
+      </div>
+      <aside class="notes">The .boxes JSON for this graph would be around 80 lines — easily generated by an LLM in a single response. The user can immediately open it in Boxes and edit it.</aside>
+    </section>
+  </section>
+
+  <!-- ╔══════════════════════════════════════════════════════════════╗
+       ║  FRAMEWORK INTEGRATION                                        ║
+       ╚══════════════════════════════════════════════════════════════╝ -->
+  <section>
+    <div class="tag">Developer Integration</div>
+    <h2>Vue 3 &amp; <span class="accent">React 18</span></h2>
+    <div class="cols cols-2" style="margin-top:20px;align-items:start">
+      <div>
+        <p style="font-size:0.5em;color:rgba(255,255,255,0.5);margin-bottom:12px;text-align:left">Vue 3</p>
+        <pre><code class="html" style="font-size:0.53em">&lt;template&gt;
+  &lt;BoxesEditor
+    :elements="graph.elements"
+    :node-types="nodeTypes"
+    :edge-types="edgeTypes"
+    @change="onGraphChange"
+    ref="editorRef"
+  /&gt;
+&lt;/template&gt;
+
+&lt;script setup&gt;
+import { BoxesEditor } from 'boxes-vue';
+
+async function exportPdf() {
+  const blob = await editorRef.value
+    .editor.exportPdf({ paperSize: 'A4' });
+  // trigger download...
+}
+&lt;/script&gt;</code></pre>
+      </div>
+      <div>
+        <p style="font-size:0.5em;color:rgba(255,255,255,0.5);margin-bottom:12px;text-align:left">React 18</p>
+        <pre><code class="jsx" style="font-size:0.53em">import { BoxesEditor } from 'boxes-react';
+import { useRef } from 'react';
+
+export function GraphPanel({ graph }) {
+  const editorRef = useRef(null);
+
+  return (
+    &lt;BoxesEditor
+      ref={editorRef}
+      elements={graph.elements}
+      nodeTypes={nodeTypes}
+      edgeTypes={edgeTypes}
+      onChange={handleChange}
+    /&gt;
+  );
+}</code></pre>
+      </div>
+    </div>
+    <pclass="muted" style="margin-top:20px">Both wrappers expose the full <code>BoxesEditor</code> instance imperatively via <code>ref</code>.</p>
+    <aside class="notes">First-class Vue 3 and React 18 components wrap the core library. Both use refs to expose the imperative BoxesEditor API for operations like exportPdf and importGraph.</aside>
+  </section>
+
+  <!-- ╔══════════════════════════════════════════════════════════════╗
+       ║  GET STARTED                                                  ║
+       ╚══════════════════════════════════════════════════════════════╝ -->
+  <section data-background-gradient="radial-gradient(ellipse at 40% 80%, rgba(74,127,212,0.2) 0%, transparent 55%), linear-gradient(160deg, #080e1c 0%, #0d1b3e 60%, #080e1c 100%)">
+    <div class="tag">Get Started</div>
+    <h2>Start building <span class="accent">today</span></h2>
+    <div class="cols cols-2" style="margin-top:28px;align-items:start">
+      <div>
+        <pre><code class="bash" style="font-size:0.6em"># Install core + framework wrapper
+npm install boxes-core
+npm install boxes-vue    # or boxes-react
+
+# Or use the CDN embed (no install)
+# See embed.html in the docs</code></pre>
+        <pre style="margin-top:16px"><code class="javascript" style="font-size:0.6em">import { BoxesEditor } from 'boxes-core';
+
+const editor = new BoxesEditor(container, {
+  elements: { nodes: [], edges: [] },
+  nodeTypes: [
+    { id: 'person', label: 'Person',
+      color: '#4a7fd4', shape: 'ellipse' }
+  ]
+});</code></pre>
+      </div>
+      <ul class="feat-list">
+        <li><span class="icon">📖</span><a href="api.html" style="color:#93b8f0">API Reference</a> — full BoxesEditor docs</li>
+        <li><span class="icon">📄</span><a href="format.html" style="color:#93b8f0">File Format</a> — .boxes schema for tool authors</li>
+        <li><span class="icon">🔌</span><a href="embed.html" style="color:#93b8f0">Embed Example</a> — CDN live demo</li>
+        <li><span class="icon">🛠️</span><a href="./demo/" style="color:#93b8f0">Open the Editor</a> — try it now</li>
+        <li><span class="icon">💾</span><a href="sample.boxes" style="color:#93b8f0;font-family:monospace">sample.boxes</a> — download the example file</li>
+      </ul>
+    </div>
+    <p style="font-size:0.5em;color:rgba(255,255,255,0.45);margin-top:28px">
+      📦 Boxes — <a href="./" style="color:#93b8f0">boxes-project.io</a>
+    </p>
+    <aside class="notes">Install via npm for full framework integration, or drop the CDN script into any HTML page. The format reference docs make it easy for any tool to produce .boxes files.</aside>
+  </section>
+
+</div><!-- /.slides -->
+</div><!-- /.reveal -->
+
+<!-- Reveal.js scripts -->
+<script src="https://unpkg.com/reveal.js@5/dist/reveal.js"></script>
+<script src="https://unpkg.com/reveal.js@5/plugin/highlight/highlight.js"></script>
+<script src="https://unpkg.com/reveal.js@5/plugin/notes/notes.js"></script>
+
+<script>
+// ── Graph data definitions ────────────────────────────────────────────────────
+
+const GRAPHS = {
+
+  // Demo 1: full-width knowledge graph (developer ecosystem)
+  cy1: {
+    elements: {
+      nodes: [
+        { data: { id:'js',    label:'JavaScript', type:'lang'   }, position:{ x:310, y:210 } },
+        { data: { id:'ts',    label:'TypeScript',  type:'lang'   }, position:{ x:140, y:90  } },
+        { data: { id:'node',  label:'Node.js',     type:'runtime'}, position:{ x:100, y:310 } },
+        { data: { id:'react', label:'React',        type:'lib'    }, position:{ x:480, y:90  } },
+        { data: { id:'vue',   label:'Vue',          type:'lib'    }, position:{ x:510, y:300 } },
+        { data: { id:'bun',   label:'Bun',          type:'runtime'}, position:{ x:160, y:390 } },
+        { data: { id:'deno',  label:'Deno',         type:'runtime'}, position:{ x:340, y:380 } }
+      ],
+      edges: [
+        { data:{ id:'e1', source:'ts',    target:'js',   label:'compiles to' } },
+        { data:{ id:'e2', source:'node',  target:'js',   label:'built on'    } },
+        { data:{ id:'e3', source:'react', target:'js',   label:'built on'    } },
+        { data:{ id:'e4', source:'vue',   target:'js',   label:'built on'    } },
+        { data:{ id:'e5', source:'bun',   target:'js',   label:'runs'        } },
+        { data:{ id:'e6', source:'deno',  target:'js',   label:'runs'        } },
+        { data:{ id:'e7', source:'deno',  target:'ts',   label:'runs'        } }
+      ]
+    },
+    style: [
+      { selector:'node', style:{
+        label:'data(label)', 'text-valign':'center', 'text-halign':'center',
+        color:'#fff', 'font-size':'11px', 'font-weight':'600',
+        'text-wrap':'wrap', 'text-max-width':'70px',
+        width:'75px', height:'75px', 'border-width':2
+      }},
+      { selector:"node[type='lang']",    style:{ shape:'ellipse',        'background-color':'#4a7fd4', 'border-color':'#2c5aa0' } },
+      { selector:"node[type='runtime']", style:{ shape:'rectangle',      'background-color':'#34d399', 'border-color':'#15805e' } },
+      { selector:"node[type='lib']",     style:{ shape:'roundrectangle', 'background-color':'#fb923c', 'border-color':'#b84e00' } },
+      { selector:'edge', style:{
+        label:'data(label)', 'font-size':'9px', color:'rgba(255,255,255,0.6)',
+        'curve-style':'bezier', 'target-arrow-shape':'triangle',
+        'line-color':'rgba(255,255,255,0.25)', 'target-arrow-color':'rgba(255,255,255,0.25)',
+        width:1.5,
+        'text-background-color':'#0b1120', 'text-background-opacity':0.85, 'text-background-padding':'2px'
+      }}
+    ],
+    layout: { name:'preset' }
+  },
+
+  // Demo 2: same graph for code+render slide
+  cy2: {
+    elements: {
+      nodes: [
+        { data:{ id:'js',    label:'JavaScript', type:'lang'   }, position:{ x:200, y:160 } },
+        { data:{ id:'ts',    label:'TypeScript',  type:'lang'   }, position:{ x: 70, y: 60 } },
+        { data:{ id:'node',  label:'Node.js',     type:'runtime'}, position:{ x: 60, y:260 } },
+        { data:{ id:'react', label:'React',        type:'lib'    }, position:{ x:330, y: 60 } },
+        { data:{ id:'vue',   label:'Vue',          type:'lib'    }, position:{ x:340, y:260 } }
+      ],
+      edges: [
+        { data:{ id:'e1', source:'ts',    target:'js',   label:'compiles to' } },
+        { data:{ id:'e2', source:'node',  target:'js',   label:'built on'    } },
+        { data:{ id:'e3', source:'react', target:'js',   label:'built on'    } },
+        { data:{ id:'e4', source:'vue',   target:'js',   label:'built on'    } }
+      ]
+    },
+    style: [
+      { selector:'node', style:{
+        label:'data(label)', 'text-valign':'center', 'text-halign':'center',
+        color:'#fff', 'font-size':'10px', 'font-weight':'600',
+        width:'70px', height:'70px', 'border-width':2
+      }},
+      { selector:"node[type='lang']",    style:{ shape:'ellipse',        'background-color':'#4a7fd4', 'border-color':'#2c5aa0' } },
+      { selector:"node[type='runtime']", style:{ shape:'rectangle',      'background-color':'#34d399', 'border-color':'#15805e' } },
+      { selector:"node[type='lib']",     style:{ shape:'roundrectangle', 'background-color':'#fb923c', 'border-color':'#b84e00' } },
+      { selector:'edge', style:{
+        label:'data(label)', 'font-size':'8px', color:'rgba(255,255,255,0.5)',
+        'curve-style':'bezier', 'target-arrow-shape':'triangle',
+        'line-color':'rgba(255,255,255,0.25)', 'target-arrow-color':'rgba(255,255,255,0.25)',
+        width:1.5
+      }}
+    ],
+    layout: { name:'preset' }
+  },
+
+  // Demo 3: small company graph for the "embed" demo slide
+  cy3: {
+    elements: {
+      nodes: [
+        { data:{ id:'alice', label:'Alice',     type:'person'  }, position:{ x: 80, y:120 } },
+        { data:{ id:'bob',   label:'Bob',       type:'person'  }, position:{ x: 80, y:240 } },
+        { data:{ id:'acme',  label:'Acme Corp', type:'company' }, position:{ x:280, y:180 } },
+        { data:{ id:'prod',  label:'Product X', type:'product' }, position:{ x:460, y:120 } },
+        { data:{ id:'team',  label:'Team Alpha',type:'group'   }, position:{ x:460, y:240 } }
+      ],
+      edges: [
+        { data:{ id:'e1', source:'alice', target:'acme', label:'CEO of'     } },
+        { data:{ id:'e2', source:'bob',   target:'acme', label:'works at'   } },
+        { data:{ id:'e3', source:'alice', target:'prod', label:'created'    } },
+        { data:{ id:'e4', source:'bob',   target:'team', label:'leads'      } },
+        { data:{ id:'e5', source:'team',  target:'prod', label:'builds'     } }
+      ]
+    },
+    style: [
+      { selector:'node', style:{
+        label:'data(label)', 'text-valign':'center', 'text-halign':'center',
+        color:'#fff', 'font-size':'10px', 'font-weight':'600',
+        'text-wrap':'wrap', 'text-max-width':'70px',
+        width:'75px', height:'75px', 'border-width':2
+      }},
+      { selector:"node[type='person']",  style:{ shape:'ellipse',        'background-color':'#4a7fd4', 'border-color':'#2c5aa0' } },
+      { selector:"node[type='company']", style:{ shape:'roundrectangle', 'background-color':'#fb923c', 'border-color':'#b84e00' } },
+      { selector:"node[type='product']", style:{ shape:'diamond',        'background-color':'#34d399', 'border-color':'#15805e' } },
+      { selector:"node[type='group']",   style:{ shape:'rectangle',      'background-color':'#a78bfa', 'border-color':'#6d28d9' } },
+      { selector:'edge', style:{
+        label:'data(label)', 'font-size':'9px', color:'rgba(255,255,255,0.6)',
+        'curve-style':'bezier', 'target-arrow-shape':'triangle',
+        'line-color':'rgba(255,255,255,0.3)', 'target-arrow-color':'rgba(255,255,255,0.3)',
+        width:1.5,
+        'text-background-color':'#0b1120', 'text-background-opacity':0.8, 'text-background-padding':'2px'
+      }}
+    ],
+    layout: { name:'preset' }
+  },
+
+  // Demo 4: OWL ontology
+  cy4: {
+    elements: {
+      nodes: [
+        { data:{ id:'thing',  label:'owl:Thing',         type:'class' }, position:{ x:200, y: 40 } },
+        { data:{ id:'agent',  label:'Agent',             type:'class' }, position:{ x:200, y:120 } },
+        { data:{ id:'person', label:'Person',            type:'class' }, position:{ x: 90, y:210 } },
+        { data:{ id:'org',    label:'Organization',      type:'class' }, position:{ x:310, y:210 } },
+        { data:{ id:'emp',    label:'Employee',          type:'class' }, position:{ x: 90, y:300 } },
+        { data:{ id:'mgr',    label:'Manager',           type:'class' }, position:{ x: 90, y:380 } },
+        { data:{ id:'worksFor', label:'worksFor',        type:'prop'  }, position:{ x:310, y:300 } },
+        { data:{ id:'manages',  label:'manages',         type:'prop'  }, position:{ x:310, y:380 } }
+      ],
+      edges: [
+        { data:{ id:'e1', source:'agent',  target:'thing',  label:'subClassOf' } },
+        { data:{ id:'e2', source:'person', target:'agent',  label:'subClassOf' } },
+        { data:{ id:'e3', source:'org',    target:'agent',  label:'subClassOf' } },
+        { data:{ id:'e4', source:'emp',    target:'person', label:'subClassOf' } },
+        { data:{ id:'e5', source:'mgr',    target:'emp',    label:'subClassOf' } },
+        { data:{ id:'e6', source:'worksFor','target':'org', label:'range'      } },
+        { data:{ id:'e7', source:'worksFor','target':'emp', label:'domain'     } },
+        { data:{ id:'e8', source:'manages', 'target':'mgr', label:'domain'    } }
+      ]
+    },
+    style: [
+      { selector:'node', style:{
+        label:'data(label)', 'text-valign':'center', 'text-halign':'center',
+        color:'#fff', 'font-size':'10px', 'font-weight':'600',
+        'text-wrap':'wrap', 'text-max-width':'75px',
+        width:'85px', height:'40px', 'border-width':2
+      }},
+      { selector:"node[type='class']", style:{ shape:'roundrectangle', 'background-color':'#f97316', 'border-color':'#9a3412' } },
+      { selector:"node[type='prop']",  style:{ shape:'rectangle',      'background-color':'#a78bfa', 'border-color':'#5b21b6', 'border-style':'dashed' } },
+      { selector:'edge', style:{
+        label:'data(label)', 'font-size':'8px', color:'rgba(255,255,255,0.55)',
+        'curve-style':'bezier', 'target-arrow-shape':'triangle',
+        'line-color':'rgba(255,255,255,0.3)', 'target-arrow-color':'rgba(255,255,255,0.3)',
+        width:1.5
+      }},
+      { selector:"edge[label='subClassOf']", style:{
+        'line-color':'#93b8f0', 'target-arrow-color':'#93b8f0',
+        'target-arrow-shape':'triangle-hollow', color:'#93b8f0'
+      }},
+      { selector:"edge[label='domain'],edge[label='range']", style:{
+        'line-color':'rgba(167,139,250,0.6)', 'target-arrow-color':'rgba(167,139,250,0.6)',
+        'line-style':'dashed', color:'rgba(167,139,250,0.7)'
+      }}
+    ],
+    layout: { name:'preset' }
+  },
+
+  // Demo 5: microservices / API topology
+  cy5: {
+    elements: {
+      nodes: [
+        { data:{ id:'gw',      label:'API\nGateway',   type:'gateway' }, position:{ x:300, y:60  } },
+        { data:{ id:'auth',    label:'Auth\nService',  type:'service' }, position:{ x:100, y:180 } },
+        { data:{ id:'users',   label:'Users\nService', type:'service' }, position:{ x:300, y:180 } },
+        { data:{ id:'orders',  label:'Orders\nService',type:'service' }, position:{ x:500, y:180 } },
+        { data:{ id:'pg',      label:'PostgreSQL',     type:'db'      }, position:{ x:200, y:320 } },
+        { data:{ id:'redis',   label:'Redis',          type:'cache'   }, position:{ x: 60, y:320 } },
+        { data:{ id:'rabbit',  label:'RabbitMQ',       type:'queue'   }, position:{ x:400, y:320 } },
+        { data:{ id:'s3',      label:'S3 / Blob',      type:'storage' }, position:{ x:560, y:320 } }
+      ],
+      edges: [
+        { data:{ id:'e1', source:'gw',    target:'auth',   label:'routes →' } },
+        { data:{ id:'e2', source:'gw',    target:'users',  label:'routes →' } },
+        { data:{ id:'e3', source:'gw',    target:'orders', label:'routes →' } },
+        { data:{ id:'e4', source:'auth',  target:'redis',  label:'sessions' } },
+        { data:{ id:'e5', source:'users', target:'pg',     label:'reads/writes' } },
+        { data:{ id:'e6', source:'orders',target:'pg',     label:'reads/writes' } },
+        { data:{ id:'e7', source:'orders',target:'rabbit', label:'publishes' } },
+        { data:{ id:'e8', source:'orders',target:'s3',     label:'uploads' } }
+      ]
+    },
+    style: [
+      { selector:'node', style:{
+        label:'data(label)', 'text-valign':'center', 'text-halign':'center',
+        color:'#fff', 'font-size':'10px', 'font-weight':'600',
+        'text-wrap':'wrap', 'text-max-width':'70px',
+        width:'80px', height:'80px', 'border-width':2
+      }},
+      { selector:"node[type='gateway']", style:{ shape:'diamond',        'background-color':'#ef4444', 'border-color':'#991b1b' } },
+      { selector:"node[type='service']", style:{ shape:'roundrectangle', 'background-color':'#4a7fd4', 'border-color':'#2c5aa0' } },
+      { selector:"node[type='db']",      style:{ shape:'barrel',         'background-color':'#22d3ee', 'border-color':'#0e7490' } },
+      { selector:"node[type='cache']",   style:{ shape:'barrel',         'background-color':'#34d399', 'border-color':'#065f46' } },
+      { selector:"node[type='queue']",   style:{ shape:'rectangle',      'background-color':'#fb923c', 'border-color':'#c2410c' } },
+      { selector:"node[type='storage']", style:{ shape:'barrel',         'background-color':'#a78bfa', 'border-color':'#5b21b6' } },
+      { selector:'edge', style:{
+        label:'data(label)', 'font-size':'9px', color:'rgba(255,255,255,0.5)',
+        'curve-style':'bezier', 'target-arrow-shape':'triangle',
+        'line-color':'rgba(255,255,255,0.25)', 'target-arrow-color':'rgba(255,255,255,0.25)',
+        width:1.5,
+        'text-background-color':'#0b1120', 'text-background-opacity':0.85, 'text-background-padding':'2px'
+      }}
+    ],
+    layout: { name:'preset' }
+  },
+
+  // Demo 6: AI-generated knowledge graph (ML concepts)
+  cy6: {
+    elements: {
+      nodes: [
+        { data:{ id:'ml',      label:'Machine\nLearning',   type:'concept'   }, position:{ x:300, y:200 } },
+        { data:{ id:'dl',      label:'Deep\nLearning',      type:'technique' }, position:{ x:160, y:100 } },
+        { data:{ id:'rl',      label:'Reinforcement\nLearning', type:'technique' }, position:{ x:460, y:100 } },
+        { data:{ id:'llm',     label:'LLM',                 type:'app'       }, position:{ x:100, y:240 } },
+        { data:{ id:'rag',     label:'RAG',                 type:'app'       }, position:{ x:100, y:360 } },
+        { data:{ id:'vdb',     label:'Vector DB',           type:'component' }, position:{ x:280, y:360 } },
+        { data:{ id:'embed',   label:'Embeddings',          type:'component' }, position:{ x:200, y:290 } },
+        { data:{ id:'rlhf',    label:'RLHF',                type:'technique' }, position:{ x:460, y:240 } },
+        { data:{ id:'data',    label:'Training\nData',      type:'component' }, position:{ x:440, y:360 } }
+      ],
+      edges: [
+        { data:{ id:'e1', source:'dl',    target:'ml',    label:'type of'    } },
+        { data:{ id:'e2', source:'rl',    target:'ml',    label:'type of'    } },
+        { data:{ id:'e3', source:'llm',   target:'dl',    label:'uses'       } },
+        { data:{ id:'e4', source:'rlhf',  target:'rl',    label:'uses'       } },
+        { data:{ id:'e5', source:'rlhf',  target:'llm',   label:'aligns'     } },
+        { data:{ id:'e6', source:'rag',   target:'llm',   label:'augments'   } },
+        { data:{ id:'e7', source:'rag',   target:'vdb',   label:'queries'    } },
+        { data:{ id:'e8', source:'vdb',   target:'embed', label:'stores'     } },
+        { data:{ id:'e9', source:'embed', target:'llm',   label:'produced by'} },
+        { data:{ id:'e10',source:'llm',   target:'data',  label:'trained on' } }
+      ]
+    },
+    style: [
+      { selector:'node', style:{
+        label:'data(label)', 'text-valign':'center', 'text-halign':'center',
+        color:'#fff', 'font-size':'10px', 'font-weight':'600',
+        'text-wrap':'wrap', 'text-max-width':'80px',
+        width:'80px', height:'80px', 'border-width':2
+      }},
+      { selector:"node[type='concept']",   style:{ shape:'ellipse',        'background-color':'#4a7fd4', 'border-color':'#2c5aa0' } },
+      { selector:"node[type='technique']", style:{ shape:'roundrectangle', 'background-color':'#f97316', 'border-color':'#9a3412' } },
+      { selector:"node[type='app']",       style:{ shape:'roundrectangle', 'background-color':'#34d399', 'border-color':'#065f46' } },
+      { selector:"node[type='component']", style:{ shape:'rectangle',      'background-color':'#a78bfa', 'border-color':'#5b21b6' } },
+      { selector:'edge', style:{
+        label:'data(label)', 'font-size':'9px', color:'rgba(255,255,255,0.6)',
+        'curve-style':'bezier', 'target-arrow-shape':'triangle',
+        'line-color':'rgba(255,255,255,0.25)', 'target-arrow-color':'rgba(255,255,255,0.25)',
+        width:1.5,
+        'text-background-color':'#0b1120', 'text-background-opacity':0.85, 'text-background-padding':'2px'
+      }}
+    ],
+    layout: { name:'preset' }
+  }
+};
+
+// ── Cytoscape instance registry ───────────────────────────────────────────────
+const instances = {};
+
+function initGraph(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (instances[id]) {
+    // Already created — just resize to fill current container dimensions
+    instances[id].resize();
+    instances[id].fit(undefined, 30);
+    return;
+  }
+  const cfg = GRAPHS[id];
+  if (!cfg) return;
+  instances[id] = cytoscape({
+    container: el,
+    elements:  cfg.elements,
+    style:     cfg.style,
+    layout:    cfg.layout,
+    userZoomingEnabled:   true,
+    userPanningEnabled:   true,
+    boxSelectionEnabled:  false,
+    autoungrabify:        true   // read-only in the slides
+  });
+  instances[id].fit(undefined, 30);
+}
+
+function initVisibleGraphs(slideEl) {
+  if (!slideEl) return;
+  slideEl.querySelectorAll('[id^="cy"]').forEach(el => initGraph(el.id));
+}
+
+// ── Reveal.js initialisation ──────────────────────────────────────────────────
+Reveal.initialize({
+  hash:       true,
+  progress:   true,
+  controls:   true,
+  center:     true,
+  transition: 'slide',
+  backgroundTransition: 'fade',
+  slideNumber: 'c/t',
+  plugins: [ RevealHighlight, RevealNotes ]
+}).then(() => {
+  // Init graphs on the starting slide
+  initVisibleGraphs(Reveal.getCurrentSlide());
+});
+
+// Re-init / resize whenever a slide becomes active
+Reveal.on('slidechanged', e => initVisibleGraphs(e.currentSlide));
+
+// Also handle vertical slide navigation
+Reveal.on('verticalchanged', e => initVisibleGraphs(e.currentSlide));
+</script>
+
+</body>
+</html>

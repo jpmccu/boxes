@@ -206,6 +206,9 @@
         <li><a href="./#features">Features</a></li>
         <li><a href="./#quickstart">Quick Start</a></li>
         <li><a href="api.html" class="active">API Docs</a></li>
+        <li><a href="format.html">File Format</a></li>
+        <li><a href="embed.html">Embed Example</a></li>
+        <!-- <li><a href="presentation.html">▶ Slides</a></li> -->
         <li><a href="./demo/" class="btn-nav">Use Now →</a></li>
       </ul>
     </div>
@@ -251,6 +254,8 @@
           <li><a href="#rdf-io">RDF / Turtle</a></li>
           <li><a href="#jsonld-io">JSON-LD</a></li>
           <li><a href="#rdfxml-io">RDF/XML</a></li>
+          <li><a href="#arrows-io">Arrows.app</a></li>
+          <li><a href="#pdf-export">PDF Export</a></li>
         </ul>
       </div>
       <div class="sidebar-section">
@@ -274,6 +279,8 @@
           <li><a href="#rdf-io">RDF / Turtle I/O</a></li>
           <li><a href="#jsonld-io">JSON-LD I/O</a></li>
           <li><a href="#rdfxml-io">RDF/XML I/O</a></li>
+          <li><a href="#arrows-io">Arrows.app I/O</a></li>
+          <li><a href="#pdf-export">PDF Export</a></li>
           <li><a href="#vue-component">Vue 3 Component</a></li>
           <li><a href="#react-component">React Component</a></li>
         </ul>
@@ -459,6 +466,30 @@ const json = JSON.stringify(graph, null, 2);
             <span><span class="sig-name">loadElements</span><span class="sig-params">(elements)</span></span>
           </div>
           <p class="api-desc">Replaces graph elements without affecting stylesheet or type configuration.</p>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge async method">method</span>
+            <span><span class="sig-name">exportPdf</span><span class="sig-params">(options?)</span> → <span class="sig-return">Promise&lt;Blob&gt;</span></span>
+          </div>
+          <p class="api-desc">
+            Exports the current graph as a PDF <code>Blob</code>. The <code>cytoscape-pdf-export</code>
+            plugin is loaded lazily on the first call so it does not affect initial page load time.
+          </p>
+          <table class="params-table">
+            <thead><tr><th>Option</th><th>Default</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td>full</td><td><code>true</code></td><td>Export the entire graph, not just the current viewport.</td></tr>
+              <tr><td>paperSize</td><td><code>'LETTER'</code></td><td>Paper size: <code>LETTER</code>, <code>LEGAL</code>, <code>A4</code>, <code>A3</code>, <code>A2</code>, <code>A1</code>, <code>A0</code>, <code>TABLOID</code>, or <code>CUSTOM</code>.</td></tr>
+              <tr><td>orientation</td><td><code>'LANDSCAPE'</code></td><td><code>PORTRAIT</code> or <code>LANDSCAPE</code>.</td></tr>
+              <tr><td>margin</td><td><code>52</code></td><td>Page margin in PostScript points (72 pt = 1 inch).</td></tr>
+              <tr><td>bg</td><td><code>false</code></td><td>Background colour (any CSS colour string), or <code>false</code> for transparent.</td></tr>
+            </tbody>
+          </table>
+          <pre><code>const blob = await editor.exportPdf({ paperSize: 'A4', orientation: 'PORTRAIT' });
+const url = URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url; a.download = 'graph.pdf'; a.click();
+URL.revokeObjectURL(url);</code></pre>
         </div>
 
         <!-- Stylesheet -->
@@ -774,6 +805,104 @@ useEffect(() => {
             <span><span class="sig-name">importFromRdfXml</span><span class="sig-params">(xmlString, context?)</span> → <span class="sig-return">Promise&lt;object&gt;</span></span>
           </div>
           <p class="api-desc">Parses an RDF/XML string and returns a graph data object.</p>
+        </div>
+      </div>
+
+      <!-- ── Arrows.app I/O ─────────────────────────────────────────── -->
+      <div class="api-section" id="arrows-io">
+        <h2 class="api-section-title">Arrows.app I/O</h2>
+        <p class="api-section-desc">
+          Import and export graphs in <a href="https://arrows.app" target="_blank" rel="noopener">Arrows.app</a>
+          JSON format for round-trip compatibility with the popular LPG diagramming tool.
+        </p>
+        <pre><code>import { importFromArrows, exportToArrows, arrowsImporter, arrowsExporter } from 'boxes-core';</code></pre>
+
+        <div class="api-entry">
+          <div class="api-signature">
+            <span class="sig-badge function">function</span>
+            <span><span class="sig-name">exportToArrows</span><span class="sig-params">(graphData)</span> → <span class="sig-return">object</span></span>
+          </div>
+          <p class="api-desc">
+            Converts a Boxes graph export to Arrows.app JSON format
+            (<code>{ nodes, relationships, style }</code>).
+            Preserves node positions, labels, properties, and Cytoscape visual styles.
+          </p>
+          <pre><code>import { exportToArrows } from 'boxes-core';
+const arrowsJson = exportToArrows(editor.exportGraph());
+const text = JSON.stringify(arrowsJson, null, 2);</code></pre>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge function">function</span>
+            <span><span class="sig-name">importFromArrows</span><span class="sig-params">(arrowsData)</span> → <span class="sig-return">object</span></span>
+          </div>
+          <p class="api-desc">
+            Converts an Arrows.app JSON object to a Boxes graph data object suitable for
+            <code>editor.importGraph()</code>. Translates Arrows style properties into
+            Cytoscape stylesheet rules.
+          </p>
+          <pre><code>import { importFromArrows } from 'boxes-core';
+const response = await fetch('diagram.json');
+const arrowsData = await response.json();
+editor.importGraph(importFromArrows(arrowsData));</code></pre>
+
+          <div class="api-signature" style="margin-top:20px">
+            <span class="sig-badge property">property</span>
+            <span><span class="sig-name">arrowsExporter</span> · <span class="sig-name">arrowsImporter</span></span>
+          </div>
+          <p class="api-desc">
+            I/O plugin descriptors for the web app's <code>io-manager</code>.
+            Implement <code>{ id, label, export/import }</code> and can be registered with
+            <code>registerExporter</code> / <code>registerImporter</code>.
+          </p>
+        </div>
+      </div>
+
+      <!-- ── PDF Export ──────────────────────────────────────────────── -->
+      <div class="api-section" id="pdf-export">
+        <h2 class="api-section-title">PDF Export</h2>
+        <p class="api-section-desc">
+          Export the graph as a PDF document using the
+          <a href="https://github.com/cytoscape/cytoscape.js-pdf-export" target="_blank" rel="noopener">cytoscape-pdf-export</a>
+          plugin. The plugin is loaded lazily on the first call so it does not contribute to
+          initial bundle weight.
+        </p>
+
+        <div class="api-entry">
+          <p class="api-desc">
+            PDF export is available directly on the <code>BoxesEditor</code> instance via
+            <a href="#graph-io"><code>editor.exportPdf(options)</code></a>.
+            In the web app, it is also exposed through the <strong>Export → PDF</strong> menu
+            option provided by the built-in <code>io-manager</code> integration.
+          </p>
+          <div class="api-note">
+            <strong>Note:</strong> The PDF plugin bundles PDFKit with embedded font data (~600 kB
+            gzipped). Vite/Rollup code-splits it into a separate async chunk that is only fetched
+            when the user first triggers a PDF export.
+          </div>
+          <pre><code>// Standalone usage
+const blob = await editor.exportPdf({
+  paperSize: 'A4',
+  orientation: 'PORTRAIT',
+  bg: '#ffffff'
+});
+
+// Trigger browser download
+const url = URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url; a.download = 'graph.pdf'; a.click();
+URL.revokeObjectURL(url);</code></pre>
+
+          <h4 style="font-size:0.9rem;font-weight:700;margin:16px 0 8px">Options</h4>
+          <table class="params-table">
+            <thead><tr><th>Option</th><th>Default</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td>full</td><td><code>true</code></td><td>Fit the entire graph on the page rather than the current viewport.</td></tr>
+              <tr><td>paperSize</td><td><code>'LETTER'</code></td><td><code>LETTER</code>, <code>LEGAL</code>, <code>A4</code>, <code>A3</code>, <code>A2</code>, <code>A1</code>, <code>A0</code>, <code>TABLOID</code>, or <code>CUSTOM</code>.</td></tr>
+              <tr><td>orientation</td><td><code>'LANDSCAPE'</code></td><td><code>PORTRAIT</code> or <code>LANDSCAPE</code>.</td></tr>
+              <tr><td>margin</td><td><code>52</code></td><td>Page margin in PostScript points (72 pt = 1 inch).</td></tr>
+              <tr><td>bg</td><td><code>false</code></td><td>Background colour string, or <code>false</code> for transparent.</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
 

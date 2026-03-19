@@ -11,4 +11,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onImportTurtle: (callback) => ipcRenderer.on('import-turtle', (event, content) => callback(content)),
   onRequestTurtleExport: (callback) => ipcRenderer.on('request-turtle-export', callback),
   sendTurtleExportData: (data) => ipcRenderer.send('turtle-export-data', data),
+  onRequestPdfExport: (callback) => ipcRenderer.on('request-pdf-export', callback),
+  sendPdfExportData: (data) => ipcRenderer.send('pdf-export-data', data),
 });

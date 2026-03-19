@@ -82,6 +82,10 @@ function createMenu() {
           accelerator: 'CmdOrCtrl+Shift+E',
           click: exportTurtle
         },
+        {
+          label: 'Export as PDF...',
+          click: exportPdf
+        },
         { type: 'separator' },
         {
           label: 'Exit',
@@ -223,7 +227,31 @@ async function exportTurtle() {
   }
 }
 
-// IPC handlers
+async function exportPdf() {
+  try {
+    const pdfBuffer = await new Promise((resolve, reject) => {
+      mainWindow.webContents.send('request-pdf-export');
+      const timer = setTimeout(() => reject(new Error('Export timed out')), 15000);
+      ipcMain.once('pdf-export-data', (event, data) => {
+        clearTimeout(timer);
+        if (data.error) reject(new Error(data.error));
+        else resolve(Buffer.from(data.buffer));
+      });
+    });
+
+    const result = await dialog.showSaveDialog(mainWindow, {
+      filters: [{ name: 'PDF Files', extensions: ['pdf'] }]
+    });
+
+    if (!result.canceled && result.filePath) {
+      await fs.writeFile(result.filePath, pdfBuffer);
+    }
+  } catch (error) {
+    dialog.showErrorBox('Error Exporting PDF', error.message);
+  }
+}
+
+
 ipcMain.on('graph-changed', () => {
   hasUnsavedChanges = true;
   const title = currentFilePath 

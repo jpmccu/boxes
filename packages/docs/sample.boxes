@@ -1,0 +1,106 @@
+{
+  "elements": {
+    "nodes": [
+      {
+        "data": { "id": "matrix", "label": "The Matrix", "nodeType": "movie", "year": "1999" },
+        "position": { "x": 300, "y": 180 }
+      },
+      {
+        "data": { "id": "reloaded", "label": "The Matrix Reloaded", "nodeType": "movie", "year": "2003" },
+        "position": { "x": 300, "y": 380 }
+      },
+      {
+        "data": { "id": "keanu", "label": "Keanu Reeves", "nodeType": "person" },
+        "position": { "x": 60, "y": 280 }
+      },
+      {
+        "data": { "id": "laurence", "label": "Laurence Fishburne", "nodeType": "person" },
+        "position": { "x": 540, "y": 280 }
+      },
+      {
+        "data": { "id": "lana", "label": "Lana Wachowski", "nodeType": "person" },
+        "position": { "x": 300, "y": 560 }
+      }
+    ],
+    "edges": [
+      { "data": { "id": "e1", "source": "keanu",    "target": "matrix",   "label": "ACTED_IN" } },
+      { "data": { "id": "e2", "source": "laurence",  "target": "matrix",   "label": "ACTED_IN" } },
+      { "data": { "id": "e3", "source": "lana",      "target": "matrix",   "label": "DIRECTED" } },
+      { "data": { "id": "e4", "source": "keanu",    "target": "reloaded", "label": "ACTED_IN" } },
+      { "data": { "id": "e5", "source": "laurence",  "target": "reloaded", "label": "ACTED_IN" } },
+      { "data": { "id": "e6", "source": "lana",      "target": "reloaded", "label": "DIRECTED" } },
+      { "data": { "id": "e7", "source": "matrix",   "target": "reloaded", "label": "PREQUEL_OF" } }
+    ]
+  },
+  "userStylesheet": [
+    {
+      "selector": "node",
+      "style": {
+        "label": "data(label)",
+        "text-valign": "center",
+        "text-halign": "center",
+        "color": "#ffffff",
+        "font-size": "11px",
+        "font-weight": "600",
+        "text-wrap": "wrap",
+        "text-max-width": "80px",
+        "width": "90px",
+        "height": "90px",
+        "border-width": 2
+      }
+    },
+    {
+      "selector": "node[nodeType = 'person']",
+      "style": {
+        "shape": "ellipse",
+        "background-color": "#4a7fd4",
+        "border-color": "#2c5aa0"
+      }
+    },
+    {
+      "selector": "node[nodeType = 'movie']",
+      "style": {
+        "shape": "roundrectangle",
+        "background-color": "#e67e22",
+        "border-color": "#a04000"
+      }
+    },
+    {
+      "selector": "edge",
+      "style": {
+        "label": "data(label)",
+        "font-size": "9px",
+        "color": "#555",
+        "curve-style": "bezier",
+        "target-arrow-shape": "triangle",
+        "line-color": "#bbb",
+        "target-arrow-color": "#bbb",
+        "width": 2,
+        "text-background-color": "#ffffff",
+        "text-background-opacity": 0.8,
+        "text-background-padding": "2px"
+      }
+    },
+    {
+      "selector": "edge[label = 'DIRECTED']",
+      "style": {
+        "line-color": "#e74c3c",
+        "target-arrow-color": "#e74c3c",
+        "line-style": "dashed",
+        "color": "#e74c3c"
+      }
+    },
+    {
+      "selector": "edge[label = 'PREQUEL_OF']",
+      "style": {
+        "line-color": "#8e44ad",
+        "target-arrow-color": "#8e44ad",
+        "line-style": "dotted",
+        "color": "#8e44ad"
+      }
+    }
+  ],
+  "lastLayout": { "name": "preset" },
+  "context": {},
+  "version": "1.0.0"
+}
