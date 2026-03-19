@@ -1023,6 +1023,10 @@ export class BoxesEditor {
         // our custom ring div replaces it entirely.
         selector: '.eh-handle',
         style: { 'opacity': 0, 'events': 'no' }
+      },
+      {
+        selector: '.eh-reconnect-target',
+        style: { 'border-width': 3, 'border-color': '#3498db', 'border-opacity': 1 }
       }
     ];
 
@@ -2051,6 +2055,193 @@ export class BoxesEditor {
     this.cy.on('ehstart', () => { this._pushUndo(); this._ehDrawing = true; removeHandle(); });
     this.cy.on('ehstop', () => { this._ehDrawing = false; });
     this.cy.on('ehcomplete', this._ehCompleteHandler);
+
+    // ── Edge endpoint reconnect handles ────────────────────────────────────
+    // Show a small glow dot at each end of an edge on hover.  Dragging a dot
+    // reconnects that end to a different node via edge.move().
+
+    this._erDivs = [];       // [{div, edge, end}]
+    this._erEdge  = null;    // edge whose handles are currently shown
+    this._erActive = false;  // true while a reconnect drag is in progress
+
+    const EP_SIZE = 20; // diameter of the endpoint glow dot, in screen px
+
+    const removeEdgeHandles = () => {
+      this._erDivs.forEach(({ div }) => div.parentNode?.removeChild(div));
+      this._erDivs = [];
+      this._erEdge = null;
+    };
+
+    // Return the Cytoscape node whose bounding box contains the given client
+    // coordinates, or null.  Excludes internal drag-proxy nodes.
+    const nodeAtClient = (clientX, clientY) => {
+      const cr   = this.cy.container().getBoundingClientRect();
+      const pan  = this.cy.pan();
+      const zoom = this.cy.zoom();
+      const gx   = (clientX - cr.left  - pan.x) / zoom;
+      const gy   = (clientY - cr.top   - pan.y) / zoom;
+      let hit = null;
+      this.cy.nodes().forEach(n => {
+        if (n.hasClass('boxes-drag-proxy')) return;
+        const bb = n.boundingBox({ includeLabels: false });
+        if (gx >= bb.x1 && gx <= bb.x2 && gy >= bb.y1 && gy <= bb.y2) hit = n;
+      });
+      return hit;
+    };
+
+    // Create one glow-dot div for a single endpoint.
+    const makeEndpointDiv = (edge, end) => {
+      const div = document.createElement('div');
+      div.className = 'boxes-er-handle';
+
+      const inner = document.createElement('div');
+      inner.style.cssText = [
+        'position:absolute',
+        `width:${EP_SIZE}px`,
+        `height:${EP_SIZE}px`,
+        'border-radius:50%',
+        'background:rgba(52,152,219,0.5)',
+        `box-shadow:0 0 ${EP_SIZE / 2}px ${EP_SIZE / 4}px rgba(52,152,219,0.6)`,
+        'pointer-events:none',
+      ].join(';');
+      div.appendChild(inner);
+
+      div.style.cssText = [
+        'position:fixed',
+        `width:${EP_SIZE}px`,
+        `height:${EP_SIZE}px`,
+        'background:rgba(0,0,0,0.001)',  // near-invisible but ensures pointer-events hit-test
+        'cursor:grab',
+        'z-index:9998',
+      ].join(';');
+
+      div.addEventListener('mousedown', (e) => {
+        if (this._ehDrawing) return;
+        e.preventDefault();
+        e.stopPropagation();
+        beginReconnect(edge, end, e);
+      });
+
+      // Dismiss on leave only when not starting a drag.
+      div.addEventListener('mouseleave', () => {
+        if (!this._erActive) removeEdgeHandles();
+      });
+
+      return div;
+    };
+
+    const positionEndpointDivs = (edge) => {
+      const cr = this.cy.container().getBoundingClientRect();
+      const ends = { source: edge.renderedSourceEndpoint(),
+                     target: edge.renderedTargetEndpoint() };
+      this._erDivs.forEach(({ div, end: endKey }) => {
+        const pt = ends[endKey];
+        div.style.left = `${cr.left + pt.x - EP_SIZE / 2}px`;
+        div.style.top  = `${cr.top  + pt.y - EP_SIZE / 2}px`;
+      });
+    };
+
+    const showEdgeHandles = (edge) => {
+      if (this._erActive || this._ehDrawing) return;
+      if (this._erEdge && this._erEdge.same(edge)) return;
+      removeEdgeHandles();
+      this._erEdge = edge;
+
+      for (const end of ['source', 'target']) {
+        const div = makeEndpointDiv(edge, end);
+        document.body.appendChild(div);
+        this._erDivs.push({ div, end });
+      }
+      positionEndpointDivs(edge);
+    };
+
+    const beginReconnect = (edge, end, startEvent) => {
+      this._erActive = true;
+      removeEdgeHandles();
+
+      const originalNodeId = end === 'source' ? edge.data('source') : edge.data('target');
+
+      // Convert client coords to graph space.
+      const toGraph = (clientX, clientY) => {
+        const cr  = this.cy.container().getBoundingClientRect();
+        const pan = this.cy.pan(), zoom = this.cy.zoom();
+        return { x: (clientX - cr.left - pan.x) / zoom,
+                 y: (clientY - cr.top  - pan.y) / zoom };
+      };
+
+      // Add an invisible 1×1 proxy node that follows the cursor.
+      // Moving the edge to point at it gives us real-time Cytoscape rendering.
+      const proxyId = `__boxes_drag_${Date.now()}__`;
+      const proxyNode = this.cy.add({
+        group: 'nodes',
+        classes: 'boxes-drag-proxy',
+        data: { id: proxyId },
+        position: toGraph(startEvent.clientX, startEvent.clientY),
+      });
+      proxyNode.style({ opacity: 0, width: 1, height: 1, events: 'no' });
+
+      // Redirect the dragged end to the proxy — edge renders in real-time.
+      edge.move(end === 'source' ? { source: proxyId } : { target: proxyId });
+
+      let currentTarget = null;
+
+      const updateTarget = (node) => {
+        if (currentTarget && (!node || !currentTarget.same(node))) {
+          currentTarget.removeClass('eh-reconnect-target');
+        }
+        currentTarget = node || null;
+        if (currentTarget) currentTarget.addClass('eh-reconnect-target');
+      };
+
+      const onMove = (e) => {
+        const node = nodeAtClient(e.clientX, e.clientY);
+        updateTarget(node);
+        // Snap proxy to hovered node center, otherwise follow cursor exactly.
+        proxyNode.position(node
+          ? node.position()
+          : toGraph(e.clientX, e.clientY));
+      };
+
+      const onUp = (e) => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+
+        const node = nodeAtClient(e.clientX, e.clientY);
+        updateTarget(null);
+        this._erActive = false;
+
+        const finalNodeId = (node && !node.removed()) ? node.id() : originalNodeId;
+        const moved = finalNodeId !== originalNodeId;
+
+        if (moved) this._pushUndo();
+        edge.move(end === 'source' ? { source: finalNodeId } : { target: finalNodeId });
+        this.cy.remove(proxyNode);
+        this._updateStylesheet();
+        if (moved) {
+          this._emit('edgeMoved', { edge: edge.json(), end, nodeId: finalNodeId });
+        }
+      };
+
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    };
+
+    this._erMouseoverEdge = (e) => showEdgeHandles(e.target);
+    this._erMouseoutEdge  = (e) => {
+      if (this._erActive) return;
+      // Don't remove handles if the cursor is moving onto one of the handle divs.
+      const related = e.originalEvent?.relatedTarget;
+      const movingToHandle = related && this._erDivs.some(
+        ({ div }) => div === related || div.contains(related)
+      );
+      if (!movingToHandle) removeEdgeHandles();
+    };
+    this._erRemoveOnZoom  = () => { if (!this._erActive) removeEdgeHandles(); };
+    this._erRemoveEdgeHandles = removeEdgeHandles;
+
+    this.cy.on('mouseover', 'edge', this._erMouseoverEdge);
+    this.cy.on('mouseout',  'edge', this._erMouseoutEdge);
+    this.cy.on('zoom pan',         this._erRemoveOnZoom);
   }
 
   _destroyEdgeHandle() {
@@ -2081,6 +2272,23 @@ export class BoxesEditor {
     if (this._ehContainerMoveHandler) {
       this.cy.container()?.removeEventListener('mousemove', this._ehContainerMoveHandler);
       this._ehContainerMoveHandler = null;
+    }
+    // Edge reconnect handles
+    if (this._erRemoveEdgeHandles) {
+      this._erRemoveEdgeHandles();
+      this._erRemoveEdgeHandles = null;
+    }
+    if (this._erMouseoverEdge) {
+      this.cy.off('mouseover', 'edge', this._erMouseoverEdge);
+      this._erMouseoverEdge = null;
+    }
+    if (this._erMouseoutEdge) {
+      this.cy.off('mouseout', 'edge', this._erMouseoutEdge);
+      this._erMouseoutEdge = null;
+    }
+    if (this._erRemoveOnZoom) {
+      this.cy.off('zoom pan', this._erRemoveOnZoom);
+      this._erRemoveOnZoom = null;
     }
     if (this._eh) {
       this._eh.destroy();
