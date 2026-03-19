@@ -152,6 +152,72 @@
     .step-content h4 { font-size: 0.95rem; font-weight: 700; margin-bottom: 6px; }
     .step-content p { font-size: 0.875rem; color: var(--color-text-muted); }
 
+    /* ── Palette Customization ──────────────────────────────────────────── */
+    .palette-demo-grid {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 40px;
+      align-items: start;
+      margin-top: 48px;
+    }
+    @media (max-width: 900px) { .palette-demo-grid { grid-template-columns: 1fr; } }
+
+    .palette-preview {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      background: var(--color-bg);
+      overflow: hidden;
+      box-shadow: var(--shadow-lg);
+    }
+    .palette-preview-header {
+      background: #f7f8fa;
+      border-bottom: 1px solid var(--color-border);
+      padding: 8px 14px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+    .palette-preview-body { padding: 14px; }
+    .palette-group-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin: 12px 0 6px;
+    }
+    .palette-group-label:first-child { margin-top: 0; }
+    .palette-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 10px;
+      border: 1px solid #dee2e6;
+      border-radius: 6px;
+      margin-bottom: 5px;
+      cursor: default;
+      background: #fff;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+    .palette-item.active {
+      background: #dce8ff;
+      border-color: #4d90fe;
+    }
+    .palette-swatch {
+      width: 24px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+    .palette-edge-line {
+      width: 44px;
+      height: 22px;
+      flex-shrink: 0;
+      overflow: visible;
+    }
+
     /* ── Packages ───────────────────────────────────────────────────────── */
     .packages-grid {
       display: grid;
@@ -211,6 +277,7 @@
       <ul class="nav-links">
         <li><a href="#features">Features</a></li>
         <li><a href="#quickstart">Quick Start</a></li>
+        <li><a href="#palette">Palette</a></li>
         <li><a href="api.html">API Docs</a></li>
         <li><a href="./demo/" class="btn-nav">Use Now →</a></li>
       </ul>
@@ -423,6 +490,253 @@ function App() {
   );
 }</code></pre>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Palette Customization -->
+  <section class="section" id="palette">
+    <div class="container">
+      <div class="section-label">Palette</div>
+      <h2 class="section-title">Customise node &amp; edge types</h2>
+      <p class="section-subtitle">
+        Pass <code>nodeTypes</code> and <code>edgeTypes</code> to the constructor to populate the
+        palette sidebar. Each type defines a label, colour, shape, and optional default property
+        values that are stamped onto every new element created from that type.
+      </p>
+      <div class="palette-demo-grid">
+
+        <div>
+          <pre><code>import { BoxesEditor } from 'boxes-core';
+
+const editor = new BoxesEditor(
+  document.getElementById('graph'),
+  {
+    // ── Node types ─────────────────────────────────
+    // `color` and `shape` power the palette icons.
+    // To apply those styles to actual graph nodes,
+    // add matching stylesheet rules below (see `style`).
+    nodeTypes: [
+      {
+        id: 'class',
+        label: 'Class',
+        color: '#4a90d9',
+        shape: 'ellipse',
+        // Stamp a `type` property on every new Class node
+        // so stylesheet selectors can target it:
+        data: { type: 'class', '@type': 'owl:Class' }
+      },
+      {
+        id: 'instance',
+        label: 'Instance',
+        color: '#27ae60',
+        shape: 'round-rectangle',
+        data: { type: 'instance', '@type': 'owl:NamedIndividual' }
+      },
+      {
+        id: 'literal',
+        label: 'Literal',
+        color: '#e67e22',
+        shape: 'rectangle',
+        data: { type: 'literal', datatype: 'xsd:string', value: '' }
+      },
+      {
+        id: 'annotation',
+        label: 'Annotation',
+        color: '#8e44ad',
+        shape: 'diamond',
+        data: { type: 'annotation' }
+      }
+    ],
+
+    // ── Edge types ─────────────────────────────────
+    edgeTypes: [
+      {
+        id: 'subclass',
+        label: 'subClassOf',
+        color: '#4a90d9',
+        data: { type: 'subclass', '@type': 'rdfs:subClassOf' }
+      },
+      {
+        id: 'property',
+        label: 'hasProperty',
+        color: '#27ae60',
+        data: { type: 'property', '@type': 'owl:ObjectProperty' }
+      },
+      {
+        id: 'type',
+        label: 'rdf:type',
+        color: '#e67e22',
+        data: { type: 'type', '@type': 'rdf:type' }
+      }
+    ],
+
+    // ── Stylesheet ─────────────────────────────────
+    // Cytoscape.js uses a stylesheet, not inline styles.
+    // Match on the `type` data property stamped above.
+    style: [
+      { selector: 'node[type="class"]',
+        style: { 'background-color': '#4a90d9',
+                 'shape': 'ellipse' } },
+      { selector: 'node[type="instance"]',
+        style: { 'background-color': '#27ae60',
+                 'shape': 'round-rectangle' } },
+      { selector: 'node[type="literal"]',
+        style: { 'background-color': '#e67e22',
+                 'shape': 'rectangle' } },
+      { selector: 'node[type="annotation"]',
+        style: { 'background-color': '#8e44ad',
+                 'shape': 'diamond' } },
+      { selector: 'edge[type="subclass"]',
+        style: { 'line-color': '#4a90d9',
+                 'target-arrow-color': '#4a90d9' } },
+      { selector: 'edge[type="property"]',
+        style: { 'line-color': '#27ae60',
+                 'target-arrow-color': '#27ae60' } },
+      { selector: 'edge[type="type"]',
+        style: { 'line-color': '#e67e22',
+                 'target-arrow-color': '#e67e22',
+                 'line-style': 'dashed' } }
+    ]
+  }
+);
+
+// Switch types programmatically:
+editor.setNodeType('instance');
+editor.setEdgeType('property');
+
+// Add a node of a specific type at a position:
+editor.addNodeOfType('class', { x: 200, y: 150 });</code></pre>
+        </div>
+
+        <!-- Live palette preview -->
+        <div>
+          <div class="palette-preview">
+            <div class="palette-preview-header">Palette sidebar preview</div>
+            <div class="palette-preview-body">
+
+              <div class="palette-group-label">Nodes</div>
+
+              <!-- Class – ellipse -->
+              <div class="palette-item active">
+                <svg class="palette-swatch" viewBox="0 0 24 24">
+                  <ellipse cx="12" cy="12" rx="11" ry="9" fill="#4a90d9" stroke="#2e6db3" stroke-width="1.5"/>
+                </svg>
+                Class
+              </div>
+
+              <!-- Instance – round-rect -->
+              <div class="palette-item">
+                <svg class="palette-swatch" viewBox="0 0 24 24">
+                  <rect x="2" y="5" width="20" height="14" rx="4" fill="#27ae60" stroke="#1e8449" stroke-width="1.5"/>
+                </svg>
+                Instance
+              </div>
+
+              <!-- Literal – rectangle -->
+              <div class="palette-item">
+                <svg class="palette-swatch" viewBox="0 0 24 24">
+                  <rect x="2" y="5" width="20" height="14" rx="1" fill="#e67e22" stroke="#ca6f1e" stroke-width="1.5"/>
+                </svg>
+                Literal
+              </div>
+
+              <!-- Annotation – diamond -->
+              <div class="palette-item">
+                <svg class="palette-swatch" viewBox="0 0 24 24">
+                  <polygon points="12,2 22,12 12,22 2,12" fill="#8e44ad" stroke="#6c3483" stroke-width="1.5"/>
+                </svg>
+                Annotation
+              </div>
+
+              <div class="palette-group-label" style="margin-top:16px">Edges</div>
+
+              <!-- subClassOf -->
+              <div class="palette-item">
+                <svg class="palette-edge-line" viewBox="0 0 44 22">
+                  <defs>
+                    <marker id="m1" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                      <path d="M0,0 L6,3 L0,6 Z" fill="#4a90d9"/>
+                    </marker>
+                  </defs>
+                  <line x1="2" y1="11" x2="36" y2="11" stroke="#4a90d9" stroke-width="2" marker-end="url(#m1)"/>
+                </svg>
+                subClassOf
+              </div>
+
+              <!-- hasProperty -->
+              <div class="palette-item">
+                <svg class="palette-edge-line" viewBox="0 0 44 22">
+                  <defs>
+                    <marker id="m2" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                      <path d="M0,0 L6,3 L0,6 Z" fill="#27ae60"/>
+                    </marker>
+                  </defs>
+                  <line x1="2" y1="11" x2="36" y2="11" stroke="#27ae60" stroke-width="2" marker-end="url(#m2)"/>
+                </svg>
+                hasProperty
+              </div>
+
+              <!-- rdf:type -->
+              <div class="palette-item">
+                <svg class="palette-edge-line" viewBox="0 0 44 22">
+                  <defs>
+                    <marker id="m3" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                      <path d="M0,0 L6,3 L0,6 Z" fill="#e67e22"/>
+                    </marker>
+                  </defs>
+                  <line x1="2" y1="11" x2="36" y2="11" stroke="#e67e22" stroke-width="2" marker-end="url(#m3)"/>
+                </svg>
+                rdf:type
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Key/value table explaining fields -->
+          <table style="margin-top:24px;width:100%;font-size:0.8rem;border-collapse:collapse;">
+            <thead>
+              <tr style="border-bottom:2px solid var(--color-border)">
+                <th style="text-align:left;padding:6px 8px;color:var(--color-text-muted)">Field</th>
+                <th style="text-align:left;padding:6px 8px;color:var(--color-text-muted)">Type</th>
+                <th style="text-align:left;padding:6px 8px;color:var(--color-text-muted)">Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom:1px solid var(--color-border)">
+                <td style="padding:6px 8px"><code>id</code></td>
+                <td style="padding:6px 8px;color:var(--color-text-muted)">string</td>
+                <td style="padding:6px 8px;color:var(--color-text-muted)">Unique key used in <code>setNodeType()</code></td>
+              </tr>
+              <tr style="border-bottom:1px solid var(--color-border)">
+                <td style="padding:6px 8px"><code>label</code></td>
+                <td style="padding:6px 8px;color:var(--color-text-muted)">string</td>
+                <td style="padding:6px 8px;color:var(--color-text-muted)">Shown in palette and stamped as the element's label</td>
+              </tr>
+              <tr style="border-bottom:1px solid var(--color-border)">
+                <td style="padding:6px 8px"><code>color</code></td>
+                <td style="padding:6px 8px;color:var(--color-text-muted)">CSS colour</td>
+                <td style="padding:6px 8px;color:var(--color-text-muted)">Palette icon colour only — also add a <code>style</code> rule to apply it to the graph</td>
+              </tr>
+              <tr style="border-bottom:1px solid var(--color-border)">
+                <td style="padding:6px 8px"><code>shape</code></td>
+                <td style="padding:6px 8px;color:var(--color-text-muted)">string</td>
+                <td style="padding:6px 8px;color:var(--color-text-muted)">Palette icon shape only — also add a <code>style</code> rule to apply it to the graph</td>
+              </tr>
+              <tr style="border-bottom:1px solid var(--color-border)">
+                <td style="padding:6px 8px"><code>data</code></td>
+                <td style="padding:6px 8px;color:var(--color-text-muted)">object</td>
+                <td style="padding:6px 8px;color:var(--color-text-muted)">Default properties merged into every new element; use a <code>type</code> field as the stylesheet selector target</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 8px"><code>style</code> <em style="color:var(--color-text-muted)">(constructor)</em></td>
+                <td style="padding:6px 8px;color:var(--color-text-muted)">array</td>
+                <td style="padding:6px 8px;color:var(--color-text-muted)">Cytoscape.js stylesheet rules — required to apply colours &amp; shapes to the actual graph</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
       </div>
     </div>
   </section>

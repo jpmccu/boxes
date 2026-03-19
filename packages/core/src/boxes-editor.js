@@ -448,13 +448,9 @@ export class BoxesEditor {
     stylePane.appendChild(styleTitle);
     this._stylesheetRulesEl = document.createElement('div');
     stylePane.appendChild(this._stylesheetRulesEl);
-    const addRuleBtn = document.createElement('button');
-    addRuleBtn.className = 'bxe-btn-add';
-    addRuleBtn.textContent = '+ Add Rule';
-    addRuleBtn.addEventListener('click', () => { this.addStyleRule('node', {}); this._switchPane('stylesheet'); });
-    stylePane.appendChild(addRuleBtn);
     stylePane.addEventListener('change', (e) => this._handleStylesheetEvent(e));
     stylePane.addEventListener('click', (e) => this._handleStylesheetEvent(e));
+    stylePane.addEventListener('focusout', (e) => this._handleStylesheetEvent(e));
     this._panes['stylesheet'] = stylePane;
 
     // ── Layout pane ──
@@ -479,21 +475,9 @@ export class BoxesEditor {
     contextPane.appendChild(ctxTitle);
     this._contextEntriesEl = document.createElement('div');
     contextPane.appendChild(this._contextEntriesEl);
-    const addCtxBtns = document.createElement('div');
-    addCtxBtns.className = 'bxe-ctx-addbtns';
-    const addCtxPrefixBtn = document.createElement('button');
-    addCtxPrefixBtn.className = 'bxe-btn-add';
-    addCtxPrefixBtn.textContent = '+ Add Prefix';
-    addCtxPrefixBtn.addEventListener('click', () => this._addContextEntry('prefix'));
-    const addCtxTermBtn = document.createElement('button');
-    addCtxTermBtn.className = 'bxe-btn-add';
-    addCtxTermBtn.textContent = '+ Add Term';
-    addCtxTermBtn.addEventListener('click', () => this._addContextEntry('term'));
-    addCtxBtns.appendChild(addCtxPrefixBtn);
-    addCtxBtns.appendChild(addCtxTermBtn);
-    contextPane.appendChild(addCtxBtns);
     contextPane.addEventListener('change', (e) => this._handleContextEvent(e));
     contextPane.addEventListener('click', (e) => this._handleContextEvent(e));
+    contextPane.addEventListener('focusout', (e) => this._handleContextEvent(e));
     this._panes['context'] = contextPane;
 
     [palettePane, propsPane, stylePane, layoutPane, contextPane].forEach(p => tabBody.appendChild(p));
@@ -806,16 +790,13 @@ export class BoxesEditor {
   _refreshStylesheet() {
     if (!this._stylesheetRulesEl) return;
     const rules = this.userStylesheet;
-    if (!rules.length) {
-      this._stylesheetRulesEl.innerHTML = '<div class="bxe-empty">No style rules yet.</div>';
-      return;
-    }
-    this._stylesheetRulesEl.innerHTML = rules.map((rule, i) => {
+
+    const ruleHtml = (rule, i) => {
       const props = Object.entries(rule.style || {});
       const propsHtml = props.map(([prop, val]) => `
       <div class="bxe-style-prop-row">
         <input type="text" value="${this._esc(prop)}" placeholder="property" data-field="key" data-rule="${i}" data-prop="${this._esc(prop)}">
-        <input type="text" value="${this._esc(val)}" placeholder="value" data-field="value" data-rule="${i}" data-prop="${this._esc(prop)}">
+        <input type="text" value="${this._esc(String(val))}" placeholder="value" data-field="value" data-rule="${i}" data-prop="${this._esc(prop)}">
         <button class="bxe-btn-del" data-action="del-prop" data-rule="${i}" data-prop="${this._esc(prop)}" title="Remove">×</button>
       </div>`).join('');
       return `
@@ -826,24 +807,40 @@ export class BoxesEditor {
         </div>
         <div class="bxe-style-rule-props">
           ${propsHtml}
-          <button class="bxe-btn-link" data-action="add-prop" data-rule="${i}">+ property</button>
+          <div class="bxe-style-prop-row bxe-style-prop-blank">
+            <input type="text" value="" placeholder="property" data-field="key" data-rule="${i}" data-prop="">
+            <input type="text" value="" placeholder="value" data-field="value" data-rule="${i}" data-prop="">
+          </div>
         </div>
       </div>`;
-    }).join('');
+    };
+
+    // Always append a blank rule at the bottom for adding new rules.
+    const blankRuleHtml = `
+      <div class="bxe-style-rule bxe-style-rule-blank">
+        <div class="bxe-style-rule-header">
+          <input type="text" value="" placeholder="selector (e.g. node, edge)" data-field="selector" data-rule="new">
+        </div>
+      </div>`;
+
+    this._stylesheetRulesEl.innerHTML =
+      rules.map((rule, i) => ruleHtml(rule, i)).join('') + blankRuleHtml;
   }
 
   _handleStylesheetEvent(e) {
     const el = e.target;
     if (!el) return;
 
+    // ── Existing rule / prop changes ────────────────────────────────────────
     if (e.type === 'change') {
-      if (el.dataset.field === 'selector') {
+      if (el.dataset.field === 'selector' && el.dataset.rule !== 'new') {
         const ri = parseInt(el.dataset.rule);
         const rule = this.userStylesheet[ri];
         if (rule) this.updateStyleRule(ri, el.value, rule.style);
         return;
       }
-      if (el.dataset.field === 'key') {
+      // Existing prop key rename (data-prop is non-empty on real rows)
+      if (el.dataset.field === 'key' && el.dataset.prop) {
         const ri = parseInt(el.dataset.rule);
         const oldKey = el.dataset.prop;
         const newKey = el.value.trim();
@@ -857,7 +854,8 @@ export class BoxesEditor {
         this.updateStyleRule(ri, rule.selector, style);
         return;
       }
-      if (el.dataset.field === 'value') {
+      // Existing prop value change (data-prop is non-empty on real rows)
+      if (el.dataset.field === 'value' && el.dataset.prop) {
         const ri = parseInt(el.dataset.rule);
         const prop = el.dataset.prop;
         const rule = this.userStylesheet[ri];
@@ -867,6 +865,34 @@ export class BoxesEditor {
       }
     }
 
+    // ── Blank row commits (focusout) ────────────────────────────────────────
+    if (e.type === 'focusout') {
+      // Blank rule: commit when focus leaves the whole rule div
+      if (el.dataset.field === 'selector' && el.dataset.rule === 'new') {
+        const ruleDiv = el.closest('.bxe-style-rule-blank');
+        if (e.relatedTarget && ruleDiv?.contains(e.relatedTarget)) return;
+        const sel = el.value.trim();
+        if (sel) this.addStyleRule(sel, {});
+        return;
+      }
+      // Blank prop row: commit when focus leaves the whole row div
+      if (el.dataset.prop === '' && (el.dataset.field === 'key' || el.dataset.field === 'value')) {
+        const row = el.closest('.bxe-style-prop-blank');
+        if (!row) return;
+        if (e.relatedTarget && row.contains(e.relatedTarget)) return;
+        const ri = parseInt(el.dataset.rule);
+        if (isNaN(ri)) return;
+        const key = row.querySelector('[data-field="key"]')?.value.trim();
+        const val = row.querySelector('[data-field="value"]')?.value || '';
+        if (!key) return;
+        const rule = this.userStylesheet[ri];
+        if (!rule) return;
+        this.updateStyleRule(ri, rule.selector, { ...rule.style, [key]: val });
+        return;
+      }
+    }
+
+    // ── Delete actions ───────────────────────────────────────────────────────
     if (e.type === 'click') {
       if (el.dataset.action === 'del-rule') {
         this.removeStyleRule(parseInt(el.dataset.rule));
@@ -880,16 +906,6 @@ export class BoxesEditor {
         const style = { ...rule.style };
         delete style[prop];
         this.updateStyleRule(ri, rule.selector, style);
-        return;
-      }
-      if (el.dataset.action === 'add-prop') {
-        const ri = parseInt(el.dataset.rule);
-        const key = prompt('CSS property name (e.g. background-color):');
-        if (!key) return;
-        const val = prompt(`Value for "${key}":`) ?? '';
-        const rule = this.userStylesheet[ri];
-        if (!rule) return;
-        this.updateStyleRule(ri, rule.selector, { ...rule.style, [key]: val });
         return;
       }
     }
@@ -1511,14 +1527,9 @@ export class BoxesEditor {
     if (!selectedNodes.length) return false;
 
     const selectedNodeIds = new Set(selectedNodes.map(n => n.id()));
-    // Include edges where BOTH endpoints are selected
+    // Only include edges that are explicitly selected AND have both endpoints selected.
     const edges = this.cy.$('edge:selected').filter(e =>
       selectedNodeIds.has(e.data('source')) && selectedNodeIds.has(e.data('target'))
-    ).add(
-      // Also pick up unselected edges that connect two selected nodes
-      this.cy.edges().filter(e =>
-        selectedNodeIds.has(e.data('source')) && selectedNodeIds.has(e.data('target'))
-      )
     );
 
     this._clipboard = {
@@ -1829,7 +1840,8 @@ export class BoxesEditor {
 
   _initEdgeHandle() {
     this._eh = this.cy.edgehandles({
-      canConnect: (sourceNode, targetNode) => !sourceNode.same(targetNode),
+      canConnect: () => true,
+      hoverDelay: 0,
       edgeParams: (sourceNode, targetNode) => ({
         data: {
           label: this.currentEdgeType?.label || '',
@@ -1844,6 +1856,8 @@ export class BoxesEditor {
     this._ehHandleDiv = null;
     this._ehHandleNode = null;
     this._ehDrawing = false;
+    this._ehSourceNode = null;   // source node saved across the draw gesture
+    this._ehDidComplete = false; // set true when ehcomplete fires
 
     // Returns the ring width in screen pixels: 2× the node's border-width,
     // scaled by the current zoom, with a minimum so it's always grabbable.
@@ -2029,7 +2043,45 @@ export class BoxesEditor {
 
     this._ehMouseoverHandler = (e) => setHandleOn(e.target);
     this._ehRemoveHandler = () => removeHandle();
-    this._ehWindowMouseup = () => this._eh.stop();
+    this._ehWindowMouseup = (e) => {
+      this._ehDidComplete = false;
+      const sourceNode = this._ehSourceNode;
+      this._eh.stop(); // synchronously fires ehcomplete if a valid target was previewed
+
+      // Self-loop fallback: edgehandles never fires ehcomplete when source ===
+      // target because tapdragover doesn't re-fire if the cursor never left the
+      // source node (Cytoscape only fires it when near != last).  If the draw
+      // was not completed but the cursor is still over the source node (or its
+      // ring, which sits outside the node's own bounding box), create the
+      // self-loop manually (undo was already pushed by ehstart).
+      if (!this._ehDidComplete && sourceNode) {
+        const cr = this.cy.container().getBoundingClientRect();
+        const bb = sourceNode.renderedBoundingBox({ includeLabels: false });
+        const rw = getRingWidth(sourceNode);
+        const overNodeOrRing =
+          e.clientX >= cr.left + bb.x1 - rw && e.clientX <= cr.left + bb.x2 + rw &&
+          e.clientY >= cr.top  + bb.y1 - rw && e.clientY <= cr.top  + bb.y2 + rw;
+        if (overNodeOrRing) {
+          const edge = this.cy.add({
+            group: 'edges',
+            data: {
+              source: sourceNode.id(),
+              target: sourceNode.id(),
+              label: this.currentEdgeType?.label || '',
+              ...(this.currentEdgeType?.data || {})
+            }
+          });
+          this._updateStylesheet();
+          this._emit('edgeAdded', { edge: edge.json() });
+          this._emit('edgeHandleComplete', {
+            sourceId: sourceNode.id(),
+            targetId: sourceNode.id(),
+            edgeType: this.currentEdgeType
+          });
+        }
+      }
+      this._ehSourceNode = null;
+    };
 
     this.cy.on('mouseover', 'node', this._ehMouseoverHandler);
     // When the cursor exits through the node body (pointer-events:none on ring),
@@ -2052,9 +2104,17 @@ export class BoxesEditor {
       });
     };
 
-    this.cy.on('ehstart', () => { this._pushUndo(); this._ehDrawing = true; removeHandle(); });
+    this.cy.on('ehstart', () => {
+      this._ehSourceNode = this._ehHandleNode; // save before removeHandle() clears it
+      this._pushUndo();
+      this._ehDrawing = true;
+      removeHandle();
+    });
     this.cy.on('ehstop', () => { this._ehDrawing = false; });
-    this.cy.on('ehcomplete', this._ehCompleteHandler);
+    this.cy.on('ehcomplete', (event, sourceNode, targetNode, addedEdges) => {
+      this._ehDidComplete = true;
+      this._ehCompleteHandler(event, sourceNode, targetNode, addedEdges);
+    });
 
     // ── Edge endpoint reconnect handles ────────────────────────────────────
     // Show a small glow dot at each end of an edge on hover.  Dragging a dot
@@ -2302,49 +2362,31 @@ export class BoxesEditor {
     const el = this._contextEntriesEl;
     if (!el) return;
     const entries = Object.entries(this.context);
-    if (!entries.length) {
-      el.innerHTML = `<div class="bxe-empty">No entries. Add a prefix mapping or term definition.</div>`;
-      return;
-    }
-    el.innerHTML = entries.map(([key, val]) => {
+
+    const rowsHtml = entries.map(([key, val]) => {
       const isObj = typeof val === 'object' && val !== null;
       const keyEsc = this._esc(key);
-      if (isObj) {
-        const jsonStr = this._esc(JSON.stringify(val, null, 2));
-        return `
-          <div class="bxe-ctx-row" data-key="${keyEsc}">
-            <input class="bxe-ctx-key bxe-cell-input" type="text" value="${keyEsc}" placeholder="term" data-role="key" />
-            <span class="bxe-ctx-colon">:</span>
-            <textarea class="bxe-ctx-val bxe-cell-input bxe-ctx-obj-val" rows="2" data-role="val" data-type="object">${jsonStr}</textarea>
-            <button class="bxe-btn-del" data-role="del" title="Remove">×</button>
-          </div>`;
-      } else {
-        return `
-          <div class="bxe-ctx-row" data-key="${keyEsc}">
-            <input class="bxe-ctx-key bxe-cell-input" type="text" value="${keyEsc}" placeholder="prefix" data-role="key" />
-            <span class="bxe-ctx-colon">:</span>
-            <input class="bxe-ctx-val bxe-cell-input" type="text" value="${this._esc(String(val))}" placeholder="namespace URI" data-role="val" data-type="string" />
-            <button class="bxe-btn-del" data-role="del" title="Remove">×</button>
-          </div>`;
-      }
+      const valEl = isObj
+        ? `<textarea class="bxe-ctx-val bxe-cell-input bxe-ctx-obj-val" rows="2" data-role="val" data-type="object">${this._esc(JSON.stringify(val, null, 2))}</textarea>`
+        : `<input class="bxe-ctx-val bxe-cell-input" type="text" value="${this._esc(String(val))}" placeholder="namespace URI" data-role="val" data-type="string" />`;
+      return `
+        <div class="bxe-ctx-row" data-key="${keyEsc}">
+          <input class="bxe-ctx-key bxe-cell-input" type="text" value="${keyEsc}" placeholder="key" data-role="key" />
+          <span class="bxe-ctx-colon">:</span>
+          ${valEl}
+          <button class="bxe-btn-del" data-role="del" title="Remove">×</button>
+        </div>`;
     }).join('');
-  }
 
-  _addContextEntry(type) {
-    if (type === 'term') {
-      let key = 'term1';
-      let n = 1;
-      while (key in this.context) key = `term${++n}`;
-      this.context[key] = { '@type': '@id' };
-    } else {
-      let key = 'prefix1';
-      let n = 1;
-      while (key in this.context) key = `prefix${++n}`;
-      this.context[key] = '';
-    }
-    this._renderContextPane();
-    const inputs = this._contextEntriesEl?.querySelectorAll('.bxe-ctx-key');
-    if (inputs?.length) inputs[inputs.length - 1].focus();
+    // Always show a blank row at the bottom for adding new entries.
+    const blankRow = `
+      <div class="bxe-ctx-row bxe-ctx-row-blank" data-key="">
+        <input class="bxe-ctx-key bxe-cell-input" type="text" value="" placeholder="key" data-role="key" />
+        <span class="bxe-ctx-colon">:</span>
+        <input class="bxe-ctx-val bxe-cell-input" type="text" value="" placeholder="value or { JSON object }" data-role="val" data-type="auto" />
+      </div>`;
+
+    el.innerHTML = rowsHtml + blankRow;
   }
 
   _handleContextEvent(e) {
@@ -2354,6 +2396,24 @@ export class BoxesEditor {
     const role = e.target.dataset.role;
     const valType = e.target.dataset.type;
 
+    // ── Blank row commit (focusout when focus leaves the row entirely) ───────
+    if (e.type === 'focusout' && oldKey === '') {
+      if (e.relatedTarget && row.contains(e.relatedTarget)) return;
+      const keyInput = row.querySelector('[data-role="key"]');
+      const valInput = row.querySelector('[data-role="val"]');
+      const newKey = keyInput?.value.trim();
+      if (!newKey) return;
+      const rawVal = valInput?.value || '';
+      let val = rawVal;
+      if (rawVal.trim().startsWith('{')) {
+        try { val = JSON.parse(rawVal); } catch { /* keep as string */ }
+      }
+      this.context[newKey] = val;
+      this._renderContextPane();
+      this._emit('contextChanged', { context: { ...this.context } });
+      return;
+    }
+
     if (role === 'del') {
       delete this.context[oldKey];
       this._renderContextPane();
@@ -2361,16 +2421,15 @@ export class BoxesEditor {
 
     } else if (role === 'key' && e.type === 'change') {
       const newKey = e.target.value.trim();
-      if (!newKey || newKey === oldKey) { e.target.value = oldKey; return; }
+      if (!newKey || newKey === oldKey || !oldKey) { e.target.value = oldKey; return; }
       const rebuilt = {};
       for (const [k, v] of Object.entries(this.context)) rebuilt[k === oldKey ? newKey : k] = v;
       this.context = rebuilt;
       row.dataset.key = newKey;
       this._emit('contextChanged', { context: { ...this.context } });
 
-    } else if (role === 'val' && e.type === 'change') {
+    } else if (role === 'val' && e.type === 'change' && oldKey) {
       if (valType === 'object') {
-        // Validate and parse JSON
         try {
           const parsed = JSON.parse(e.target.value);
           if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('Must be a JSON object');
@@ -2379,7 +2438,6 @@ export class BoxesEditor {
           this._emit('contextChanged', { context: { ...this.context } });
         } catch {
           e.target.classList.add('bxe-ctx-invalid');
-          // Keep previous value; don't update context
         }
       } else {
         this.context[oldKey] = e.target.value;

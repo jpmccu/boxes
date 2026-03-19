@@ -21,7 +21,10 @@ registerExporter('rdfxml', rdfXmlExporter);
 
 let editor = null;
 let currentFileName = 'graph.json';
+let currentFileHandle = null; // FileSystemFileHandle when opened/saved via File System Access API
 let currentTemplateId = 'blank';
+
+const BOXES_FILE_TYPES = [{ description: 'Boxes Graph', accept: { 'application/json': ['.boxes', '.json'] } }];
 
 function loadTemplates() {
   const grid = document.getElementById('template-grid');
@@ -57,6 +60,46 @@ function startWithTemplate(templateId) {
 
 function saveToFile() {
   if (!editor) { alert('No graph to save'); return; }
+  if ('showSaveFilePicker' in window) {
+    _saveWithPicker(currentFileHandle);
+  } else {
+    _saveDownloadFallback();
+  }
+}
+
+function saveAsFile() {
+  if (!editor) { alert('No graph to save'); return; }
+  if ('showSaveFilePicker' in window) {
+    _saveWithPicker(null);
+  } else {
+    _saveDownloadFallback();
+  }
+}
+
+async function _saveWithPicker(handle) {
+  try {
+    if (!handle) {
+      handle = await window.showSaveFilePicker({
+        suggestedName: currentFileName,
+        types: BOXES_FILE_TYPES,
+      });
+    }
+    const graphData = editor.exportGraph();
+    graphData.templateId = currentTemplateId;
+    const writable = await handle.createWritable();
+    await writable.write(JSON.stringify(graphData, null, 2));
+    await writable.close();
+    currentFileHandle = handle;
+    currentFileName = handle.name;
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      alert(`Failed to save: ${err.message}`);
+      console.error(err);
+    }
+  }
+}
+
+function _saveDownloadFallback() {
   const graphData = editor.exportGraph();
   graphData.templateId = currentTemplateId;
   const blob = new Blob([JSON.stringify(graphData, null, 2)], { type: 'application/json' });
@@ -68,7 +111,7 @@ function saveToFile() {
   URL.revokeObjectURL(url);
 }
 
-function loadFromFile(file) {
+function loadFromFile(file, handle = null) {
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
@@ -77,6 +120,7 @@ function loadFromFile(file) {
       startWithTemplate(templateId);
       editor.importGraph(graphData);
       currentFileName = file.name;
+      currentFileHandle = handle; // null when opened via legacy <input>
     } catch (err) {
       alert('Failed to load file: Invalid JSON');
       console.error(err);
@@ -85,18 +129,33 @@ function loadFromFile(file) {
   reader.readAsText(file);
 }
 
+async function openFileDialog() {
+  if ('showOpenFilePicker' in window) {
+    try {
+      const [handle] = await window.showOpenFilePicker({ types: BOXES_FILE_TYPES });
+      const file = await handle.getFile();
+      loadFromFile(file, handle);
+    } catch (err) {
+      if (err.name !== 'AbortError') console.error(err);
+    }
+  } else {
+    document.getElementById('file-input').click();
+  }
+}
+
 document.getElementById('new-btn').addEventListener('click', () => {
   if (confirm('Create a new graph? Current graph will be cleared.')) {
     if (editor) { editor.destroy(); editor = null; }
     currentFileName = 'graph.json';
+    currentFileHandle = null;
     document.getElementById('editor-container').classList.add('d-none');
     document.getElementById('welcome-screen').classList.remove('d-none');
   }
 });
 
-document.getElementById('open-btn').addEventListener('click', () => document.getElementById('file-input').click());
+document.getElementById('open-btn').addEventListener('click', openFileDialog);
 document.getElementById('file-input').addEventListener('change', (e) => {
-  if (e.target.files[0]) loadFromFile(e.target.files[0]);
+  if (e.target.files[0]) loadFromFile(e.target.files[0], null);
   e.target.value = '';
 });
 document.getElementById('save-btn').addEventListener('click', saveToFile);
@@ -112,8 +171,9 @@ document.getElementById('tour-btn').addEventListener('click', () => {
 });
 
 document.addEventListener('keydown', (e) => {
-  if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveToFile(); }
-  if ((e.ctrlKey || e.metaKey) && e.key === 'o') { e.preventDefault(); document.getElementById('file-input').click(); }
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'S') { e.preventDefault(); saveAsFile(); }
+  else if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveToFile(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'o') { e.preventDefault(); openFileDialog(); }
   if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); document.getElementById('new-btn').click(); }
 });
 
@@ -208,6 +268,9 @@ document.getElementById('import-file-input').addEventListener('change', async (e
       graphData.userStylesheet = merged;
 
       editor.importGraph(graphData);
+      // Suggest the same basename with .boxes for the next Save
+      currentFileName = file.name.replace(/\.[^.]+$/, '.boxes');
+      currentFileHandle = null; // imported format differs; require Save As to pick destination
     } catch (err) {
       alert(`Import failed: ${err.message}`);
       console.error(err);
@@ -229,7 +292,23 @@ document.getElementById('export-menu').addEventListener('click', async (e) => {
   try {
     const content = await runExport(exporterId, editor);
     const base = currentFileName.replace(/\.[^.]+$/, '') || 'graph';
-    triggerDownload(content, `${base}${exporter.extension}`, exporter.mimeType);
+    const suggestedName = `${base}${exporter.extension}`;
+
+    if ('showSaveFilePicker' in window) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName,
+          types: [{ description: exporter.name, accept: { [exporter.mimeType]: [exporter.extension] } }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(content instanceof Blob ? content : new Blob([content], { type: exporter.mimeType }));
+        await writable.close();
+      } catch (pickerErr) {
+        if (pickerErr.name !== 'AbortError') throw pickerErr;
+      }
+    } else {
+      triggerDownload(content, suggestedName, exporter.mimeType);
+    }
   } catch (err) {
     alert(`Export failed: ${err.message}`);
     console.error(err);
