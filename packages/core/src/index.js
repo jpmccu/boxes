@@ -6,3 +6,6 @@ export {
   exportToRdfXml, importFromRdfXml, rdfXmlExporter, rdfXmlImporter,
   graphDataToJsonLD,
 } from './io/rdf-formats.js';
+export {
+  importFromArrows, exportToArrows, arrowsImporter, arrowsExporter,
+} from './io/arrows.js';

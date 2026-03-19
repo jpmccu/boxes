@@ -1017,6 +1017,12 @@ export class BoxesEditor {
       {
         selector: '.eh-ghost-edge.eh-preview-active',
         style: { 'opacity': 0 }
+      },
+      {
+        // Hide the edgehandles plugin's built-in teardrop handle node;
+        // our custom ring div replaces it entirely.
+        selector: '.eh-handle',
+        style: { 'opacity': 0, 'events': 'no' }
       }
     ];
 
@@ -1835,20 +1841,98 @@ export class BoxesEditor {
     this._ehHandleNode = null;
     this._ehDrawing = false;
 
+    // Returns the ring width in screen pixels: 2× the node's border-width,
+    // scaled by the current zoom, with a minimum so it's always grabbable.
+    const getRingWidth = (node) => {
+      const borderPx = parseFloat(node.style('border-width')) || 2;
+      return Math.max(10, borderPx * 2 * this.cy.zoom());
+    };
+
+    // True when (clientX, clientY) falls within the ring band (outside the
+    // node body, inside the ring's outer edge).  Uses an ellipse test so it
+    // matches both circular and ellipse-shaped nodes.
+    const isInRing = (clientX, clientY, div, nodeW, nodeH) => {
+      const rect = div.getBoundingClientRect();
+      const cx   = rect.left  + rect.width  / 2;
+      const cy   = rect.top   + rect.height / 2;
+      const outerHW = rect.width  / 2;
+      const outerHH = rect.height / 2;
+      const innerHW = nodeW / 2;
+      const innerHH = nodeH / 2;
+      const dx = clientX - cx;
+      const dy = clientY - cy;
+      const outsideInner = innerHW <= 0 || innerHH <= 0 ||
+        (dx / innerHW) ** 2 + (dy / innerHH) ** 2 >= 1;
+      const insideOuter =
+        (dx / outerHW) ** 2 + (dy / outerHH) ** 2 <= 1;
+      return insideOuter && outsideInner;
+    };
+
     const positionHandle = (node, div) => {
-      const bb = node.renderedBoundingBox({ includeLabels: false });
+      const bb          = node.renderedBoundingBox({ includeLabels: false });
+      const rw          = Math.round(getRingWidth(node));
+      const zoom        = this.cy.zoom();
+      const nodeBorder  = Math.round((parseFloat(node.style('border-width')) || 0) * zoom);
+      const nodeW       = Math.round(bb.x2 - bb.x1);
+      const nodeH       = Math.round(bb.y2 - bb.y1);
       const containerRect = this.cy.container().getBoundingClientRect();
-      const cx = containerRect.left + (bb.x1 + bb.x2) / 2;
-      const bottom = containerRect.top + bb.y2;
-      const w = 16, h = 8;
-      div.style.left = `${cx - w / 2}px`;
-      div.style.top  = `${bottom - h / 2}px`;
+
+      // The ring's inner edge sits at the node's inner border edge — overlap,
+      // never a gap.
+      const holeW = Math.max(0, nodeW - 2 * nodeBorder);
+      const holeH = Math.max(0, nodeH - 2 * nodeBorder);
+      const outerW = holeW + 2 * rw;
+      const outerH = holeH + 2 * rw;
+
+      // Position outer capture div.
+      div.style.left   = `${Math.round(containerRect.left + bb.x1) + nodeBorder - rw}px`;
+      div.style.top    = `${Math.round(containerRect.top  + bb.y1) + nodeBorder - rw}px`;
+      div.style.width  = `${outerW}px`;
+      div.style.height = `${outerH}px`;
+
+      // Compute border-radius that matches the node's rendered shape exactly.
+      const shape = node.style('shape') || 'ellipse';
+      let radius;
+      if (shape === 'ellipse' || shape === 'circle') {
+        radius = '50%';
+      } else if (shape === 'round-rectangle' || shape === 'round-octagon') {
+        // Cytoscape uses corner-radius style (px in graph space) if set,
+        // otherwise defaults to min(w, h) / 4.
+        const crRaw = parseFloat(node.style('corner-radius'));
+        const cr = crRaw > 0
+          ? Math.round(crRaw * zoom)
+          : Math.round(Math.min(parseFloat(node.style('width')) || nodeW / zoom,
+                                parseFloat(node.style('height')) || nodeH / zoom) / 4 * zoom);
+        radius = `${cr}px`;
+      } else {
+        radius = '0';
+      }
+
+      // Size and style the inner visual ring div.
+      // box-shadow extends outward from the inner div's edge, following border-radius
+      // exactly — 50% opaque at the inner edge, fading to 0 at distance rw.
+      const ring = div._ring;
+      ring.style.left         = `${rw}px`;
+      ring.style.top          = `${rw}px`;
+      ring.style.width        = `${holeW}px`;
+      ring.style.height       = `${holeH}px`;
+      ring.style.borderRadius = radius;
+      ring.style.boxShadow    = `0 0 ${rw}px 0 rgba(52,152,219,0.5)`;
+
+      div._nodeW = holeW;
+      div._nodeH = holeH;
     };
 
     const removeHandle = () => {
       if (this._ehHandleDiv) {
-        this._ehHandleDiv.removeEventListener('mousedown', this._ehStartDrawing);
-        this._ehHandleDiv.parentNode?.removeChild(this._ehHandleDiv);
+        const div = this._ehHandleDiv;
+        div.removeEventListener('mousedown', this._ehStartDrawing);
+        div.removeEventListener('mousemove', div._moveHandler);
+        if (this._ehContainerMoveHandler) {
+          this.cy.container().removeEventListener('mousemove', this._ehContainerMoveHandler);
+          this._ehContainerMoveHandler = null;
+        }
+        div.parentNode?.removeChild(div);
         this._ehHandleDiv = null;
       }
       this._ehHandleNode = null;
@@ -1859,20 +1943,75 @@ export class BoxesEditor {
       removeHandle();
       this._ehHandleNode = node;
 
+      // Outer div: transparent, covers the full ring+hole area, handles pointer events.
       const div = document.createElement('div');
       div.className = 'boxes-eh-handle';
       div.style.cssText = [
         'position:fixed',
-        'width:16px',
-        'height:8px',
-        'background:#3498db',
-        'border-radius:0 0 16px 16px',
+        'background:transparent',
+        'overflow:visible',
         'cursor:crosshair',
         'z-index:9999',
-        'opacity:0.85',
-        'pointer-events:auto'
+        'pointer-events:none',
       ].join(';');
+
+      // Inner div: sized to the node interior, carries the box-shadow ring.
+      // box-shadow follows border-radius exactly, so the ring matches every shape.
+      const ring = document.createElement('div');
+      ring.style.cssText = 'position:absolute;background:transparent;pointer-events:none;';
+      div.appendChild(ring);
+      div._ring = ring;
+
+      // Dynamically enable/disable pointer events based on whether the cursor
+      // is in the ring vs the node body.  When pointer-events is 'none' the
+      // Cytoscape canvas receives the event normally, so dragging still works.
+      const updatePointerEvents = (clientX, clientY) => {
+        if (!this._ehHandleDiv) return;
+        const inRing = isInRing(clientX, clientY, div, div._nodeW, div._nodeH);
+        div.style.pointerEvents = inRing ? 'auto' : 'none';
+        div.style.cursor = inRing ? 'crosshair' : 'default';
+      };
+
+      // When the ring has pointer-events:auto the container stops receiving
+      // mousemove, so we listen on the div too.
+      div._moveHandler = (e) => updatePointerEvents(e.clientX, e.clientY);
+      div.addEventListener('mousemove', div._moveHandler);
+
+      // When pointer-events:none, the container canvas receives mousemove.
+      this._ehContainerMoveHandler = (e) => updatePointerEvents(e.clientX, e.clientY);
+      this.cy.container().addEventListener('mousemove', this._ehContainerMoveHandler);
+
       div.addEventListener('mousedown', this._ehStartDrawing);
+
+      // Any wheel event that lands on the ring div (when pointer-events:auto)
+      // must be forwarded to the Cytoscape container so zoom/pan works normally.
+      // preventDefault stops the browser from treating it as a page scroll or
+      // pinch-zoom; re-dispatching to the canvas lets Cytoscape handle it.
+      div.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.cy.container().dispatchEvent(new WheelEvent('wheel', {
+          bubbles: true, cancelable: true,
+          clientX: e.clientX, clientY: e.clientY,
+          deltaX: e.deltaX, deltaY: e.deltaY, deltaZ: e.deltaZ,
+          deltaMode: e.deltaMode,
+          ctrlKey: e.ctrlKey, shiftKey: e.shiftKey,
+          altKey: e.altKey, metaKey: e.metaKey,
+        }));
+      }, { passive: false });
+
+      // Remove the ring only when the cursor has actually left the outer
+      // boundary of the div.  When pointer-events toggles auto→none (cursor
+      // moving into the node center), Chrome fires a spurious mouseleave; the
+      // bounds check below prevents that from dismissing the ring prematurely.
+      div.addEventListener('mouseleave', (e) => {
+        if (this._ehDrawing) return;
+        const rect = div.getBoundingClientRect();
+        const outside = e.clientX < rect.left || e.clientX > rect.right ||
+                        e.clientY < rect.top  || e.clientY > rect.bottom;
+        if (outside) removeHandle();
+      });
+
       document.body.appendChild(div);
       this._ehHandleDiv = div;
       positionHandle(node, div);
@@ -1889,6 +2028,9 @@ export class BoxesEditor {
     this._ehWindowMouseup = () => this._eh.stop();
 
     this.cy.on('mouseover', 'node', this._ehMouseoverHandler);
+    // When the cursor exits through the node body (pointer-events:none on ring),
+    // Cytoscape fires mouseout — use that to dismiss the ring.
+    this.cy.on('mouseout', 'node', (e) => { if (!this._ehDrawing) removeHandle(); });
     this.cy.on('grab', 'node', this._ehRemoveHandler);
     this.cy.on('tap', (e) => { if (e.target === this.cy) removeHandle(); });
     this.cy.on('zoom pan', this._ehRemoveHandler);
@@ -1930,8 +2072,15 @@ export class BoxesEditor {
       this._ehWindowMouseup = null;
     }
     if (this._ehHandleDiv) {
-      this._ehHandleDiv.parentNode?.removeChild(this._ehHandleDiv);
+      const div = this._ehHandleDiv;
+      div.removeEventListener('mousedown', this._ehStartDrawing);
+      if (div._moveHandler) div.removeEventListener('mousemove', div._moveHandler);
+      div.parentNode?.removeChild(div);
       this._ehHandleDiv = null;
+    }
+    if (this._ehContainerMoveHandler) {
+      this.cy.container()?.removeEventListener('mousemove', this._ehContainerMoveHandler);
+      this._ehContainerMoveHandler = null;
     }
     if (this._eh) {
       this._eh.destroy();
