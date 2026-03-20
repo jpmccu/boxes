@@ -40,5 +40,6 @@
     "type": "git",
     "url": "https://github.com/jpmccu/boxes",
     "directory": "packages/react"
-  }
+  },
+  "version": "0.3.1"
 }

@@ -31,5 +31,6 @@
       "output": "dist"
     },
     "electronVersion": "28.2.4"
-  }
+  },
+  "version": "0.3.1"
 }
