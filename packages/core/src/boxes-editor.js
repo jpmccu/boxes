@@ -337,6 +337,7 @@ export class BoxesEditor {
 .bxe-ctx-type-badge { font-size:12px; color:#888; font-family:monospace; letter-spacing:0; flex-shrink:0; padding-top:4px; }
 .bxe-ctx-addbtns { display:flex; gap:4px; flex-wrap:wrap; padding-top:4px; }
 .bxe-ctx-addbtns .bxe-btn-add { flex:1; }
+.bxe-label-editor { position:absolute; z-index:20; background:rgba(255,255,255,.95); border:2px solid #4d90fe; border-radius:4px; padding:2px 6px; font-size:13px; font-family:inherit; outline:none; box-sizing:border-box; text-align:center; box-shadow:0 2px 8px rgba(0,0,0,.2); line-height:1.4; }
 `;
     document.head.appendChild(style);
   }
@@ -634,6 +635,69 @@ export class BoxesEditor {
     }
   }
 
+  _startInlineLabelEdit(ele) {
+    this._cancelInlineLabelEdit();
+
+    const isNode = ele.isNode();
+    const currentLabel = ele.data('label') || '';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = currentLabel;
+    input.className = 'bxe-label-editor';
+
+    if (isNode) {
+      const bb = ele.renderedBoundingBox({ includeLabels: false });
+      input.style.left   = bb.x1 + 'px';
+      input.style.top    = (bb.y1 + bb.h / 2 - 14) + 'px';
+      input.style.width  = Math.max(bb.w, 80) + 'px';
+    } else {
+      const mp = ele.renderedMidpoint();
+      const w = 140;
+      input.style.left = (mp.x - w / 2) + 'px';
+      input.style.top  = (mp.y - 14) + 'px';
+      input.style.width = w + 'px';
+    }
+
+    const commit = () => {
+      const newLabel = input.value;
+      if (newLabel !== currentLabel) {
+        this.updateElement(ele.id(), { label: newLabel });
+        if (this._selectedElement && this._selectedElement.id() === ele.id()) {
+          this._refreshProperties(ele);
+        }
+      }
+      input.remove();
+      this._labelEditorInput = null;
+    };
+
+    const cancel = () => {
+      input.remove();
+      this._labelEditorInput = null;
+    };
+
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter')  { e.preventDefault(); e.stopPropagation(); commit(); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancel(); }
+      else e.stopPropagation(); // don't let Delete/Backspace trigger graph shortcuts
+    });
+    // Prevent tap events from reaching Cytoscape while editing
+    input.addEventListener('mousedown', (e) => e.stopPropagation());
+    input.addEventListener('click',     (e) => e.stopPropagation());
+
+    this._labelEditorInput = input;
+    this._canvasWrap.appendChild(input);
+    input.focus();
+    input.select();
+  }
+
+  _cancelInlineLabelEdit() {
+    if (this._labelEditorInput) {
+      this._labelEditorInput.remove();
+      this._labelEditorInput = null;
+    }
+  }
 
   _switchPane(name) {
     Object.entries(this._panes).forEach(([id, pane]) => {
@@ -1205,9 +1269,15 @@ export class BoxesEditor {
       this._preGrabPos = null;
     });
 
+    this.cy.on('dbltap', 'node,edge', (evt) => {
+      this._startInlineLabelEdit(evt.target);
+    });
+
     this.cy.on('dbltap', (evt) => {
       if (evt.target === this.cy) this._addNodeAtPosition(evt.position);
     });
+
+    this.cy.on('zoom pan', () => this._cancelInlineLabelEdit());
 
     this.cy.on('cxttap', 'node,edge', (evt) => {
       evt.preventDefault();
