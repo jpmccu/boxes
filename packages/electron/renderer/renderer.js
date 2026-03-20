@@ -7,7 +7,66 @@ let selectedElement = null;
 let currentTemplate = null;
 let currentTemplateId = 'blank';
 
-// ─── Templates ───────────────────────────────────────────────────────────────
+// ─── Panel resize & toggle ────────────────────────────────────────────────────
+
+let _panelCollapsed = false;
+let _panelStoredWidth = 300;
+
+function initPanelResizeAndToggle() {
+  const panel = document.getElementById('right-panel');
+  const handle = document.getElementById('panel-resize-handle');
+  const toggleBtn = document.getElementById('panel-toggle-btn');
+
+  if (!panel || !handle || !toggleBtn) return;
+
+  handle.style.display = '';
+  _panelCollapsed = false;
+  _panelStoredWidth = panel.offsetWidth || 300;
+
+  // Resize drag
+  let dragging = false, startX = 0, startWidth = 0;
+  handle.addEventListener('mousedown', (e) => {
+    if (_panelCollapsed) return;
+    dragging = true;
+    startX = e.clientX;
+    startWidth = panel.offsetWidth;
+    handle.classList.add('dragging');
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const delta = startX - e.clientX;
+    const newWidth = Math.max(160, Math.min(800, startWidth + delta));
+    panel.style.width = newWidth + 'px';
+    _panelStoredWidth = newWidth;
+  });
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove('dragging');
+  });
+
+  // Toggle
+  toggleBtn.addEventListener('click', () => {
+    if (_panelCollapsed) {
+      panel.style.width = _panelStoredWidth + 'px';
+      panel.classList.remove('collapsed');
+      handle.style.display = '';
+      toggleBtn.textContent = '›';
+      toggleBtn.title = 'Hide panel';
+      _panelCollapsed = false;
+    } else {
+      _panelStoredWidth = panel.offsetWidth || _panelStoredWidth;
+      panel.classList.add('collapsed');
+      handle.style.display = 'none';
+      toggleBtn.textContent = '‹';
+      toggleBtn.title = 'Show panel';
+      _panelCollapsed = true;
+    }
+  });
+}
+
+
 
 async function loadTemplates() {
   const customTemplates = await window.electronAPI.getTemplates().catch(() => []);
@@ -40,6 +99,7 @@ function startWithTemplate(templateId, customTemplate = null) {
   document.getElementById('editor-container').classList.remove('hidden');
   document.getElementById('toolbar').classList.remove('hidden');
   document.getElementById('right-panel').classList.remove('hidden-panel');
+  initPanelResizeAndToggle();
 
   const container = document.getElementById('editor-container');
   editor = new BoxesEditor(container, {
@@ -494,6 +554,7 @@ window.electronAPI.onMenuNew(() => {
     document.getElementById('editor-container').classList.add('hidden');
     document.getElementById('toolbar').classList.add('hidden');
     document.getElementById('right-panel').classList.add('hidden-panel');
+    document.getElementById('panel-resize-handle').style.display = 'none';
     hidePropertyPanel();
     updateUndoRedoButtons();
   }

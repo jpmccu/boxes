@@ -119,17 +119,51 @@
 
     #editor-container.hidden { display: none; }
 
+    #panel-resize-handle {
+      width: 4px;
+      background: transparent;
+      cursor: col-resize;
+      flex-shrink: 0;
+      transition: background .15s;
+    }
+    #panel-resize-handle:hover, #panel-resize-handle.dragging { background: #c0d4f5; }
+
+    #panel-toggle-btn {
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 44px;
+      background: #e8eaed;
+      border: 1px solid #bbb;
+      border-right: none;
+      border-radius: 4px 0 0 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: #555;
+      z-index: 5;
+      line-height: 1;
+      padding: 0;
+    }
+    #panel-toggle-btn:hover { background: #d0d5dc; color: #222; }
+
     /* Right Panel with tabs — always visible */
     #right-panel {
-      width: 240px;
+      width: 300px;
       background: white;
       border-left: 1px solid #ddd;
       display: flex;
       flex-direction: column;
       flex-shrink: 0;
+      min-width: 160px;
+      transition: width .15s;
     }
 
-    #right-panel.hidden-panel { display: none; }
+    #right-panel.collapsed { width: 0 !important; min-width: 0 !important; overflow: hidden; }
 
     .panel-tabs {
       display: flex;
@@ -153,7 +187,7 @@
     .panel-tab:hover { color: #2c3e50; background: #f0f0f0; }
     .panel-tab.active { color: #3498db; background: white; border-bottom-color: #3498db; }
     .edge-type-section { display: flex; flex-direction: column; gap: 6px; }
-    .edge-type-section label { font-size: 11px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.04em; }
+    .edge-type-section label { font-size: 12px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.04em; }
     .edge-type-section select { font-size: 12px; padding: 4px 6px; border: 1px solid #ccc; border-radius: 4px; }
 
     .panel-pane {
@@ -170,7 +204,7 @@
     #right-panel h3 { margin: 0; font-size: 15px; color: #2c3e50; padding-bottom: 10px; border-bottom: 2px solid #3498db; }
 
     .property-group { display: flex; flex-direction: column; gap: 6px; }
-    .property-group label { font-size: 11px; font-weight: 600; color: #7f8c8d; text-transform: uppercase; letter-spacing: 0.5px; }
+    .property-group label { font-size: 12px; font-weight: 600; color: #7f8c8d; text-transform: uppercase; letter-spacing: 0.5px; }
     .property-group input, .property-group textarea, .property-group select {
       padding: 7px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; font-family: inherit;
     }
@@ -200,16 +234,16 @@
     /* Stylesheet Editor */
     .style-rule-card { border: 1px solid #e0e0e0; border-radius: 5px; overflow: hidden; }
     .style-rule-header { display: flex; align-items: center; gap: 5px; padding: 5px 7px; background: #f7f8fa; border-bottom: 1px solid #e0e0e0; }
-    .style-rule-selector { flex: 1; padding: 3px 5px; border: 1px solid #ddd; border-radius: 3px; font-size: 11px; font-family: monospace; }
+    .style-rule-selector { flex: 1; padding: 3px 5px; border: 1px solid #ddd; border-radius: 3px; font-size: 12px; font-family: monospace; }
     .style-rule-selector:focus { border-color: #3498db; outline: none; }
-    .btn-icon { padding: 3px 6px; border: none; border-radius: 3px; cursor: pointer; font-size: 11px; background: transparent; color: #7f8c8d; }
+    .btn-icon { padding: 3px 6px; border: none; border-radius: 3px; cursor: pointer; font-size: 12px; background: transparent; color: #7f8c8d; }
     .btn-icon:hover { background: #eee; }
     .btn-icon.danger:hover { background: #fde; color: #e74c3c; }
     .style-rule-props { padding: 5px 7px; display: flex; flex-direction: column; gap: 3px; }
     .style-prop-row { display: flex; gap: 3px; align-items: center; }
-    .style-prop-row input { flex: 1; padding: 3px 5px; border: 1px solid #ddd; border-radius: 3px; font-size: 11px; font-family: monospace; min-width: 0; }
+    .style-prop-row input { flex: 1; padding: 3px 5px; border: 1px solid #ddd; border-radius: 3px; font-size: 12px; font-family: monospace; min-width: 0; }
     .style-prop-row input:focus { border-color: #3498db; outline: none; }
-    .btn-add-prop { padding: 3px 6px; border: 1px dashed #aaa; background: transparent; color: #7f8c8d; border-radius: 3px; cursor: pointer; font-size: 10px; margin-top: 2px; }
+    .btn-add-prop { padding: 3px 6px; border: 1px dashed #aaa; background: transparent; color: #7f8c8d; border-radius: 3px; cursor: pointer; font-size: 12px; margin-top: 2px; }
     .btn-add-prop:hover { border-color: #3498db; color: #3498db; }
     .btn-add-rule { padding: 8px; border: 1px dashed #3498db; background: transparent; color: #3498db; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; flex-shrink: 0; }
     .btn-add-rule:hover { background: #ebf5fb; }
@@ -250,7 +284,11 @@
         <div class="template-grid" id="template-grid"></div>
       </div>
 
-      <div id="editor-container" class="hidden"></div>
+      <div id="editor-container" class="hidden">
+        <button id="panel-toggle-btn" title="Hide panel">›</button>
+      </div>
+
+      <div id="panel-resize-handle"></div>
 
       <div id="right-panel" class="hidden-panel">
         <div class="panel-tabs">

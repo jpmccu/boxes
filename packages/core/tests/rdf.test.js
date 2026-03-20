@@ -416,12 +416,12 @@ describe('importFromTurtle – nodes', () => {
     expect(elements.nodes[0].data.label).toBe('My Label');
   });
 
-  it('falls back to compressed IRI as label when no rdfs:label', () => {
+  it('falls back to local name as label when no rdfs:label', () => {
     const ttl = `@prefix ex: <http://example.org/> .
                  @prefix owl: <http://www.w3.org/2002/07/owl#> .
                  ex:Foo a owl:Class .`;
     const { elements } = importFromTurtle(ttl, OWL_OPTIONS);
-    expect(elements.nodes[0].data.label).toBe('ex:Foo');
+    expect(elements.nodes[0].data.label).toBe('Foo');
   });
 
   it('sets @type from rdf:type triple', () => {

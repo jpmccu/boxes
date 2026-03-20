@@ -1,51 +1,40 @@
 /**
  * RDF format converters: JSON-LD and RDF/XML.
  *
- * JSON-LD is the canonical intermediate format.  Every conversion pipeline
- * passes through a JSON-LD document so that context semantics (prefix
- * bindings, @type coercion, @vocab, @base) are handled correctly by the
- * jsonld library.
- *
  * Pipeline overview
  * -----------------
  *  Export JSON-LD  : graphDataToJsonLD → JSON.stringify
  *  Import JSON-LD  : JSON.parse → jsonLDToGraphData
  *                    (jsonld.expand for context processing, then importFromTriples)
  *
- *  Export RDF/XML  : graphDataToJsonLD → jsonld.toRDF(N-Quads) → n3 parse → quadsToRdfXml
- *  Import RDF/XML  : parseRdfXmlToQuads (+ namespace extraction) → N-Quads
- *                    → jsonld.fromRDF → expandedToTriples → importFromTriples
+ *  Export RDF/XML  : exportToTurtle → rdflib.parse (text/turtle) → rdflib.serialize (RDF/XML)
+ *  Import RDF/XML  : rdflib.parse (application/rdf+xml) → [s,p,o] triples → importFromTriples
  *
- * IRI vs literal determination
+ * IRI vs literal determination (JSON-LD path)
  * ----------------------------
  * We do NOT use string pattern matching to decide whether a property value is
  * an IRI.  Instead the @context drives the decision:
  *   A term definition  { "@type": "@id" }  declares a property as IRI-valued.
  *   Everything else is treated as a string literal.
  *
- * Update the template context to add such declarations for properties whose
- * values should be resource references (see templates.js for the OWL example).
- *
  * The jsonld library is loaded lazily (dynamic import) so it is not bundled
  * when unused.
  */
 
-import { Parser as N3Parser, Writer as N3Writer, DataFactory } from 'n3';
+import { Parser as N3Parser, Writer as N3Writer } from 'n3';
+import { graph as rdfGraph, parse as rdfParse, serialize as rdfSerialize } from 'rdflib';
 import {
   expandIRI,
+  exportToTurtle,
   importFromTriples,
   matchEdgeType,
   INTERNAL_FIELDS,
   BUILTIN_PREFIXES,
 } from './rdf.js';
 
-const { namedNode, blankNode, literal, defaultGraph, quad: makeQuad } = DataFactory;
-
 const RDF_NS         = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
 const RDFS_NS        = 'http://www.w3.org/2000/01/rdf-schema#';
 const XSD_NS         = 'http://www.w3.org/2001/XMLSchema#';
-const OWL_NS         = 'http://www.w3.org/2002/07/owl#';
-const XML_NS         = 'http://www.w3.org/XML/1998/namespace';
 const RDF_TYPE       = RDF_NS + 'type';
 const XSD_STRING     = XSD_NS + 'string';
 const XSD_LANGSTRING = RDF_NS + 'langString';
@@ -312,212 +301,45 @@ function quadsToNQuadsStr(quads) {
   });
 }
 
-// ─── RDF/XML serializer ───────────────────────────────────────────────────────
+// ─── RDF/XML ↔ rdflib ────────────────────────────────────────────────────────
 
-function quadsToRdfXml(quads, context) {
-  const ctx  = context || {};
-  const nsMap = { rdf: RDF_NS, rdfs: RDFS_NS, xsd: XSD_NS, owl: OWL_NS };
-  for (const [k, v] of Object.entries(ctx)) {
-    if (!k.startsWith('@') && typeof v === 'string') nsMap[k] = v;
-  }
-
-  function splitQName(iri) {
-    for (const [pfx, ns] of Object.entries(nsMap)) {
-      if (iri.startsWith(ns)) {
-        const local = iri.slice(ns.length);
-        if (local && /^[A-Za-z_][\w.\-]*$/.test(local)) return { prefix: pfx, local };
-      }
-    }
-    return null;
-  }
-  const qn  = iri => { const p = splitQName(iri); return p ? `${p.prefix}:${p.local}` : null; };
-  const esc = s   => String(s)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-
-  const bySubj = new Map(), order = [];
-  for (const q of quads) {
-    const sid = q.subject.termType === 'BlankNode' ? '_:' + q.subject.value : q.subject.value;
-    if (!bySubj.has(sid)) { bySubj.set(sid, new Map()); order.push(sid); }
-    const pm = bySubj.get(sid);
-    if (!pm.has(q.predicate.value)) pm.set(q.predicate.value, []);
-    pm.get(q.predicate.value).push(q.object);
-  }
-
-  const used = new Set(['rdf']);
-  const mark = iri => { const p = splitQName(iri); if (p) used.add(p.prefix); };
-  for (const [sid, pm] of bySubj) {
-    if (!sid.startsWith('_:')) mark(sid);
-    for (const [pred, objs] of pm) {
-      mark(pred);
-      for (const o of objs) {
-        if (o.termType === 'NamedNode') mark(o.value);
-        if (o.datatype) mark(o.datatype.value);
-      }
-    }
-  }
-
-  const xmlnsDecls = [...used].filter(p => nsMap[p])
-    .map(p => `  xmlns:${p}="${esc(nsMap[p])}"`)
-    .join('\n');
-  let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<rdf:RDF\n${xmlnsDecls}>\n\n`;
-
-  for (const sid of order) {
-    const pm      = bySubj.get(sid);
-    const isBlank = sid.startsWith('_:');
-    const types   = pm.get(RDF_TYPE) || [];
-    const typeQN  = types[0] ? qn(types[0].value) : null;
-    const elem    = typeQN || 'rdf:Description';
-    const subjAttr = isBlank
-      ? `rdf:nodeID="${esc(sid.slice(2))}"`
-      : `rdf:about="${esc(sid)}"`;
-
-    xml += `  <${elem} ${subjAttr}>\n`;
-    for (const [pred, objs] of pm) {
-      if (pred === RDF_TYPE && typeQN) continue;
-      const pq = qn(pred) || `<${pred}>`;
-      for (const o of objs) {
-        if (o.termType === 'NamedNode') {
-          xml += `    <${pq} rdf:resource="${esc(o.value)}"/>\n`;
-        } else if (o.termType === 'BlankNode') {
-          xml += `    <${pq} rdf:nodeID="${esc(o.value)}"/>\n`;
-        } else {
-          const attrs = o.language
-            ? ` xml:lang="${esc(o.language)}"`
-            : (o.datatype && o.datatype.value !== XSD_STRING
-                ? ` rdf:datatype="${esc(o.datatype.value)}"` : '');
-          xml += `    <${pq}${attrs}>${esc(o.value)}</${pq}>\n`;
-        }
-      }
-    }
-    xml += `  </${elem}>\n\n`;
-  }
-  xml += '</rdf:RDF>\n';
-  return xml;
+/**
+ * Convert a rdflib store's statements to the [s, p, o] triple array that
+ * importFromTriples expects.
+ *
+ *  NamedNode / BlankNode subjects/objects → string (full IRI or "_:id")
+ *  Literal objects                        → { value, language?, datatype? }
+ */
+function rdfLibToTriples(store) {
+  const XSD_STRING = 'http://www.w3.org/2001/XMLSchema#string';
+  return store.statements.map(stmt => {
+    const s = stmt.subject.termType === 'BlankNode'
+      ? '_:' + stmt.subject.value
+      : stmt.subject.value;
+    const p = stmt.predicate.value;
+    const obj = stmt.object;
+    if (obj.termType === 'NamedNode') return [s, p, obj.value];
+    if (obj.termType === 'BlankNode') return [s, p, '_:' + obj.value];
+    // Literal
+    const lit = { value: obj.value };
+    if (obj.lang)     lit.language = obj.lang;
+    else if (obj.datatype && obj.datatype.value !== XSD_STRING)
+      lit.datatype = obj.datatype.value;
+    return [s, p, lit];
+  });
 }
 
-// ─── RDF/XML parser ───────────────────────────────────────────────────────────
-
-function parseRdfXmlToQuads(xmlText) {
-  const dom      = new DOMParser().parseFromString(xmlText, 'application/xml');
-  const parseErr = dom.querySelector('parseerror, parsererror');
-  if (parseErr) throw new Error('RDF/XML parse error: ' + parseErr.textContent.trim());
-
-  const root   = dom.documentElement;
-  const quads  = [];
-  let _bnCount = 0;
-  const newBN  = () => blankNode('b' + (++_bnCount));
-
-  const nsCache = new Map();
-  function getNsMap(el) {
-    if (nsCache.has(el)) return nsCache.get(el);
-    const map = el.parentElement ? { ...getNsMap(el.parentElement) } : {};
-    for (const attr of el.attributes) {
-      if (attr.name === 'xmlns')               map['']              = attr.value;
-      else if (attr.name.startsWith('xmlns:')) map[attr.name.slice(6)] = attr.value;
-    }
-    nsCache.set(el, map);
-    return map;
-  }
-
-  function expandAttr(attr, nsMap) {
-    const col = attr.name.indexOf(':');
-    if (col === -1) return attr.name;
-    const pfx = attr.name.slice(0, col);
-    const loc = attr.name.slice(col + 1);
-    if (pfx === 'xml') return XML_NS + loc;
-    return nsMap[pfx] ? nsMap[pfx] + loc : attr.name;
-  }
-
-  const expandTag = el => el.namespaceURI ? el.namespaceURI + el.localName : el.tagName;
-
-  function resolveIri(iri, base) {
-    if (!iri) return iri;
-    if (iri.startsWith('#') && base) return base.split('#')[0] + iri;
-    if (!iri.includes(':') && base) { try { return new URL(iri, base).href; } catch { return iri; } }
-    return iri;
-  }
-
-  const RDF_DESC = RDF_NS + 'Description';
-  const RDF_RDF  = RDF_NS + 'RDF';
-
-  function processNode(el, base) {
-    const elBase = el.getAttributeNS(XML_NS, 'base') || base;
-    const aboutV = el.getAttributeNS(RDF_NS, 'about')  ?? el.getAttribute('rdf:about');
-    const idV    = el.getAttributeNS(RDF_NS, 'ID')     ?? el.getAttribute('rdf:ID');
-    const nidV   = el.getAttributeNS(RDF_NS, 'nodeID') ?? el.getAttribute('rdf:nodeID');
-
-    let subj;
-    if (aboutV !== null) subj = namedNode(resolveIri(aboutV, elBase) || aboutV);
-    else if (idV !== null) subj = namedNode(resolveIri('#' + idV, elBase) || '#' + idV);
-    else if (nidV !== null) subj = blankNode(nidV);
-    else subj = newBN();
-
-    const typeIri = expandTag(el);
-    if (typeIri !== RDF_DESC && typeIri !== RDF_RDF) {
-      quads.push(makeQuad(subj, namedNode(RDF_TYPE), namedNode(typeIri), defaultGraph()));
-    }
-
-    for (const attr of el.attributes) {
-      const aIri = expandAttr(attr, getNsMap(el));
-      if (aIri.startsWith(RDF_NS) || attr.name.startsWith('xmlns') || attr.name.startsWith('xml:')) continue;
-      quads.push(makeQuad(subj, namedNode(aIri), literal(attr.value), defaultGraph()));
-    }
-
-    for (const child of el.children) processProp(child, subj, elBase);
-    return subj;
-  }
-
-  function processProp(el, subj, base) {
-    const elBase = el.getAttributeNS(XML_NS, 'base') || base;
-    const pred   = namedNode(expandTag(el));
-    const resV   = el.getAttributeNS(RDF_NS, 'resource') ?? el.getAttribute('rdf:resource');
-    const nidV   = el.getAttributeNS(RDF_NS, 'nodeID')   ?? el.getAttribute('rdf:nodeID');
-    const dtV    = el.getAttributeNS(RDF_NS, 'datatype') ?? el.getAttribute('rdf:datatype');
-    const langV  = el.getAttributeNS(XML_NS, 'lang')     ?? el.getAttribute('xml:lang');
-    const ptV    = el.getAttributeNS(RDF_NS, 'parseType')?? el.getAttribute('rdf:parseType');
-
-    if (resV !== null) {
-      quads.push(makeQuad(subj, pred, namedNode(resolveIri(resV, elBase) || resV), defaultGraph()));
-    } else if (nidV !== null) {
-      quads.push(makeQuad(subj, pred, blankNode(nidV), defaultGraph()));
-    } else if (ptV === 'Resource') {
-      const inner = newBN();
-      quads.push(makeQuad(subj, pred, inner, defaultGraph()));
-      for (const c of el.children) processProp(c, inner, elBase);
-    } else if (el.children.length === 1) {
-      const objNode = processNode(el.children[0], elBase);
-      quads.push(makeQuad(subj, pred, objNode, defaultGraph()));
-    } else if (el.children.length > 1) {
-      for (const c of el.children) processNode(c, elBase);
-    } else {
-      const obj = langV ? literal(el.textContent, langV)
-        : dtV ? literal(el.textContent, namedNode(dtV))
-        : literal(el.textContent);
-      quads.push(makeQuad(subj, pred, obj, defaultGraph()));
-    }
-  }
-
-  const topBase = root.getAttributeNS(XML_NS, 'base') || null;
-  if (expandTag(root) === RDF_RDF) {
-    for (const child of root.children) processNode(child, topBase);
-  } else {
-    processNode(root, topBase);
-  }
-
-  // Collect all prefix → namespace declarations from every element in the document.
-  // These become parsedPrefixes for IRI compression in importFromTriples.
-  const declaredPrefixes = {};
-  for (const el of dom.getElementsByTagName('*')) {
-    for (const attr of el.attributes) {
-      if (attr.name.startsWith('xmlns:') && attr.value) {
-        const prefix = attr.name.slice(6);
-        if (!declaredPrefixes[prefix]) declaredPrefixes[prefix] = attr.value;
-      }
-    }
-  }
-
-  return { quads, prefixes: declaredPrefixes };
+/**
+ * Serialize a rdflib store to an RDF/XML string.
+ * Passing undefined as the base URI causes rdflib to emit absolute IRIs.
+ */
+function rdfLibSerializeToXml(store) {
+  return new Promise((resolve, reject) => {
+    rdfSerialize(undefined, store, undefined, 'application/rdf+xml', (err, result) => {
+      if (err) reject(new Error('RDF/XML serialization error: ' + err.message));
+      else resolve(result);
+    });
+  });
 }
 
 // ─── Public export functions ──────────────────────────────────────────────────
@@ -542,34 +364,52 @@ export async function importFromJsonLD(text, options) {
 
 /**
  * Export Boxes graph data to an RDF/XML string.
- * Pipeline: graphDataToJsonLD → jsonld.toRDF (N-Quads) → n3.parse → quadsToRdfXml
+ *
+ * Pipeline: exportToTurtle → rdflib.parse (text/turtle) → rdflib.serialize (RDF/XML)
+ *
+ * Using rdflib ensures correct, standards-compliant RDF/XML output.
+ * An ephemeral base URI is used during the Turtle→RDF/XML conversion so that
+ * all resulting rdf:about attributes are absolute IRIs.
  */
 export async function exportToRdfXml(graphData, options) {
-  const opts    = options || {};
-  const jld     = await getJsonLD();
-  const context = Object.assign({}, graphData.context, opts.context);
-  const doc     = graphDataToJsonLD(graphData, { edgeTypes: opts.edgeTypes || [] });
-  const nquads  = await jld.toRDF(doc, { format: 'application/n-quads' });
-  const { quads } = await parseTurtleToQuads(nquads, 'N-Quads');
-  return quadsToRdfXml(quads, context);
+  const opts   = options || {};
+  const turtle = exportToTurtle(graphData, opts);
+  const store  = rdfGraph();
+  // Use a stable ephemeral base so rdflib resolves relative Turtle IRIs
+  const base   = 'urn:boxes:export:';
+  rdfParse(turtle, store, base, 'text/turtle');
+  return rdfLibSerializeToXml(store);
 }
 
 /**
  * Import an RDF/XML string into Boxes graph data.
- * Pipeline: parseRdfXmlToQuads → n3.Writer (N-Quads) → jsonld.fromRDF
- *           → expandedToTriples → importFromTriples
  *
- * XML namespace declarations are extracted as parsedPrefixes so they appear in
- * the graph's context and are used for IRI compression throughout.
+ * Pipeline: rdflib.parse (application/rdf+xml) → [s,p,o] triples → importFromTriples
+ *
+ * Pass options.baseUri (string) when the document's original URL is known so
+ * that relative IRIs (e.g. rdf:about="#i") are resolved correctly.
  */
 export async function importFromRdfXml(text, options) {
-  const opts   = options || {};
-  const jld    = await getJsonLD();
-  const { quads, prefixes: xmlPrefixes } = parseRdfXmlToQuads(text);
-  const nquads   = await quadsToNQuadsStr(quads);
-  const expanded = await jld.fromRDF(nquads, { format: 'application/n-quads' });
-  const triples  = expandedToTriples(Array.isArray(expanded) ? expanded : []);
-  return importFromTriples(triples, xmlPrefixes, opts);
+  const opts    = options || {};
+  const baseUri = opts.baseUri || 'urn:boxes:import:';
+  const store   = rdfGraph();
+
+  try {
+    rdfParse(text, store, baseUri, 'application/rdf+xml');
+  } catch (e) {
+    throw new Error('RDF/XML parse error: ' + (e.message || e));
+  }
+
+  // Extract namespace prefix bindings from the rdflib store for IRI compression
+  const parsedPrefixes = {};
+  for (const [prefix, ns] of Object.entries(store.namespaces || {})) {
+    if (prefix && typeof ns === 'string' && !prefix.startsWith('@')) {
+      parsedPrefixes[prefix] = ns;
+    }
+  }
+
+  const triples = rdfLibToTriples(store);
+  return importFromTriples(triples, parsedPrefixes, opts);
 }
 
 // ─── IO plugin descriptors ────────────────────────────────────────────────────

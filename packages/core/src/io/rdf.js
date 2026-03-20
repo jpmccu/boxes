@@ -28,6 +28,15 @@ const XSD_NS   = 'http://www.w3.org/2001/XMLSchema#';
 const RDF_TYPE = RDF_NS + 'type';
 const RDFS_LABEL = RDFS_NS + 'label';
 
+// Additional predicates used as display label fallbacks, in priority order
+const DC_TITLE    = 'http://purl.org/dc/elements/1.1/title';
+const DCT_TITLE   = 'http://purl.org/dc/terms/title';
+const SKOS_PREF   = 'http://www.w3.org/2004/02/skos/core#prefLabel';
+const SCHEMA_NAME = 'http://schema.org/name';
+const FOAF_NAME   = 'http://xmlns.com/foaf/0.1/name';
+const FOAF_NICK   = 'http://xmlns.com/foaf/0.1/nick';
+const LABEL_PREDICATES = [RDFS_LABEL, DC_TITLE, DCT_TITLE, SKOS_PREF, SCHEMA_NAME, FOAF_NAME, FOAF_NICK];
+
 export const BUILTIN_PREFIXES = {
   rdf:  RDF_NS,
   rdfs: RDFS_NS,
@@ -680,15 +689,38 @@ function buildElementData(subj, predMap, prefixes, excludePreds = new Set()) {
 }
 
 /**
- * Import a Turtle document into Boxes graph data.
+ * Pick the best display label for a subject from its predicate map.
  *
- * @param {string} text    – Turtle source
- * @param {object} options
- *   @param {object} options.context   – prefix→namespace map from the current template
- *   @param {Array}  options.edgeTypes – edge type definitions from the template
- *   @param {Array}  options.nodeTypes – node type definitions (currently informational)
- * @returns {object} graphData ready for editor.importGraph()
+ * Checks LABEL_PREDICATES in priority order, then falls back to:
+ *   1. Compressed IRI (if a prefix shortens it)
+ *   2. Local name extracted from the IRI (part after # or last /)
+ *   3. The raw IRI string
  */
+function pickLabel(predMap, subj, prefixes) {
+  // Try label predicates first
+  for (const pred of LABEL_PREDICATES) {
+    const objs = predMap.get(pred);
+    if (objs && objs.length > 0) {
+      const obj = objs[0];
+      return typeof obj === 'object' ? obj.value : String(obj);
+    }
+  }
+
+  // Blank node: "a <type>" e.g. "a owl:Restriction"
+  if (subj.startsWith('_:')) {
+    const types = predMap.get(RDF_TYPE) || [];
+    if (types.length > 0) return 'a ' + compressIRI(String(types[0]), prefixes);
+    return subj;
+  }
+
+  // Named node: prefer local name (after # or last /)
+  const hash = subj.lastIndexOf('#');
+  if (hash !== -1 && hash < subj.length - 1) return subj.slice(hash + 1);
+  const slash = subj.lastIndexOf('/');
+  if (slash !== -1 && slash < subj.length - 1) return subj.slice(slash + 1);
+
+  return compressIRI(subj, prefixes);
+}
 /**
  * Convert a flat array of [subject, predicate, object] triples into Boxes graph data.
  *
@@ -803,11 +835,16 @@ export function importFromTriples(triples, parsedPrefixes, { context = {}, edgeT
 
       const edgeData = buildElementData(subj, pm, compressPrefixes, excludePreds);
 
-      // Derive display label from rdfs:label if present
-      const rdfsLabelObjs = pm.get(RDFS_LABEL) || [];
-      const label = rdfsLabelObjs.length
-        ? (typeof rdfsLabelObjs[0] === 'object' ? rdfsLabelObjs[0].value : String(rdfsLabelObjs[0]))
-        : (edgeType.label || '');
+      // Derive display label: prefer any label predicate on the edge resource, else edgeType.label
+      let label = edgeType.label || '';
+      for (const lp of LABEL_PREDICATES) {
+        const objs = pm.get(lp);
+        if (objs && objs.length > 0) {
+          const o = objs[0];
+          label = typeof o === 'object' ? o.value : String(o);
+          break;
+        }
+      }
 
       const sourceId = compressIRI(sourceURI, compressPrefixes);
       const targetId = compressIRI(targetURI, compressPrefixes);
@@ -863,7 +900,46 @@ export function importFromTriples(triples, parsedPrefixes, { context = {}, edgeT
     }
   }
 
-  // ── Turn remaining subjects into graph nodes ──────────────────────────────
+  // ── Generic edge pass ─────────────────────────────────────────────────────
+  // For any (subject, predicate, object) triple where the object is a known
+  // subject in the store and the predicate hasn't already been consumed by an
+  // edgeType pattern, create a generic edge.  This handles arbitrary RDF
+  // graphs (e.g., foaf:knows, schema:creator) without needing edgeType configs.
+  for (const [s, pm] of store) {
+    if (typeof s !== 'string') continue;
+    if (edgeResources.has(s)) continue; // skip reified edge resources
+
+    const consumed = consumedOnSubject.get(s) || new Set();
+
+    for (const [pred, objs] of pm) {
+      if (pred === RDF_TYPE) continue;
+      if (consumed.has(pred)) continue;
+
+      for (const obj of objs) {
+        if (typeof obj !== 'string') continue; // skip literals
+        if (!store.has(obj)) continue;          // obj must be a known subject
+        if (edgeResources.has(obj)) continue;   // skip edges-as-nodes as targets
+
+        const sourceId = compressIRI(s,    compressPrefixes);
+        const targetId = compressIRI(obj,  compressPrefixes);
+
+        resultEdges.push({
+          data: {
+            id:     `e_generic_${sourceId}_${compressIRI(pred, compressPrefixes)}_${targetId}`,
+            source: sourceId,
+            target: targetId,
+            label:  compressIRI(pred, compressPrefixes),
+            '@id':  compressIRI(pred, compressPrefixes),
+          },
+        });
+
+        if (s.startsWith('_:'))   referencedBlankNodes.add(s);
+        if (obj.startsWith('_:')) referencedBlankNodes.add(obj);
+
+        markConsumed(s, pred);
+      }
+    }
+  }
   for (const [subj, pm] of store) {
     if (typeof subj !== 'string') continue; // defensive: skip non-string subjects (e.g. literal keys)
     if (edgeResources.has(subj)) continue;
@@ -874,11 +950,8 @@ export function importFromTriples(triples, parsedPrefixes, { context = {}, edgeT
     const excludePreds = new Set([RDF_TYPE, ...consumed]);
     const nodeData     = buildElementData(subj, pm, compressPrefixes, excludePreds);
 
-    // Display label: prefer rdfs:label literal, fall back to compressed IRI
-    const rdfsLabelObjs = pm.get(RDFS_LABEL) || [];
-    const label = rdfsLabelObjs.length
-      ? (typeof rdfsLabelObjs[0] === 'object' ? rdfsLabelObjs[0].value : String(rdfsLabelObjs[0]))
-      : compressIRI(subj, compressPrefixes);
+    // Display label: prefer label predicates, fall back to local name / compressed IRI
+    const label = pickLabel(pm, subj, compressPrefixes);
 
     const nodeId = compressIRI(subj, compressPrefixes);
 
