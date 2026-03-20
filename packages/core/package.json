@@ -1,6 +1,5 @@
 {
   "name": "boxes-core",
-  "version": "0.1.6",
   "description": "Core graph editor library powered by Cytoscape.js",
   "type": "module",
   "main": "./dist/boxes-core.umd.js",

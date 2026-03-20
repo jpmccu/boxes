@@ -1,6 +1,5 @@
 {
   "name": "boxes-electron",
-  "version": "0.1.6",
   "description": "Standalone Electron desktop app for Boxes graph editor",
   "author": "Boxes Contributors",
   "main": "main.js",
