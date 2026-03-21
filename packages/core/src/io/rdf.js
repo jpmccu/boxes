@@ -1031,6 +1031,7 @@ export const rdfImporter = {
   name:      'RDF / Turtle',
   extensions: ['.ttl', '.turtle', '.n3'],
   mimeTypes:  ['text/turtle', 'text/n3', 'application/x-turtle'],
+  defaultTemplateId: 'owl-ontology',
 
   import(text, options = {}) {
     return importFromTurtle(text, options);

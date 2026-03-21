@@ -181,9 +181,9 @@ document.addEventListener('keydown', (e) => {
 
 // ── Import / Export UI ──────────────────────────────────────────────────────
 
-/** Ensure the editor is initialised before importing; uses the blank template if needed. */
-function ensureEditor() {
-  if (!editor) startWithTemplate('blank');
+/** Ensure the editor is initialised before importing; uses the given template if needed. */
+function ensureEditor(templateId = 'blank') {
+  if (!editor) startWithTemplate(templateId);
 }
 
 /** Trigger a file download in the browser. */
@@ -250,14 +250,23 @@ document.getElementById('import-file-input').addEventListener('change', async (e
   const importerId = e.target.dataset.pendingImporterId;
   if (!importerId) return;
 
+  const importer = getImporters().find(i => i.id === importerId);
+  if (!importer) return;
+
+  // When no editor is active, fall back to the importer's preferred template
+  // (e.g. 'owl-ontology' for all RDF formats) so the import receives the right
+  // context and edge-type definitions even before the user picks a template.
+  const fallbackTemplateId = importer.defaultTemplateId || 'blank';
+  const fallbackTemplate = defaultTemplates[fallbackTemplateId] || defaultTemplates['blank'] || {};
+
   const reader = new FileReader();
   reader.onload = async (ev) => {
     try {
       const graphData = await runImport(importerId, ev.target.result, {
-        context:   editor?.context   || {},
-        edgeTypes: editor?.getEdgeTypes?.() || [],
+        context:   editor?.context   || fallbackTemplate.context   || {},
+        edgeTypes: editor?.getEdgeTypes?.() || fallbackTemplate.edgeTypes || [],
       });
-      ensureEditor();
+      ensureEditor(fallbackTemplateId);
 
       // Preserve existing stylesheet: keep all current rules and append any
       // incoming rules whose selectors aren't already defined.
