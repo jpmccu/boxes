@@ -1502,13 +1502,20 @@ export class BoxesEditor {
     const nodes = elements.nodes || (Array.isArray(elements) ? elements.filter(e => e.group === 'nodes') : []);
     const edges = elements.edges || (Array.isArray(elements) ? elements.filter(e => e.group === 'edges') : []);
 
-    // Use batch() so Cytoscape renders once after all elements are added,
-    // avoiding partial render states (e.g., edges drawn before nodes exist).
-    this.cy.batch(() => {
-      this.cy.elements().remove();
-      if (nodes.length) this.cy.add(nodes);
-      if (edges.length) this.cy.add(edges);
-    });
+    this.cy.elements().remove();
+
+    // Pass nodes and edges together in a single cy.add() call.
+    // Cytoscape's internal restore() always processes nodes before edges, so
+    // source/target references are resolved correctly.  Avoiding cy.batch()
+    // here is intentional: batch() defers the renderer's 'add' notification
+    // until after batchStyleEles.updateStyle() has already fired a 'style'
+    // event, which means the canvas renderer never receives the 'add' signal
+    // it needs to register newly loaded edges in its z-sorted element cache.
+    // Without the batch the 'add' notification fires immediately, edges are
+    // registered with the renderer, and they render and are selectable as
+    // expected.
+    const all = [...nodes, ...edges];
+    if (all.length) this.cy.add(all);
 
     this._updateStylesheet();
     this._emit('elementsLoaded', { elements });
