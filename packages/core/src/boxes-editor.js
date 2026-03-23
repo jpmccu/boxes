@@ -1585,6 +1585,8 @@ export class BoxesEditor {
       this.context = { ...graphData.context };
       this._renderContextPane();
     }
+    this.cy.fit(undefined, 30);
+    this.cy.style().update();
   }
 
   /** Return true if loaded nodes have no real position data */

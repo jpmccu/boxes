@@ -213,6 +213,34 @@ describe('BoxesEditor', () => {
       expect(elements.edges[0].data.label).toBe('connects');
     });
 
+    it('edges should have rs.allpts set after importGraph (rendering regression)', async () => {
+      // Verify that after a file-load (importGraph on a fresh editor), Cytoscape's
+      // render pipeline correctly computes rs.allpts for edges so they are visible.
+      // rs.allpts == null means the edge draw call is silently skipped.
+      editor.addNode({ id: 'n1', label: 'Node 1' });
+      editor.addNode({ id: 'n2', label: 'Node 2' });
+      editor.addEdge('n1', 'n2', { label: 'connects' });
+      const exported = editor.exportGraph();
+
+      editor.destroy();
+      container = document.createElement('div');
+      container.style.width = '800px';
+      container.style.height = '600px';
+      document.body.appendChild(container);
+      editor = new BoxesEditor(container);
+      editor.importGraph(exported);
+
+      // Wait for at least one animation frame so the Cytoscape render loop
+      // runs updateEleCalcs → recalculateRenderedStyle → findEdgeControlPoints
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      const edge = editor.cy.edges().first();
+      const rs = edge._private.rscratch;
+      expect(rs.allpts).not.toBeNull();
+      expect(rs.allpts).toBeDefined();
+      expect(rs.allpts.length).toBeGreaterThan(0);
+    });
+
     it('should preserve styles on import/export', () => {
       editor.addNode(
         { id: 'n1', label: 'Styled' },
