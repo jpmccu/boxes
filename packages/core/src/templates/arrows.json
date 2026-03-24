@@ -1,0 +1,48 @@
+{
+  "version": "1.0.0",
+  "title": "Arrows",
+  "description": "Basic graph template similar to Arrows (Neo4j)",
+  "palette": {
+    "nodeTypes": [
+      { "id": "default", "label": "Node", "data": {}, "color": "#6FB1FC", "borderColor": "#3A7CC5", "shape": "ellipse" }
+    ],
+    "edgeTypes": [
+      { "id": "default", "label": "RELATES_TO", "data": {}, "color": "#6FB1FC", "lineStyle": "solid" }
+    ]
+  },
+  "context": {},
+  "userStylesheet": [
+    {
+      "selector": "node",
+      "style": {
+        "background-color": "#6FB1FC",
+        "shape": "ellipse",
+        "width": "80px",
+        "height": "80px",
+        "border-width": 3,
+        "border-color": "#3A7CC5",
+        "color": "#000000",
+        "font-size": "13px",
+        "text-valign": "center",
+        "text-halign": "center"
+      }
+    },
+    {
+      "selector": "edge",
+      "style": {
+        "label": "data(label)",
+        "line-color": "#9DB8D2",
+        "target-arrow-color": "#9DB8D2",
+        "target-arrow-shape": "triangle",
+        "width": 2,
+        "curve-style": "bezier",
+        "font-size": "11px",
+        "text-background-color": "#FFFFFF",
+        "text-background-opacity": 0.8,
+        "text-background-padding": "2px"
+      }
+    }
+  ],
+  "lastLayout": { "name": "preset" },
+  "elements": { "nodes": [], "edges": [] }
+}

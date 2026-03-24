@@ -1,11 +1,29 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
+import { copyFileSync, mkdirSync, readdirSync } from 'fs';
 
 function suppressKnownEvalWarnings(warning, warn) {
   // cytoscape-pdf-export bundles PDFKit via webpack's eval devtool.
   // These eval() calls are in a third-party bundle and are not a concern for us.
   if (warning.code === 'EVAL' && warning.id?.includes('cytoscape-pdf-export')) return;
   warn(warning);
+}
+
+/** Copy src/templates/*.json to dist/templates/ so they are fetch-accessible. */
+function copyTemplateFiles() {
+  return {
+    name: 'copy-template-files',
+    writeBundle(options) {
+      const srcDir = resolve(__dirname, 'src/templates');
+      const destDir = resolve(options.dir || 'dist', 'templates');
+      mkdirSync(destDir, { recursive: true });
+      for (const file of readdirSync(srcDir)) {
+        if (file.endsWith('.json')) {
+          copyFileSync(resolve(srcDir, file), resolve(destDir, file));
+        }
+      }
+    }
+  };
 }
 
 /**
@@ -50,7 +68,7 @@ function fixWebpackEvalExports() {
 }
 
 export default defineConfig({
-  plugins: [fixWebpackEvalExports()],
+  plugins: [fixWebpackEvalExports(), copyTemplateFiles()],
   build: {
     // cytoscape-pdf-export (PDFKit) is split into a separate async chunk but is
     // inherently large due to embedded font data. Raise the limit accordingly.

@@ -224,11 +224,20 @@ export class BoxesEditor {
   constructor(container, options = {}) {
     if (!container) throw new Error('Container element is required');
     this.container = container;
-    this.options = { layout: options.layout || { name: 'preset' }, ...options };
+
+    // If a pre-loaded template JSON object is provided, extract its fields.
+    // Explicit options take precedence over template fields when both are supplied.
+    const tmpl = options.template || {};
+    const palette = tmpl.palette || {};
+
+    this.options = { layout: options.layout || tmpl.lastLayout || { name: 'preset' }, ...options };
     this._instanceId = Math.random().toString(36).slice(2, 9);
-    this.userStylesheet = (options.style || []).map(rule => ({ selector: rule.selector, style: { ...rule.style } }));
-    this._nodeTypes = (options.nodeTypes || []).map(t => ({ ...t }));
-    this._edgeTypes = (options.edgeTypes || []).map(t => ({ ...t }));
+    this.title = options.title ?? tmpl.title ?? '';
+    this.description = options.description ?? tmpl.description ?? '';
+    const styleSource = options.style ?? tmpl.userStylesheet ?? [];
+    this.userStylesheet = styleSource.map(rule => ({ selector: rule.selector, style: { ...rule.style } }));
+    this._nodeTypes = (options.nodeTypes ?? palette.nodeTypes ?? []).map(t => ({ ...t }));
+    this._edgeTypes = (options.edgeTypes ?? palette.edgeTypes ?? []).map(t => ({ ...t }));
     this.currentEdgeType = this._edgeTypes[0] || null;
     this.cy = null;
     this.eventHandlers = new Map();
@@ -243,7 +252,7 @@ export class BoxesEditor {
     this._selectedElement = null;
     this._ctxTarget = null;
     this._ctxPosition = null;
-    this.context = { ...(options.context || {}) };
+    this.context = { ...(options.context ?? tmpl.context ?? {}) };
 
     this._init();
 
@@ -1540,6 +1549,12 @@ export class BoxesEditor {
       return cls.includes('eh-ghost') || cls.includes('eh-preview');
     };
     return {
+      title: this.title,
+      description: this.description,
+      palette: {
+        nodeTypes: this._nodeTypes.map(t => ({ ...t })),
+        edgeTypes: this._edgeTypes.map(t => ({ ...t })),
+      },
       elements: {
         nodes: (els.nodes || []).filter(el => !isEhGhost(el)).map(cleanEl),
         edges: (els.edges || []).filter(el => !isEhGhost(el)).map(cleanEl)
@@ -1558,6 +1573,23 @@ export class BoxesEditor {
    * Import graph data.
    */
   importGraph(graphData) {
+    if (graphData.title !== undefined) {
+      this.title = graphData.title;
+    }
+    if (graphData.description !== undefined) {
+      this.description = graphData.description;
+    }
+    if (graphData.palette) {
+      if (graphData.palette.nodeTypes) {
+        this._nodeTypes = graphData.palette.nodeTypes.map(t => ({ ...t }));
+        this._currentNodeTypeId = this._nodeTypes[0]?.id || null;
+      }
+      if (graphData.palette.edgeTypes) {
+        this._edgeTypes = graphData.palette.edgeTypes.map(t => ({ ...t }));
+        this.currentEdgeType = this._edgeTypes[0] || null;
+      }
+      this._renderPalette();
+    }
     if (graphData.elements) {
       this.loadElements(graphData.elements);
     }

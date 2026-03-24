@@ -144,7 +144,7 @@ describe('BoxesEditor', () => {
       editor = new BoxesEditor(container);
     });
 
-    it('should export graph data', () => {
+    it('should export graph data including palette', () => {
       editor.addNode({ id: 'n1', label: 'Node 1' });
       editor.addEdge('n1', 'n1', { label: 'self' });
 
@@ -152,6 +152,45 @@ describe('BoxesEditor', () => {
       expect(exported.elements.nodes).toHaveLength(1);
       expect(exported.elements.edges).toHaveLength(1);
       expect(exported.version).toBe('1.0.0');
+      expect(exported.palette).toBeDefined();
+      expect(Array.isArray(exported.palette.nodeTypes)).toBe(true);
+      expect(Array.isArray(exported.palette.edgeTypes)).toBe(true);
+    });
+
+    it('should restore palette from importGraph', () => {
+      const graphData = {
+        elements: { nodes: [], edges: [] },
+        palette: {
+          nodeTypes: [{ id: 'myNode', label: 'My Node', data: {}, color: '#ff0000', shape: 'ellipse' }],
+          edgeTypes: [{ id: 'myEdge', label: 'My Edge', data: {}, color: '#00ff00', lineStyle: 'solid' }],
+        }
+      };
+      editor.importGraph(graphData);
+      const nodeTypes = editor.getNodeTypes();
+      const edgeTypes = editor.getEdgeTypes();
+      expect(nodeTypes).toHaveLength(1);
+      expect(nodeTypes[0].id).toBe('myNode');
+      expect(edgeTypes).toHaveLength(1);
+      expect(edgeTypes[0].id).toBe('myEdge');
+    });
+
+    it('should accept template option in constructor', () => {
+      const template = {
+        title: 'Test Template',
+        description: 'For testing',
+        palette: {
+          nodeTypes: [{ id: 'tNode', label: 'T Node', data: {}, color: '#aabbcc', shape: 'rectangle' }],
+          edgeTypes: [{ id: 'tEdge', label: 'T Edge', data: {}, color: '#ccbbaa', lineStyle: 'dashed' }],
+        },
+        context: { ex: 'http://example.org/' },
+        userStylesheet: [],
+        elements: { nodes: [], edges: [] },
+      };
+      const tmplEditor = new BoxesEditor(container, { template });
+      expect(tmplEditor.title).toBe('Test Template');
+      expect(tmplEditor.getNodeTypes()[0].id).toBe('tNode');
+      expect(tmplEditor.getEdgeTypes()[0].id).toBe('tEdge');
+      tmplEditor.destroy();
     });
 
     it('should import graph data', () => {
