@@ -1110,7 +1110,7 @@ export class BoxesEditor {
       layout: this.options.layout,
       userZoomingEnabled: true,
       userPanningEnabled: true,
-      boxSelectionEnabled: true
+      boxSelectionEnabled: true,
     });
 
     this._initPanzoomControls();
@@ -1515,7 +1515,9 @@ export class BoxesEditor {
     // registered with the renderer, and they render and are selectable as
     // expected.
     const all = [...nodes, ...edges];
-    if (all.length) this.cy.add(all);
+    if (all.length) {
+      this.cy.add(all);
+    }
 
     this._updateStylesheet();
     this._emit('elementsLoaded', { elements });
@@ -1585,6 +1587,11 @@ export class BoxesEditor {
       this.context = { ...graphData.context };
       this._renderContextPane();
     }
+    // Force unconditional recalculation of edge control points (useCache: false bypasses
+    // the rstyle.clean guard), ensuring rstyle.srcX/tgtX/midX are populated before the
+    // first render frame fires.  Without this, edges loaded from a file can have NaN
+    // bounding boxes and remain invisible until interacted with.
+    this.cy.elements().boundingBox({ useCache: false });
     this.cy.fit(undefined, 30);
     this.cy.style().update();
   }

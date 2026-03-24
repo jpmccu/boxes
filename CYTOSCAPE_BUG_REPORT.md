@@ -1,21 +1,23 @@
-# Cytoscape.js Bug Report: Edges invisible after cy.add() + cy.style().fromJson().update()
+# Cytoscape.js: Edges invisible after cy.add() + cy.style().fromJson().update()
 
 **Cytoscape.js version:** 3.33.1  
-**Renderer:** WebGL (ElementDrawingWebGL) — the bug does not reproduce in the canvas 2D renderer  
-**Environment:** Electron (Chromium), also potentially affects Chrome/Firefox desktop browsers  
+**Renderer:** Canvas 2D (confirmed) — also likely affects WebGL renderer  
+**Environment:** Chrome/Firefox desktop browsers (does **not** reproduce in happy-dom/jsdom test environments)  
 
 ---
 
 ## Summary
 
-When a graph is loaded programmatically by calling `cy.add([...nodes, ...edges])` followed by
-`cy.style().fromJson([...]).update()`, edges are **not visible on the first rendered frame**. They
-only appear after the user interacts with them (e.g. clicking / selecting an edge).  Node shapes,
-node labels, and edge labels all render correctly.  Only the edge line/arrow geometry is missing.
+When a graph is reloaded by calling `cy.elements().remove()` → `cy.add([...nodes, ...edges])`
+followed by `cy.style().fromJson([...]).update()`, edges are **not visible on the first rendered
+frame**. They only appear after the user interacts with them (e.g. clicking/selecting an edge).
+Node shapes, node labels, and edge labels all render correctly. Only the edge line/arrow geometry
+is missing.
 
-This behaviour was observed in an Electron application that saves and reloads graphs (the
-[Boxes LPG editor](https://github.com/boxes-org/boxes)). It does **not** reproduce with the canvas
-2D renderer used in headless/test environments.
+This behaviour was observed in a web application that saves and reloads graphs (the
+[Boxes LPG editor](https://github.com/boxes-org/boxes)).  It does **not** reproduce in
+headless/test environments (happy-dom, jsdom) because those do not run a real
+`requestAnimationFrame`/render loop.
 
 ---
 
@@ -125,31 +127,46 @@ Selecting an edge fires a 'style' event with class changes, which calls `applyPa
 `takesUpSpace()` and `visible()` recompute their values, `findEdgeControlPoints` is no longer
 skipped, `rs.allpts` is set, and the edge renders.
 
-### Canvas renderer
+### Canvas renderer / test environment
 
-The canvas renderer (2D context) passes the reproduction test — after one animation frame,
-`rs.allpts` is populated correctly.  The regression test in
-`packages/core/tests/boxes-editor.test.js` ("edges should have rs.allpts set after importGraph")
-confirms this.  The bug is therefore specific to the WebGL renderer path introduced in 3.x.
+The regression test in `packages/core/tests/boxes-editor.test.js`
+("edges should have rs.allpts set after importGraph") passes in the happy-dom environment.
+This is because happy-dom never fires real animation frame callbacks, so `updateEleCalcs`
+(a `beforeRender` callback) never runs — the test calls `boundingBox()` directly which
+triggers `recalculateRenderedStyle`.  The actual rendering bug only manifests when the real
+RAF-based render loop is running in a browser.
 
 ---
 
 ## Workaround
 
-Calling `cy.elements().forEach(ele => ele.emit('style'))` after the stylesheet update does
-**not** fully fix the issue (it fires 'style' but does not clear `styleCache`).
+The reliable workaround is to call `cy.elements().boundingBox({ useCache: false })` immediately
+after `cy.add(...)` + `cy.style().fromJson(...).update()`.  Passing `useCache: false` causes
+`recalculateRenderedStyle` to skip the `rstyle.clean` guard, ensuring every edge's control points
+are recomputed unconditionally:
 
-A reliable workaround is to trigger a full style recalculation by forcing each element through
-`dirtyStyleCache`:
+```javascript
+cy.elements().remove();
+cy.add([...nodes, ...edges]);
+cy.style().fromJson([...]).update();
+
+// Force unconditional edge control-point recalculation:
+cy.elements().boundingBox({ useCache: false });
+
+cy.fit(undefined, 30);  // optional: re-fit the viewport
+```
+
+Alternative (private API hack — should not be required):
 
 ```javascript
 // After cy.add(...) and cy.style().fromJson(...).update():
 cy.elements().forEach(ele => { ele._private.styleCache = null; });
 ```
 
-This is a private API hack and should not be required.  A better workaround (if a public API
-equivalent exists) would be `cy.elements().updateStyle()` — but that calls the same
-`updateStyle()` path that already fires 'style' without clearing `styleCache`.
+The following workarounds were attempted but did **not** fix the issue:
+- Disabling WebGL: `renderer: { name: 'canvas', webgl: false }` — no effect
+- Calling `cy.style().update()` after `fromJson()` — no effect on its own
+- Calling `cy.fit(undefined, 30)` after the load — no effect on its own
 
 ---
 
