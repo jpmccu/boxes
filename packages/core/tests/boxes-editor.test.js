@@ -170,6 +170,77 @@ describe('BoxesEditor', () => {
       expect(elements.nodes[0].data.label).toBe('Imported Node');
     });
 
+    it('should preserve edges on export and re-import (regression: edges missing on reload)', () => {
+      editor.addNode({ id: 'n1', label: 'Node 1' });
+      editor.addNode({ id: 'n2', label: 'Node 2' });
+      editor.addEdge('n1', 'n2', { label: 'connects' });
+
+      const exported = editor.exportGraph();
+      expect(exported.elements.edges).toHaveLength(1);
+
+      editor.importGraph(exported);
+
+      const elements = editor.getElements();
+      expect(elements.nodes).toHaveLength(2);
+      expect(elements.edges).toHaveLength(1);
+      expect(elements.edges[0].data.source).toBe('n1');
+      expect(elements.edges[0].data.target).toBe('n2');
+      expect(elements.edges[0].data.label).toBe('connects');
+    });
+
+    it('should preserve edges when importing into a fresh editor (simulates file reload)', () => {
+      // Simulate saving a graph with edges
+      editor.addNode({ id: 'n1', label: 'Node 1' });
+      editor.addNode({ id: 'n2', label: 'Node 2' });
+      editor.addEdge('n1', 'n2', { label: 'connects' });
+      const exported = editor.exportGraph();
+
+      // Simulate opening the saved file in a fresh editor (like startWithTemplate + importGraph)
+      editor.destroy();
+      container = document.createElement('div');
+      container.style.width = '800px';
+      container.style.height = '600px';
+      document.body.appendChild(container);
+      editor = new BoxesEditor(container);
+
+      editor.importGraph(exported);
+
+      const elements = editor.getElements();
+      expect(elements.nodes).toHaveLength(2);
+      expect(elements.edges).toHaveLength(1);
+      expect(elements.edges[0].data.source).toBe('n1');
+      expect(elements.edges[0].data.target).toBe('n2');
+      expect(elements.edges[0].data.label).toBe('connects');
+    });
+
+    it('edges should have rs.allpts set after importGraph (rendering regression)', async () => {
+      // Verify that after a file-load (importGraph on a fresh editor), Cytoscape's
+      // render pipeline correctly computes rs.allpts for edges so they are visible.
+      // rs.allpts == null means the edge draw call is silently skipped.
+      editor.addNode({ id: 'n1', label: 'Node 1' });
+      editor.addNode({ id: 'n2', label: 'Node 2' });
+      editor.addEdge('n1', 'n2', { label: 'connects' });
+      const exported = editor.exportGraph();
+
+      editor.destroy();
+      container = document.createElement('div');
+      container.style.width = '800px';
+      container.style.height = '600px';
+      document.body.appendChild(container);
+      editor = new BoxesEditor(container);
+      editor.importGraph(exported);
+
+      // Wait for at least one animation frame so the Cytoscape render loop
+      // runs updateEleCalcs → recalculateRenderedStyle → findEdgeControlPoints
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      const edge = editor.cy.edges().first();
+      const rs = edge._private.rscratch;
+      expect(rs.allpts).not.toBeNull();
+      expect(rs.allpts).toBeDefined();
+      expect(rs.allpts.length).toBeGreaterThan(0);
+    });
+
     it('should preserve styles on import/export', () => {
       editor.addNode(
         { id: 'n1', label: 'Styled' },
