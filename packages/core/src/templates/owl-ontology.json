@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "title": "Ontology",
+  "title": "Ontology or RDF File",
   "description": "Template with OWL and SKOS meta-types styling (CMap Ontology edition)",
   "palette": {
     "nodeTypes": [
