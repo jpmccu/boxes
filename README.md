@@ -13,7 +13,9 @@ A self-contained, Cytoscape.js-based Labeled Property Graph (LPG) editor. Drop i
 - **Cut / copy / paste** with cascading paste offsets
 - **Multi-selection** with box-select; Delete/Backspace removes selected elements
 - **Import / export** in Cytoscape.js JSON format
-- **Node types** and **edge type palettes** — click a type to select it; double-click the canvas to add a node of the selected type
+- **Node types** and **edge type palettes** — click a type to select it; double-click the canvas to add a node of the selected type; add, edit, and delete types directly in the palette pane
+- **Palette saved with each file** — the `.boxes` file format embeds the full palette, so any saved graph can be reused as a template
+- **Template system** — built-in templates (Blank, Arrows, Ontology or RDF File) are JSON files; custom templates are ordinary `.boxes` files
 - **Keyboard shortcuts** — Ctrl+Z/Y (undo/redo), Ctrl+C/X/V (copy/cut/paste), Delete/Backspace
 - **Context menu** with Edit Properties, Cut, Copy, Paste, Duplicate, Delete
 - **Vue 3** and **React 18** thin-wrapper components
@@ -91,6 +93,14 @@ The container must have an explicit width and height (e.g. `width: 100vw; height
 
 ```js
 new BoxesEditor(container, {
+  // ── Option A: start from a template or saved file ─────────────────────
+  // Pass a pre-loaded template / .boxes JSON object.  All fields below are
+  // extracted from it; any explicit option listed under Option B overrides
+  // the corresponding template field.
+  template: loadedTemplateObject,
+
+  // ── Option B: explicit fields (can be combined with template) ─────────
+
   // Initial graph elements in Cytoscape.js JSON format
   elements: { nodes: [], edges: [] },
 
@@ -107,9 +117,10 @@ new BoxesEditor(container, {
     {
       id: 'person',
       label: 'Person',
-      color: '#4A90E2',   // fill colour shown in palette and applied to new nodes
-      shape: 'ellipse',   // Cytoscape node shape
-      data: {}            // extra data merged into each new node of this type
+      color: '#4A90E2',      // fill colour shown in palette and applied to new nodes
+      borderColor: '#2A6AB2',
+      shape: 'ellipse',      // Cytoscape node shape
+      data: {}               // extra data merged into each new node of this type
     }
   ],
 
@@ -118,17 +129,45 @@ new BoxesEditor(container, {
     {
       id: 'knows',
       label: 'knows',
-      color: '#E24A4A',       // line/arrow colour shown in palette
-      lineStyle: 'solid'      // 'solid' | 'dashed' | 'dotted'
+      color: '#E24A4A',      // line/arrow colour shown in palette
+      lineStyle: 'solid'     // 'solid' | 'dashed' | 'dotted'
     }
   ],
+
+  // Document title and description (saved with the file)
+  title: 'My Graph',
+  description: 'An example graph',
 
   // Set false to disable the edge-handle magnet (useful for read-only views)
   edgeHandle: true
 })
 ```
 
-### Programmatic graph operations
+### Palette management
+
+```js
+// Query
+editor.getNodeTypes();    // returns array of node type objects
+editor.getEdgeTypes();    // returns array of edge type objects
+
+// Add
+editor.addNodeType({ id: 'company', label: 'Company', color: '#FFD700', borderColor: '#B8860B', shape: 'roundrectangle', data: {} });
+editor.addEdgeType({ id: 'employs', label: 'employs', color: '#888', lineStyle: 'dashed' });
+
+// Update (by id)
+editor.updateNodeType('company', { color: '#FFA500' });
+editor.updateEdgeType('employs', { lineStyle: 'solid' });
+
+// Remove
+editor.removeNodeType('company');
+editor.removeEdgeType('employs');
+```
+
+All palette mutations re-render the palette and fire a `paletteChanged` event.
+
+> **Tip — building templates from the UI:** Switch to the Palette tab in the sidebar. Hover over any palette item to reveal ✎ (edit) and × (delete) buttons. Use **+ Add node type** / **+ Add edge type** at the bottom of each section to add new types. Once the palette is set up the way you want, save the file — the palette is stored in the `.boxes` file and will be restored when the file is reopened.
+
+
 
 ```js
 // Add a node (returns the new node's JSON)
@@ -166,14 +205,31 @@ const { nodes, edges } = editor.getElements();
 ### Save & load
 
 ```js
-// Full serialisable snapshot (elements + stylesheet + last layout)
+// Full serialisable snapshot (elements + palette + stylesheet + layout + context)
 const snapshot = editor.exportGraph();
 localStorage.setItem('graph', JSON.stringify(snapshot));
 
-// Restore
+// Restore (palette, stylesheet, title, and description are all restored)
 const saved = JSON.parse(localStorage.getItem('graph'));
 editor.importGraph(saved);
 ```
+
+### Using a `.boxes` file as a template
+
+Any saved `.boxes` file can be loaded as a starting template — it already carries the full palette, stylesheet, and context:
+
+```js
+import { defaultTemplates, loadTemplateFromUrl } from 'boxes-core';
+
+// Built-in templates (blank, arrows, owl-ontology)
+const editor = new BoxesEditor(container, { template: defaultTemplates['arrows'] });
+
+// Load a custom template JSON from a URL
+const myTemplate = await loadTemplateFromUrl('/templates/my-domain.boxes');
+const editor2 = new BoxesEditor(container, { template: myTemplate });
+```
+
+The template format is identical to the `exportGraph()` snapshot — there is no separate template format. A `.boxes` file *is* a template.
 
 ### Layouts
 
@@ -268,6 +324,7 @@ editor.off('nodeAdded', handler);  // remove a specific handler
 | `layoutRun` | `{ name, options }` |
 | `elementsLoaded` | `{ elements }` |
 | `graphImported` | `{ graphData }` |
+| `paletteChanged` | `{ nodeTypes, edgeTypes }` |
 | `edgeHandleComplete` | `{ sourceId, targetId, edgeType }` |
 | `historyChange` | `{ canUndo, canRedo }` |
 | `clipboardChange` | `{ hasClipboard }` |
@@ -367,6 +424,7 @@ function loadGraph() {
 
 | Prop | Type | Default | Description |
 |---|---|---|---|
+| `template` | `Object` | — | Pre-loaded template / `.boxes` JSON; individual props below take precedence |
 | `elements` | `Object` | `{ nodes:[], edges:[] }` | Initial graph elements |
 | `style` | `Array` | `[]` | Stylesheet rules |
 | `layout` | `Object` | `{ name: 'preset' }` | Layout config |
@@ -381,7 +439,7 @@ The Vue component forwards all core events as kebab-case Vue events: `@node-adde
 
 ### Exposed ref methods
 
-All methods from the core API are available via the template ref: `addNode`, `addEdge`, `removeElement`, `removeSelected`, `updateElement`, `runLayout`, `exportGraph`, `importGraph`, `undo`, `redo`, `copy`, `cut`, `paste`, `getStylesheet`, `setStylesheet`, `getCytoscape`, and more.
+All methods from the core API are available via the template ref: `addNode`, `addEdge`, `removeElement`, `removeSelected`, `updateElement`, `runLayout`, `exportGraph`, `importGraph`, `undo`, `redo`, `copy`, `cut`, `paste`, `getStylesheet`, `setStylesheet`, `getCytoscape`, `getNodeTypes`, `getEdgeTypes`, `addNodeType`, `updateNodeType`, `removeNodeType`, `addEdgeType`, `updateEdgeType`, `removeEdgeType`, and more.
 
 ---
 
@@ -473,6 +531,7 @@ export default function App() {
 
 | Prop | Type | Default | Description |
 |---|---|---|---|
+| `template` | `Object` | — | Pre-loaded template / `.boxes` JSON; individual props below take precedence |
 | `elements` | `Object` | `{ nodes:[], edges:[] }` | Initial graph elements |
 | `style` | `Array` | `[]` | Stylesheet rules |
 | `layout` | `Object` | `{ name: 'preset' }` | Layout config |
@@ -490,6 +549,7 @@ export default function App() {
 | `onLayoutRun` | `Function` | — | Called after a layout runs |
 | `onElementsLoaded` | `Function` | — | Called after `loadElements` |
 | `onGraphImported` | `Function` | — | Called after `importGraph` |
+| `onPaletteChanged` | `Function` | — | `{ nodeTypes, edgeTypes }` — called when palette is edited |
 | `onEdgeHandleComplete` | `Function` | — | Called when a new edge is drawn |
 | `onHistoryChange` | `Function` | — | `{ canUndo, canRedo }` |
 | `onClipboardChange` | `Function` | — | `{ hasClipboard }` |
@@ -498,7 +558,7 @@ export default function App() {
 
 ### Exposed ref methods
 
-`addNode`, `addEdge`, `addNodeOfType`, `removeElement`, `removeSelected`, `updateElement`, `updateElementStyle`, `runLayout`, `getAvailableLayouts`, `getElements`, `loadElements`, `exportGraph`, `importGraph`, `getSelected`, `selectElements`, `getCytoscape`, `getNodeTypes`, `getEdgeTypes`, `getEdgeType`, `setEdgeType`, `getStylesheet`, `setStylesheet`, `addStyleRule`, `updateStyleRule`, `removeStyleRule`, `undo`, `redo`, `canUndo`, `canRedo`, `copy`, `cut`, `paste`, `canPaste`.
+`addNode`, `addEdge`, `addNodeOfType`, `removeElement`, `removeSelected`, `updateElement`, `updateElementStyle`, `runLayout`, `getAvailableLayouts`, `getElements`, `loadElements`, `exportGraph`, `importGraph`, `getSelected`, `selectElements`, `getCytoscape`, `getNodeTypes`, `getEdgeTypes`, `addNodeType`, `updateNodeType`, `removeNodeType`, `addEdgeType`, `updateEdgeType`, `removeEdgeType`, `getEdgeType`, `setEdgeType`, `getStylesheet`, `setStylesheet`, `addStyleRule`, `updateStyleRule`, `removeStyleRule`, `undo`, `redo`, `canUndo`, `canRedo`, `copy`, `cut`, `paste`, `canPaste`.
 
 ---
 
@@ -539,16 +599,30 @@ export default function App() {
 
 ### Exported graph snapshot
 
-`exportGraph()` returns an object suitable for JSON serialisation and re-loading with `importGraph()`:
+`exportGraph()` returns an object suitable for JSON serialisation and re-loading with `importGraph()`. This is also the `.boxes` file format and the template format — they are all the same thing.
 
 ```js
 {
   version: '1.0.0',
+  title: 'My Graph',                  // optional document title
+  description: 'Description text',    // optional description
+  palette: {
+    nodeTypes: [                       // node type palette entries
+      { id: 'person', label: 'Person', color: '#4A90E2', borderColor: '#2A6AB2',
+        shape: 'ellipse', data: {} }
+    ],
+    edgeTypes: [                       // edge type palette entries
+      { id: 'knows', label: 'knows', color: '#E24A4A', lineStyle: 'solid' }
+    ]
+  },
   elements: { nodes: [...], edges: [...] },  // full Cytoscape JSON
   userStylesheet: [{ selector, style }, ...],
-  lastLayout: { name: 'dagre', options: { rankDir: 'TB' } }
+  lastLayout: { name: 'dagre', options: { rankDir: 'TB' } },
+  context: {}                          // namespace context (e.g. JSON-LD prefixes)
 }
 ```
+
+All fields are restored by `importGraph()`. Files saved by older versions of Boxes that contain a `templateId` field but no `palette` will fall back to the named built-in template for their palette.
 
 ---
 
@@ -617,6 +691,7 @@ npm run lint:fix
 - **Undo / redo** — each mutation calls `_pushUndo()` which serialises the full graph via `exportGraph()` (stripping transient edgehandles classes). History is capped at 50 entries.
 - **Edge handles** — uses `cytoscape-edgehandles` with a custom DOM handle div positioned over the bottom of hovered nodes.
 - **Layouts** — registered layouts are discovered at runtime by probing the Cytoscape extensions registry; the layout panel is built dynamically.
+- **Template / palette system** — templates are plain JSON files stored in `packages/core/src/templates/` and bundled into the JS module. The `.boxes` file format *is* the template format: `exportGraph()` always writes `palette`, `title`, `description`, and `context`. `importGraph()` always restores them. The Vite build copies template JSON files to `dist/templates/` so they are also fetch-accessible at `/core/templates/*.json`.
 
 ## License
 
