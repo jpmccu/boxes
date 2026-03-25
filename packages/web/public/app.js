@@ -1,5 +1,5 @@
 import {
-  BoxesEditor, defaultTemplates,
+  BoxesEditor, defaultTemplates, loadTemplateFromUrl,
   rdfImporter, rdfExporter,
   jsonldImporter, jsonldExporter,
   rdfXmlImporter, rdfXmlExporter,
@@ -24,40 +24,57 @@ registerExporter('rdfxml', rdfXmlExporter);
 let editor = null;
 let currentFileName = 'graph.json';
 let currentFileHandle = null; // FileSystemFileHandle when opened/saved via File System Access API
-let currentTemplateId = 'blank';
 
 const BOXES_FILE_TYPES = [{ description: 'Boxes Graph', accept: { 'application/json': ['.boxes', '.json'] } }];
 
-function loadTemplates() {
+/**
+ * Render the template grid from an array of template objects.
+ */
+function renderTemplateGrid(templates) {
   const grid = document.getElementById('template-grid');
   grid.innerHTML = '';
-  Object.keys(defaultTemplates).forEach(key => {
-    const t = defaultTemplates[key];
+  templates.forEach(t => {
     const card = document.createElement('div');
     card.className = 'template-card';
-    card.innerHTML = `<h3>${t.name}</h3><p>${t.description}</p>`;
-    card.addEventListener('click', () => startWithTemplate(key));
+    card.innerHTML = `<h3>${t.title}</h3><p>${t.description}</p>`;
+    card.addEventListener('click', () => startWithTemplate(t));
     grid.appendChild(card);
   });
 }
 
-function startWithTemplate(templateId) {
-  currentTemplateId = templateId;
-  const currentTemplate = defaultTemplates[templateId] || defaultTemplates['blank'];
+/**
+ * Load templates from the default bundled set plus any additional URLs.
+ * Extra URLs are fetched at startup; failures are silently skipped.
+ * @param {string[]} extraUrls - Optional list of JSON template file URLs to load.
+ */
+async function loadTemplates(extraUrls = []) {
+  const templates = Object.values(defaultTemplates);
+  for (const url of extraUrls) {
+    try {
+      const t = await loadTemplateFromUrl(url);
+      templates.push(t);
+    } catch (err) {
+      console.warn(`Failed to load template from ${url}:`, err);
+    }
+  }
+  renderTemplateGrid(templates);
+}
+
+/**
+ * Start editing with a given template object (full graph/template JSON).
+ * Also accepts a template ID string for backwards compatibility.
+ */
+function startWithTemplate(templateOrId) {
+  const template = (typeof templateOrId === 'string')
+    ? (defaultTemplates[templateOrId] || defaultTemplates['blank'])
+    : templateOrId;
 
   document.getElementById('welcome-screen').classList.add('d-none');
   document.getElementById('editor-container').classList.remove('d-none');
 
   if (editor) { editor.destroy(); editor = null; }
   const container = document.getElementById('editor-container');
-  editor = new BoxesEditor(container, {
-    elements: currentTemplate.elements,
-    style: currentTemplate.style,
-    nodeTypes: currentTemplate.nodeTypes || [],
-    edgeTypes: currentTemplate.edgeTypes || [],
-    context: currentTemplate.context || {},
-    layout: { name: 'preset' }
-  });
+  editor = new BoxesEditor(container, { template, layout: { name: 'preset' } });
 }
 
 function saveToFile() {
@@ -87,7 +104,6 @@ async function _saveWithPicker(handle) {
       });
     }
     const graphData = editor.exportGraph();
-    graphData.templateId = currentTemplateId;
     const writable = await handle.createWritable();
     await writable.write(JSON.stringify(graphData, null, 2));
     await writable.close();
@@ -103,7 +119,6 @@ async function _saveWithPicker(handle) {
 
 function _saveDownloadFallback() {
   const graphData = editor.exportGraph();
-  graphData.templateId = currentTemplateId;
   const blob = new Blob([JSON.stringify(graphData, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -118,8 +133,13 @@ function loadFromFile(file, handle = null) {
   reader.onload = (e) => {
     try {
       const graphData = JSON.parse(e.target.result);
-      const templateId = graphData.templateId || 'blank';
-      startWithTemplate(templateId);
+      // Start with a blank editor; importGraph will restore palette from the file.
+      // Fall back to a named template for old files that have templateId but no palette.
+      if (!graphData.palette && graphData.templateId) {
+        startWithTemplate(graphData.templateId);
+      } else {
+        startWithTemplate('blank');
+      }
       editor.importGraph(graphData);
       currentFileName = file.name;
       currentFileHandle = handle; // null when opened via legacy <input>

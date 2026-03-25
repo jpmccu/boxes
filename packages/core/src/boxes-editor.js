@@ -224,11 +224,20 @@ export class BoxesEditor {
   constructor(container, options = {}) {
     if (!container) throw new Error('Container element is required');
     this.container = container;
-    this.options = { layout: options.layout || { name: 'preset' }, ...options };
+
+    // If a pre-loaded template JSON object is provided, extract its fields.
+    // Explicit options take precedence over template fields when both are supplied.
+    const tmpl = options.template || {};
+    const palette = tmpl.palette || {};
+
+    this.options = { layout: options.layout || tmpl.lastLayout || { name: 'preset' }, ...options };
     this._instanceId = Math.random().toString(36).slice(2, 9);
-    this.userStylesheet = (options.style || []).map(rule => ({ selector: rule.selector, style: { ...rule.style } }));
-    this._nodeTypes = (options.nodeTypes || []).map(t => ({ ...t }));
-    this._edgeTypes = (options.edgeTypes || []).map(t => ({ ...t }));
+    this.title = options.title ?? tmpl.title ?? '';
+    this.description = options.description ?? tmpl.description ?? '';
+    const styleSource = options.style ?? tmpl.userStylesheet ?? [];
+    this.userStylesheet = styleSource.map(rule => ({ selector: rule.selector, style: { ...rule.style } }));
+    this._nodeTypes = (options.nodeTypes ?? palette.nodeTypes ?? []).map(t => ({ ...t }));
+    this._edgeTypes = (options.edgeTypes ?? palette.edgeTypes ?? []).map(t => ({ ...t }));
     this.currentEdgeType = this._edgeTypes[0] || null;
     this.cy = null;
     this.eventHandlers = new Map();
@@ -243,7 +252,7 @@ export class BoxesEditor {
     this._selectedElement = null;
     this._ctxTarget = null;
     this._ctxPosition = null;
-    this.context = { ...(options.context || {}) };
+    this.context = { ...(options.context ?? tmpl.context ?? {}) };
 
     this._init();
 
@@ -289,12 +298,29 @@ export class BoxesEditor {
 .bxe-pane-title { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#888; margin-bottom:8px; }
 .bxe-pane-label { font-size:12px; font-weight:600; color:#666; margin-bottom:4px; }
 .bxe-pane-label small { font-weight:normal; color:#999; }
-.bxe-palette { display:flex; flex-direction:column; gap:4px; margin-bottom:10px; }
+.bxe-palette { display:flex; flex-direction:column; gap:4px; margin-bottom:4px; }
 .bxe-palette-item { display:flex; align-items:center; gap:8px; padding:5px 8px; border:1px solid #dee2e6; border-radius:5px; cursor:pointer; background:#fff; }
 .bxe-palette-item:hover { background:#e9f0ff; border-color:#90b8f8; }
 .bxe-palette-item.selected { background:#dce8ff; border-color:#4d90fe; }
-.bxe-palette-label { font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.bxe-palette-label { font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
+.bxe-palette-actions { display:flex; gap:1px; margin-left:auto; opacity:0; flex-shrink:0; }
+.bxe-palette-item:hover .bxe-palette-actions { opacity:1; }
+.bxe-palette-act-btn { background:none; border:none; color:#999; cursor:pointer; font-size:12px; line-height:1; padding:0 3px; border-radius:2px; }
+.bxe-palette-act-btn:hover { color:#0d6efd; background:#e8f0fe; }
+.bxe-palette-act-btn.danger:hover { color:#dc3545; background:#fff0f0; }
 .bxe-node-swatch { width:20px; height:20px; border:2px solid #999; flex-shrink:0; }
+.bxe-type-form { border:1px solid #c8d8f8; border-radius:5px; padding:8px; margin-bottom:6px; background:#f0f6ff; font-size:12px; }
+.bxe-type-form-row { display:grid; grid-template-columns:52px 1fr; gap:4px; margin-bottom:4px; align-items:center; }
+.bxe-type-form-row label { font-size:11px; color:#666; font-weight:600; }
+.bxe-type-form-row input, .bxe-type-form-row select, .bxe-type-form-row textarea { width:100%; padding:2px 4px; border:1px solid #ccc; border-radius:3px; font-size:12px; font-family:inherit; box-sizing:border-box; }
+.bxe-type-form-row input[type=color] { padding:1px; height:22px; cursor:pointer; }
+.bxe-type-form-row textarea { resize:vertical; min-height:36px; font-family:monospace; }
+.bxe-type-form-actions { display:flex; gap:4px; margin-top:6px; }
+.bxe-btn-sm { padding:2px 10px; border-radius:3px; font-size:12px; cursor:pointer; }
+.bxe-btn-primary { background:#0d6efd; color:#fff; border:1px solid #0d6efd; }
+.bxe-btn-primary:hover { background:#0a58ca; border-color:#0a58ca; }
+.bxe-btn-secondary { background:#fff; color:#555; border:1px solid #ccc; }
+.bxe-btn-secondary:hover { background:#f0f0f0; }
 .bxe-prop-group { margin-bottom:8px; }
 .bxe-prop-group > label { display:block; font-size:12px; font-weight:600; color:#666; margin-bottom:2px; }
 .bxe-input { width:100%; padding:3px 5px; border:1px solid #ccc; border-radius:3px; font-size:12px; }
@@ -437,10 +463,22 @@ export class BoxesEditor {
     this._edgePaletteEl = document.createElement('div');
     palettePane.appendChild(this._edgePaletteEl);
     this._nodePaletteEl.addEventListener('click', (e) => {
+      const action = e.target.closest('[data-action]')?.dataset.action;
+      if (action === 'edit-node-type') { this._showNodeTypeForm(e.target.closest('[data-action]').dataset.typeId); return; }
+      if (action === 'del-node-type')  { this._deleteNodeType(e.target.closest('[data-action]').dataset.typeId); return; }
+      if (action === 'add-node-type')  { this._showNodeTypeForm(null); return; }
+      if (action === 'save-node-type') { this._saveNodeTypeForm(); return; }
+      if (action === 'cancel-node-type') { this._nodeTypeFormEl.style.display = 'none'; return; }
       const item = e.target.closest('.bxe-palette-item');
       if (item) this._selectNodeType(item.dataset.typeId);
     });
     this._edgePaletteEl.addEventListener('click', (e) => {
+      const action = e.target.closest('[data-action]')?.dataset.action;
+      if (action === 'edit-edge-type') { this._showEdgeTypeForm(e.target.closest('[data-action]').dataset.typeId); return; }
+      if (action === 'del-edge-type')  { this._deleteEdgeType(e.target.closest('[data-action]').dataset.typeId); return; }
+      if (action === 'add-edge-type')  { this._showEdgeTypeForm(null); return; }
+      if (action === 'save-edge-type') { this._saveEdgeTypeForm(); return; }
+      if (action === 'cancel-edge-type') { this._edgeTypeFormEl.style.display = 'none'; return; }
       const item = e.target.closest('.bxe-palette-item');
       if (item) this.setEdgeType(item.dataset.typeId);
     });
@@ -713,12 +751,13 @@ export class BoxesEditor {
     const edgeTypes = this._edgeTypes;
     if (!this._nodePaletteEl) return;
 
+    // ── Node types ──
+    this._nodePaletteEl.innerHTML = '';
+    const nodePalette = document.createElement('div');
+    nodePalette.className = 'bxe-palette';
     if (!nodeTypes.length) {
-      this._nodePaletteEl.innerHTML = '<div class="bxe-empty-small">No node types defined</div>';
+      nodePalette.innerHTML = '<div class="bxe-empty-small">No node types defined</div>';
     } else {
-      this._nodePaletteEl.innerHTML = '';
-      const palette = document.createElement('div');
-      palette.className = 'bxe-palette';
       nodeTypes.forEach((type, i) => {
         const radius = type.shape === 'ellipse' ? '50%' : type.shape === 'roundrectangle' ? '5px' : '2px';
         const bg = type.color || '#e0e0e0';
@@ -732,19 +771,33 @@ export class BoxesEditor {
         const label = document.createElement('span');
         label.className = 'bxe-palette-label';
         label.textContent = type.label;
+        const actions = document.createElement('span');
+        actions.className = 'bxe-palette-actions';
+        actions.innerHTML = `<button class="bxe-palette-act-btn" data-action="edit-node-type" data-type-id="${this._esc(type.id)}" title="Edit type">✎</button><button class="bxe-palette-act-btn danger" data-action="del-node-type" data-type-id="${this._esc(type.id)}" title="Remove type">×</button>`;
         item.appendChild(swatch);
         item.appendChild(label);
-        palette.appendChild(item);
+        item.appendChild(actions);
+        nodePalette.appendChild(item);
       });
-      this._nodePaletteEl.appendChild(palette);
     }
+    this._nodePaletteEl.appendChild(nodePalette);
+    this._nodeTypeFormEl = document.createElement('div');
+    this._nodeTypeFormEl.className = 'bxe-type-form';
+    this._nodeTypeFormEl.style.display = 'none';
+    this._nodePaletteEl.appendChild(this._nodeTypeFormEl);
+    const addNodeBtn = document.createElement('button');
+    addNodeBtn.className = 'bxe-btn-add';
+    addNodeBtn.dataset.action = 'add-node-type';
+    addNodeBtn.textContent = '+ Add node type';
+    this._nodePaletteEl.appendChild(addNodeBtn);
 
+    // ── Edge types ──
+    this._edgePaletteEl.innerHTML = '';
+    const edgePalette = document.createElement('div');
+    edgePalette.className = 'bxe-palette';
     if (!edgeTypes.length) {
-      this._edgePaletteEl.innerHTML = '<div class="bxe-empty-small">No edge types defined</div>';
+      edgePalette.innerHTML = '<div class="bxe-empty-small">No edge types defined</div>';
     } else {
-      this._edgePaletteEl.innerHTML = '';
-      const palette = document.createElement('div');
-      palette.className = 'bxe-palette';
       edgeTypes.forEach((type, i) => {
         const color = type.color || '#666666';
         const dashArray = type.lineStyle === 'dashed' ? '6,3' : type.lineStyle === 'dotted' ? '2,3' : 'none';
@@ -755,17 +808,162 @@ export class BoxesEditor {
         const svgLine = dashArray === 'none'
           ? `<line x1="4" y1="11" x2="34" y2="11" stroke="${color}" stroke-width="2" marker-end="url(#${markerId})"/>`
           : `<line x1="4" y1="11" x2="34" y2="11" stroke="${color}" stroke-width="2" stroke-dasharray="${dashArray}" marker-end="url(#${markerId})"/>`;
+        const actions = document.createElement('span');
+        actions.className = 'bxe-palette-actions';
+        actions.innerHTML = `<button class="bxe-palette-act-btn" data-action="edit-edge-type" data-type-id="${this._esc(type.id)}" title="Edit type">✎</button><button class="bxe-palette-act-btn danger" data-action="del-edge-type" data-type-id="${this._esc(type.id)}" title="Remove type">×</button>`;
         item.innerHTML = `<svg width="44" height="22" style="flex-shrink:0;overflow:visible"><defs><marker id="${markerId}" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="${color}"/></marker></defs>${svgLine}</svg><span class="bxe-palette-label">${this._esc(type.label)}</span>`;
-        palette.appendChild(item);
+        item.appendChild(actions);
+        edgePalette.appendChild(item);
       });
-      this._edgePaletteEl.appendChild(palette);
     }
+    this._edgePaletteEl.appendChild(edgePalette);
+    this._edgeTypeFormEl = document.createElement('div');
+    this._edgeTypeFormEl.className = 'bxe-type-form';
+    this._edgeTypeFormEl.style.display = 'none';
+    this._edgePaletteEl.appendChild(this._edgeTypeFormEl);
+    const addEdgeBtn = document.createElement('button');
+    addEdgeBtn.className = 'bxe-btn-add';
+    addEdgeBtn.dataset.action = 'add-edge-type';
+    addEdgeBtn.textContent = '+ Add edge type';
+    this._edgePaletteEl.appendChild(addEdgeBtn);
 
     this._currentNodeTypeId = nodeTypes[0]?.id || null;
     if (edgeTypes[0]) {
       this.currentEdgeType = edgeTypes[0];
     }
   }
+
+  /** Show the inline node type editor form. Pass null typeId to add a new type. */
+  _showNodeTypeForm(typeId) {
+    const type = typeId ? this._nodeTypes.find(t => t.id === typeId) : null;
+    const isNew = !type;
+    const id = type?.id ?? '';
+    const label = type?.label ?? '';
+    const color = type?.color ?? '#cccccc';
+    const borderColor = type?.borderColor ?? '#888888';
+    const shape = type?.shape ?? 'rectangle';
+    const data = type?.data ? JSON.stringify(type.data, null, 2) : '{}';
+    this._nodeTypeFormEl.innerHTML = `
+      <div style="font-weight:600;font-size:11px;color:#444;margin-bottom:6px">${isNew ? 'Add node type' : 'Edit node type'}</div>
+      <div class="bxe-type-form-row"><label>Label</label><input data-field="label" value="${this._esc(label)}" placeholder="Display name"></div>
+      <div class="bxe-type-form-row"><label>ID</label><input data-field="id" value="${this._esc(id)}" placeholder="unique-id" ${!isNew ? 'readonly style="background:#f5f5f5;color:#666"' : ''}></div>
+      <div class="bxe-type-form-row"><label>Color</label><input type="color" data-field="color" value="${color}"></div>
+      <div class="bxe-type-form-row"><label>Border</label><input type="color" data-field="borderColor" value="${borderColor}"></div>
+      <div class="bxe-type-form-row"><label>Shape</label>
+        <select data-field="shape">
+          <option value="rectangle" ${shape==='rectangle'?'selected':''}>Rectangle</option>
+          <option value="roundrectangle" ${shape==='roundrectangle'?'selected':''}>Round rect</option>
+          <option value="ellipse" ${shape==='ellipse'?'selected':''}>Ellipse</option>
+        </select>
+      </div>
+      <div class="bxe-type-form-row" style="align-items:start"><label style="padding-top:3px">Data</label><textarea data-field="data" rows="2">${this._esc(data)}</textarea></div>
+      <div class="bxe-type-form-actions">
+        <button class="bxe-btn-sm bxe-btn-primary" data-action="save-node-type" data-orig-id="${this._esc(id)}">Save</button>
+        <button class="bxe-btn-sm bxe-btn-secondary" data-action="cancel-node-type">Cancel</button>
+      </div>`;
+    this._nodeTypeFormEl.style.display = 'block';
+    this._nodeTypeFormEl.querySelector('[data-field="label"]').focus();
+  }
+
+  _saveNodeTypeForm() {
+    const f = this._nodeTypeFormEl;
+    const id = f.querySelector('[data-field="id"]').value.trim();
+    const label = f.querySelector('[data-field="label"]').value.trim();
+    const color = f.querySelector('[data-field="color"]').value;
+    const borderColor = f.querySelector('[data-field="borderColor"]').value;
+    const shape = f.querySelector('[data-field="shape"]').value;
+    const dataRaw = f.querySelector('[data-field="data"]').value.trim();
+    const origId = f.querySelector('[data-action="save-node-type"]').dataset.origId;
+    if (!id) { alert('ID is required'); return; }
+    if (!label) { alert('Label is required'); return; }
+    let data = {};
+    if (dataRaw && dataRaw !== '{}') {
+      try { data = JSON.parse(dataRaw); } catch { alert('Data must be valid JSON'); return; }
+    }
+    const type = { id, label, color, borderColor, shape, data };
+    if (origId) {
+      const idx = this._nodeTypes.findIndex(t => t.id === origId);
+      if (idx >= 0) this._nodeTypes[idx] = type;
+    } else {
+      if (this._nodeTypes.some(t => t.id === id)) { alert(`A node type with id "${id}" already exists`); return; }
+      this._nodeTypes.push(type);
+    }
+    this._renderPalette();
+    this._emit('paletteChanged', { nodeTypes: this.getNodeTypes(), edgeTypes: this.getEdgeTypes() });
+  }
+
+  _deleteNodeType(typeId) {
+    if (!confirm(`Remove node type "${typeId}"?`)) return;
+    this._nodeTypes = this._nodeTypes.filter(t => t.id !== typeId);
+    if (this._currentNodeTypeId === typeId) this._currentNodeTypeId = this._nodeTypes[0]?.id || null;
+    this._renderPalette();
+    this._emit('paletteChanged', { nodeTypes: this.getNodeTypes(), edgeTypes: this.getEdgeTypes() });
+  }
+
+  /** Show the inline edge type editor form. Pass null typeId to add a new type. */
+  _showEdgeTypeForm(typeId) {
+    const type = typeId ? this._edgeTypes.find(t => t.id === typeId) : null;
+    const isNew = !type;
+    const id = type?.id ?? '';
+    const label = type?.label ?? '';
+    const color = type?.color ?? '#666666';
+    const lineStyle = type?.lineStyle ?? 'solid';
+    const data = type?.data ? JSON.stringify(type.data, null, 2) : '{}';
+    this._edgeTypeFormEl.innerHTML = `
+      <div style="font-weight:600;font-size:11px;color:#444;margin-bottom:6px">${isNew ? 'Add edge type' : 'Edit edge type'}</div>
+      <div class="bxe-type-form-row"><label>Label</label><input data-field="label" value="${this._esc(label)}" placeholder="Display name"></div>
+      <div class="bxe-type-form-row"><label>ID</label><input data-field="id" value="${this._esc(id)}" placeholder="unique-id" ${!isNew ? 'readonly style="background:#f5f5f5;color:#666"' : ''}></div>
+      <div class="bxe-type-form-row"><label>Color</label><input type="color" data-field="color" value="${color}"></div>
+      <div class="bxe-type-form-row"><label>Style</label>
+        <select data-field="lineStyle">
+          <option value="solid" ${lineStyle==='solid'?'selected':''}>Solid</option>
+          <option value="dashed" ${lineStyle==='dashed'?'selected':''}>Dashed</option>
+          <option value="dotted" ${lineStyle==='dotted'?'selected':''}>Dotted</option>
+        </select>
+      </div>
+      <div class="bxe-type-form-row" style="align-items:start"><label style="padding-top:3px">Data</label><textarea data-field="data" rows="2">${this._esc(data)}</textarea></div>
+      <div class="bxe-type-form-actions">
+        <button class="bxe-btn-sm bxe-btn-primary" data-action="save-edge-type" data-orig-id="${this._esc(id)}">Save</button>
+        <button class="bxe-btn-sm bxe-btn-secondary" data-action="cancel-edge-type">Cancel</button>
+      </div>`;
+    this._edgeTypeFormEl.style.display = 'block';
+    this._edgeTypeFormEl.querySelector('[data-field="label"]').focus();
+  }
+
+  _saveEdgeTypeForm() {
+    const f = this._edgeTypeFormEl;
+    const id = f.querySelector('[data-field="id"]').value.trim();
+    const label = f.querySelector('[data-field="label"]').value.trim();
+    const color = f.querySelector('[data-field="color"]').value;
+    const lineStyle = f.querySelector('[data-field="lineStyle"]').value;
+    const dataRaw = f.querySelector('[data-field="data"]').value.trim();
+    const origId = f.querySelector('[data-action="save-edge-type"]').dataset.origId;
+    if (!id) { alert('ID is required'); return; }
+    if (!label) { alert('Label is required'); return; }
+    let data = {};
+    if (dataRaw && dataRaw !== '{}') {
+      try { data = JSON.parse(dataRaw); } catch { alert('Data must be valid JSON'); return; }
+    }
+    const type = { id, label, color, lineStyle, data };
+    if (origId) {
+      const idx = this._edgeTypes.findIndex(t => t.id === origId);
+      if (idx >= 0) this._edgeTypes[idx] = type;
+    } else {
+      if (this._edgeTypes.some(t => t.id === id)) { alert(`An edge type with id "${id}" already exists`); return; }
+      this._edgeTypes.push(type);
+    }
+    this._renderPalette();
+    this._emit('paletteChanged', { nodeTypes: this.getNodeTypes(), edgeTypes: this.getEdgeTypes() });
+  }
+
+  _deleteEdgeType(typeId) {
+    if (!confirm(`Remove edge type "${typeId}"?`)) return;
+    this._edgeTypes = this._edgeTypes.filter(t => t.id !== typeId);
+    if (this.currentEdgeType?.id === typeId) this.currentEdgeType = this._edgeTypes[0] || null;
+    this._renderPalette();
+    this._emit('paletteChanged', { nodeTypes: this.getNodeTypes(), edgeTypes: this.getEdgeTypes() });
+  }
+
 
   _selectNodeType(typeId) {
     this._currentNodeTypeId = typeId;
@@ -1540,6 +1738,12 @@ export class BoxesEditor {
       return cls.includes('eh-ghost') || cls.includes('eh-preview');
     };
     return {
+      title: this.title,
+      description: this.description,
+      palette: {
+        nodeTypes: this._nodeTypes.map(t => ({ ...t })),
+        edgeTypes: this._edgeTypes.map(t => ({ ...t })),
+      },
       elements: {
         nodes: (els.nodes || []).filter(el => !isEhGhost(el)).map(cleanEl),
         edges: (els.edges || []).filter(el => !isEhGhost(el)).map(cleanEl)
@@ -1558,6 +1762,23 @@ export class BoxesEditor {
    * Import graph data.
    */
   importGraph(graphData) {
+    if (graphData.title !== undefined) {
+      this.title = graphData.title;
+    }
+    if (graphData.description !== undefined) {
+      this.description = graphData.description;
+    }
+    if (graphData.palette) {
+      if (graphData.palette.nodeTypes) {
+        this._nodeTypes = graphData.palette.nodeTypes.map(t => ({ ...t }));
+        this._currentNodeTypeId = this._nodeTypes[0]?.id || null;
+      }
+      if (graphData.palette.edgeTypes) {
+        this._edgeTypes = graphData.palette.edgeTypes.map(t => ({ ...t }));
+        this.currentEdgeType = this._edgeTypes[0] || null;
+      }
+      this._renderPalette();
+    }
     if (graphData.elements) {
       this.loadElements(graphData.elements);
     }
@@ -1967,6 +2188,60 @@ export class BoxesEditor {
   /** Return edge type definitions passed in options */
   getEdgeTypes() {
     return this._edgeTypes.map(t => ({ ...t }));
+  }
+
+  /** Add a new node type to the palette. Re-renders the palette. */
+  addNodeType(type) {
+    if (!type.id) throw new Error('Node type requires an id');
+    if (this._nodeTypes.some(t => t.id === type.id)) throw new Error(`Node type "${type.id}" already exists`);
+    this._nodeTypes.push({ ...type });
+    this._renderPalette();
+    this._emit('paletteChanged', { nodeTypes: this.getNodeTypes(), edgeTypes: this.getEdgeTypes() });
+  }
+
+  /** Update an existing node type by id. Re-renders the palette. */
+  updateNodeType(id, updates) {
+    const idx = this._nodeTypes.findIndex(t => t.id === id);
+    if (idx < 0) throw new Error(`Node type "${id}" not found`);
+    this._nodeTypes[idx] = { ...this._nodeTypes[idx], ...updates };
+    this._renderPalette();
+    this._emit('paletteChanged', { nodeTypes: this.getNodeTypes(), edgeTypes: this.getEdgeTypes() });
+  }
+
+  /** Remove a node type by id. Re-renders the palette. */
+  removeNodeType(id) {
+    this._nodeTypes = this._nodeTypes.filter(t => t.id !== id);
+    if (this._currentNodeTypeId === id) this._currentNodeTypeId = this._nodeTypes[0]?.id || null;
+    this._renderPalette();
+    this._emit('paletteChanged', { nodeTypes: this.getNodeTypes(), edgeTypes: this.getEdgeTypes() });
+  }
+
+  /** Add a new edge type to the palette. Re-renders the palette. */
+  addEdgeType(type) {
+    if (!type.id) throw new Error('Edge type requires an id');
+    if (this._edgeTypes.some(t => t.id === type.id)) throw new Error(`Edge type "${type.id}" already exists`);
+    this._edgeTypes.push({ ...type });
+    if (!this.currentEdgeType) this.currentEdgeType = this._edgeTypes[0];
+    this._renderPalette();
+    this._emit('paletteChanged', { nodeTypes: this.getNodeTypes(), edgeTypes: this.getEdgeTypes() });
+  }
+
+  /** Update an existing edge type by id. Re-renders the palette. */
+  updateEdgeType(id, updates) {
+    const idx = this._edgeTypes.findIndex(t => t.id === id);
+    if (idx < 0) throw new Error(`Edge type "${id}" not found`);
+    this._edgeTypes[idx] = { ...this._edgeTypes[idx], ...updates };
+    if (this.currentEdgeType?.id === id) this.currentEdgeType = { ...this._edgeTypes[idx] };
+    this._renderPalette();
+    this._emit('paletteChanged', { nodeTypes: this.getNodeTypes(), edgeTypes: this.getEdgeTypes() });
+  }
+
+  /** Remove an edge type by id. Re-renders the palette. */
+  removeEdgeType(id) {
+    this._edgeTypes = this._edgeTypes.filter(t => t.id !== id);
+    if (this.currentEdgeType?.id === id) this.currentEdgeType = this._edgeTypes[0] || null;
+    this._renderPalette();
+    this._emit('paletteChanged', { nodeTypes: this.getNodeTypes(), edgeTypes: this.getEdgeTypes() });
   }
 
   /**
