@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Building an OWL Ontology — Boxes Tutorial</title>
+  <meta name="description" content="Step-by-step tutorial: model a class hierarchy, add instances and object properties, then export to Turtle/RDF using the Boxes graph editor.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+  <link rel="stylesheet" href="./src/style.css">
+  <style>
+    /* ── Tutorial layout ──────────────────────────────────────────────────── */
+    .tut-hero {
+      background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #0d1b3e 100%);
+      color: white;
+      padding: 100px 0 72px;
+      text-align: center;
+    }
+    .tut-hero .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(74,127,212,0.15);
+      border: 1px solid rgba(74,127,212,0.3);
+      border-radius: 100px;
+      padding: 6px 16px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #93b8f0;
+      margin-bottom: 24px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .tut-hero h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      margin-bottom: 18px;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+    }
+    .tut-hero p {
+      font-size: 1.1rem;
+      color: rgba(255,255,255,0.65);
+      max-width: 540px;
+      margin: 0 auto 36px;
+      line-height: 1.65;
+    }
+    .tut-hero .hero-actions {
+      display: flex;
+      gap: 14px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    /* ── Two-column layout ────────────────────────────────────────────────── */
+    .tut-layout {
+      display: grid;
+      grid-template-columns: 210px 1fr;
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 56px 24px;
+      gap: 56px;
+      align-items: start;
+    }
+    @media (max-width: 840px) {
+      .tut-layout { grid-template-columns: 1fr; }
+      .tut-toc { display: none; }
+    }
+
+    /* ── Sticky TOC ───────────────────────────────────────────────────────── */
+    .tut-toc {
+      position: sticky;
+      top: 76px;
+    }
+    .tut-toc h3 {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+      margin-bottom: 12px;
+    }
+    .tut-toc ol { list-style: none; padding: 0; }
+    .tut-toc li { margin: 0; }
+    .tut-toc a {
+      display: block;
+      padding: 5px 0 5px 12px;
+      font-size: 0.84rem;
+      color: var(--color-text-muted);
+      border-left: 2px solid var(--color-border);
+      text-decoration: none;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .tut-toc a:hover, .tut-toc a.active {
+      color: var(--color-primary);
+      border-left-color: var(--color-primary);
+    }
+
+    /* ── Intro card ───────────────────────────────────────────────────────── */
+    .intro-card {
+      background: var(--color-bg-alt);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      margin-bottom: 52px;
+    }
+    .intro-card h2 { font-size: 1.2rem; margin-bottom: 12px; }
+    .intro-card ul { padding-left: 1.4em; color: var(--color-text-muted); }
+    .intro-card li { margin-bottom: 6px; }
+    .intro-card p  { color: var(--color-text-muted); margin-top: 14px; line-height: 1.65; }
+
+    /* ── Step ─────────────────────────────────────────────────────────────── */
+    .step {
+      margin-bottom: 76px;
+      scroll-margin-top: 80px;
+    }
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .step-num {
+      flex-shrink: 0;
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      background: var(--color-primary);
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(74,127,212,0.4);
+    }
+    .step h2 { font-size: 1.45rem; font-weight: 700; letter-spacing: -0.02em; }
+
+    .step-text { display: grid; gap: 12px; margin-bottom: 24px; }
+    .step-text p  { color: var(--color-text-muted); line-height: 1.7; }
+    .step-text ul, .step-text ol { color: var(--color-text-muted); padding-left: 1.5em; }
+    .step-text li { margin-bottom: 6px; }
+
+    .tip {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-left: 3px solid var(--color-primary);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 12px 16px;
+      font-size: 0.88rem;
+      color: #1e40af;
+    }
+    .tip strong { color: #1e3a8a; }
+
+    /* ── Live demo container ──────────────────────────────────────────────── */
+    .demo-wrap {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    .demo-label {
+      background: var(--color-bg-alt);
+      border-bottom: 1px solid var(--color-border);
+      padding: 8px 16px;
+      font-size: 0.78rem;
+      color: var(--color-text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    /* Browser-chrome dots */
+    .demo-label::before {
+      content: '';
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #4a7fd4;
+      flex-shrink: 0;
+      box-shadow: 14px 0 0 #22c55e, 28px 0 0 #ef4444;
+    }
+    .demo-label span { margin-left: 34px; }
+
+    /* The BoxesEditor mounts into this div */
+    .demo-container {
+      height: 440px;
+      background: #f4f4f5;
+      position: relative;
+    }
+    /* Loading shimmer before the editor initialises */
+    .demo-container::after {
+      content: 'Loading live demo…';
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      color: var(--color-text-muted);
+      pointer-events: none;
+    }
+    /* Hide shimmer once BoxesEditor has populated the container */
+    .demo-container:not(:empty)::after { display: none; }
+
+    /* ── Turtle code block ────────────────────────────────────────────────── */
+    .code-wrap {
+      border: 1px solid #d0d7de;
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    .code-wrap-header {
+      background: #f6f8fa;
+      border-bottom: 1px solid #d0d7de;
+      padding: 10px 16px;
+      font-size: 0.8rem;
+      color: var(--color-text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .code-wrap-header .lang { background: #e1e4e8; border-radius: 4px; padding: 2px 8px; font-size: 0.75rem; font-weight: 600; }
+    .code-wrap pre {
+      margin: 0;
+      padding: 20px;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 0.84rem;
+      line-height: 1.75;
+      background: #fff;
+      color: #24292f;
+    }
+    .tk-prefix { color: #0550ae; }
+    .tk-iri    { color: #0a3069; }
+    .tk-kw     { color: #cf222e; }
+    .tk-punct  { color: #57606a; }
+    .tk-comment{ color: #6e7781; font-style: italic; }
+
+    /* ── Next-steps grid ──────────────────────────────────────────────────── */
+    .next-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px,1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .next-card {
+      background: var(--color-bg-alt);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 20px;
+      text-decoration: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      display: block;
+    }
+    .next-card:hover { border-color: var(--color-primary); box-shadow: var(--shadow); text-decoration: none; }
+    .next-card .nc-icon { font-size: 1.5rem; margin-bottom: 10px; }
+    .next-card h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 6px; color: var(--color-text); }
+    .next-card p  { font-size: 0.83rem; color: var(--color-text-muted); }
+  </style>
+</head>
+<body>
+
+<!-- ── Nav ───────────────────────────────────────────────────────────────── -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="nav-logo" href="./">📦 <span>Boxes</span></a>
+    <ul class="nav-links">
+      <li><a href="./#features">Features</a></li>
+      <li><a href="./#quickstart">Quick Start</a></li>
+      <li><a href="tutorial.html" class="active">Tutorial</a></li>
+      <li><a href="api.html">API Docs</a></li>
+      <li><a href="format.html">File Format</a></li>
+      <li><a href="embed.html">Embed</a></li>
+      <li><a href="./demo/" class="btn-nav">Use Now →</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ── Hero ──────────────────────────────────────────────────────────────── -->
+<header class="tut-hero">
+  <div class="eyebrow">📖 Step-by-Step Tutorial</div>
+  <h1>Building an OWL Ontology<br>with Boxes</h1>
+  <p>Model a class hierarchy, add individuals, define object properties, and export to Turtle — all in the browser, no install required.</p>
+  <div class="hero-actions">
+    <a href="./demo/" class="btn btn-white">Open Editor →</a>
+    <a href="#intro" class="btn btn-outline-white">Start Tutorial ↓</a>
+  </div>
+</header>
+
+<!-- ── Content ───────────────────────────────────────────────────────────── -->
+<div class="tut-layout">
+
+  <!-- TOC -->
+  <nav class="tut-toc" aria-label="Table of contents">
+    <h3>In this tutorial</h3>
+    <ol>
+      <li><a href="#intro">What you'll build</a></li>
+      <li><a href="#step-1">1. Start from the template</a></li>
+      <li><a href="#step-2">2. Add the ontology header</a></li>
+      <li><a href="#step-3">3. Add classes</a></li>
+      <li><a href="#step-4">4. Build the hierarchy</a></li>
+      <li><a href="#step-5">5. Add instances</a></li>
+      <li><a href="#step-6">6. Add object properties</a></li>
+      <li><a href="#step-7">7. Run auto-layout</a></li>
+      <li><a href="#step-8">8. Export to Turtle</a></li>
+      <li><a href="#next">Next steps</a></li>
+    </ol>
+  </nav>
+
+  <!-- Article -->
+  <article>
+
+    <!-- ── Intro ─────────────────────────────────────────────────────── -->
+    <div class="intro-card" id="intro">
+      <h2>What you'll build</h2>
+      <p>
+        A simple <strong>Animals ontology</strong> in
+        <a href="https://www.w3.org/OWL/" target="_blank" rel="noopener">OWL 2</a>, built from scratch.
+        By the end you will have:
+      </p>
+      <ul>
+        <li>An <strong>ontology header</strong> node (<code>owl:Ontology</code>)</li>
+        <li>A <strong>class hierarchy</strong> — LivingThing → Animal → Mammal/Bird → Dog/Cat/Eagle</li>
+        <li><strong>Named individuals</strong> (Rex, Fido, Tweety) typed via <code>rdf:type</code></li>
+        <li>An <strong>object property</strong> (<code>ex:hasOwner</code>) linking animals to people</li>
+        <li>A valid <strong>Turtle / RDF export</strong> ready for Protégé or any SPARQL endpoint</li>
+      </ul>
+      <p>
+        The interactive panels below are live Boxes editor instances — you can zoom, pan, click nodes,
+        and explore each stage of the ontology as you follow along.
+      </p>
+    </div>
+
+    <!-- ── Step 1 ─────────────────────────────────────────────────────── -->
+    <section class="step" id="step-1">
+      <div class="step-header">
+        <div class="step-num">1</div>
+        <h2>Start from the template</h2>
+      </div>
+      <div class="step-text">
+        <p>
+          Open Boxes and click <strong>"Ontology or RDF File"</strong> on the welcome screen.
+          This starts you with the OWL palette and stylesheet pre-configured — node types, edge
+          types, and Cytoscape.js CSS rules are all set up so you can start modelling immediately.
+        </p>
+        <p>
+          The <strong>Palette (✦)</strong> tab in the sidebar shows what's available. Node types include
+          <em>Class</em>, <em>Instance</em>, <em>Concept</em>, and <em>Ontology</em>. Edge types
+          include <em>rdfs:subClassOf</em>, <em>rdf:type</em>, <em>owl:ObjectProperty</em>, and
+          several SKOS relations.
+        </p>
+        <p>
+          Hover any palette item and click <strong>✎</strong> to rename it or change its colour, or
+          click <strong>×</strong> to remove it. Use <strong>+ Add node type</strong> /
+          <strong>+ Add edge type</strong> at the bottom to extend the palette with your own types.
+        </p>
+        <div class="tip">
+          💡 The palette is saved inside the <code>.boxes</code> file, so every collaborator who
+          opens your file gets the same types automatically.
+        </div>
+      </div>
+      <div class="demo-wrap">
+        <div class="demo-label"><span>Boxes — OWL template loaded, Palette tab open</span></div>
+        <div class="demo-container"
+             data-graph="./demos/owl-1-empty.boxes"
+             data-tab="palette"
+             data-sidebar="1"></div>
+      </div>
+    </section>
+
+    <!-- ── Step 2 ─────────────────────────────────────────────────────── -->
+    <section class="step" id="step-2">
+      <div class="step-header">
+        <div class="step-num">2</div>
+        <h2>Add the ontology header</h2>
+      </div>
+      <div class="step-text">
+        <p>
+          OWL best practice is to start with an <code>owl:Ontology</code> node that declares the
+          ontology's IRI. In the Palette, click <strong>Ontology</strong> to make it the active type,
+          then <strong>double-click</strong> the canvas to place it.
+        </p>
+        <p>
+          With the node selected, open the <strong>Properties (☰)</strong> tab and set:
+        </p>
+        <ul>
+          <li><strong>label</strong> — a human-readable name (e.g. <em>Animals</em>)</li>
+          <li><strong>@id</strong> — the ontology IRI (e.g. <code>ex:</code> or
+              <code>http://example.org/animals#</code>)</li>
+        </ul>
+        <div class="tip">
+          💡 Press <kbd>Esc</kbd> after placing the node to deactivate the Ontology type, so the
+          next double-click doesn't accidentally place another one.
+        </div>
+      </div>
+      <div class="demo-wrap">
+        <div class="demo-label"><span>Boxes — owl:Ontology header placed</span></div>
+        <div class="demo-container"
+             data-graph="./demos/owl-2-ontology.boxes"
+             data-sidebar="0"></div>
+      </div>
+    </section>
+
+    <!-- ── Step 3 ─────────────────────────────────────────────────────── -->
+    <section class="step" id="step-3">
+      <div class="step-header">
+        <div class="step-num">3</div>
+        <h2>Add classes</h2>
+      </div>
+      <div class="step-text">
+        <p>
+          Place the <code>owl:Class</code> nodes that form the vocabulary of your ontology. In the
+          Palette, click <strong>Class</strong>, then double-click the canvas once for each class.
+          Select each node and set its <strong>label</strong> and <strong>@id</strong> in the
+          Properties tab.
+        </p>
+        <p>For the Animals ontology, place:</p>
+        <ul>
+          <li><em>LivingThing</em> — root of the hierarchy</li>
+          <li><em>Animal</em></li>
+          <li><em>Mammal</em> and <em>Bird</em></li>
+          <li><em>Dog</em>, <em>Cat</em>, and <em>Eagle</em></li>
+        </ul>
+        <div class="tip">
+          💡 Don't worry about positions yet — the Layout step will arrange everything automatically.
+          All edits in the Properties tab are live; the canvas updates as you type.
+        </div>
+      </div>
+      <div class="demo-wrap">
+        <div class="demo-label"><span>Boxes — class nodes placed (no edges yet)</span></div>
+        <div class="demo-container"
+             data-graph="./demos/owl-3-classes.boxes"
+             data-sidebar="0"></div>
+      </div>
+    </section>
+
+    <!-- ── Step 4 ─────────────────────────────────────────────────────── -->
+    <section class="step" id="step-4">
+      <div class="step-header">
+        <div class="step-num">4</div>
+        <h2>Build the class hierarchy</h2>
+      </div>
+      <div class="step-text">
+        <p>
+          Connect your classes with <code>rdfs:subClassOf</code> edges to express the is-a
+          relationship. In the Palette, click the <strong>are</strong> edge type.
+        </p>
+        <p>To draw an edge:</p>
+        <ol>
+          <li>Hover over the <strong>source</strong> (more specific) class — a blue ● handle appears</li>
+          <li>Drag from the handle to the <strong>target</strong> (more general) class and release</li>
+        </ol>
+        <p>Draw these relationships:</p>
+        <ul>
+          <li>Animal <strong>rdfs:subClassOf</strong> LivingThing</li>
+          <li>Mammal and Bird <strong>rdfs:subClassOf</strong> Animal</li>
+          <li>Dog and Cat <strong>rdfs:subClassOf</strong> Mammal</li>
+          <li>Eagle <strong>rdfs:subClassOf</strong> Bird</li>
+        </ul>
+        <div class="tip">
+          💡 In OWL, the convention is <em>subclass</em> (source) → <em>superclass</em> (target).
+          The edge label <em>"are"</em> reads as "Dogs are Mammals".
+        </div>
+      </div>
+      <div class="demo-wrap">
+        <div class="demo-label"><span>Boxes — subclass hierarchy connected</span></div>
+        <div class="demo-container"
+             data-graph="./demos/owl-4-hierarchy.boxes"
+             data-sidebar="0"></div>
+      </div>
+    </section>
+
+    <!-- ── Step 5 ─────────────────────────────────────────────────────── -->
+    <section class="step" id="step-5">
+      <div class="step-header">
+        <div class="step-num">5</div>
+        <h2>Add instances</h2>
+      </div>
+      <div class="step-text">
+        <p>
+          <strong>Named individuals</strong> are specific things that belong to one or more classes.
+          In OWL, class membership is expressed via <code>rdf:type</code>.
+        </p>
+        <p>
+          In the Palette, click <strong>Instance</strong>, place a node for each individual, and set
+          its <strong>@id</strong> in Properties. Then select the <strong>a</strong> edge type
+          (<code>rdf:type</code>) and draw edges from each individual to its class.
+        </p>
+        <ul>
+          <li><em>Rex</em> → <code>rdf:type</code> → Dog</li>
+          <li><em>Fido</em> → <code>rdf:type</code> → Dog</li>
+          <li><em>Tweety</em> → <code>rdf:type</code> → Bird</li>
+        </ul>
+        <div class="tip">
+          💡 The dotted purple <code>rdf:type</code> arrows are visually distinct from the grey
+          <code>rdfs:subClassOf</code> arrows — this makes it easy to tell classes from
+          individuals at a glance. Both colours are defined in the <strong>Stylesheet (✏)</strong> tab.
+        </div>
+      </div>
+      <div class="demo-wrap">
+        <div class="demo-label"><span>Boxes — individuals typed via rdf:type</span></div>
+        <div class="demo-container"
+             data-graph="./demos/owl-5-instances.boxes"
+             data-sidebar="0"></div>
+      </div>
+    </section>
+
+    <!-- ── Step 6 ─────────────────────────────────────────────────────── -->
+    <section class="step" id="step-6">
+      <div class="step-header">
+        <div class="step-num">6</div>
+        <h2>Add object properties</h2>
+      </div>
+      <div class="step-text">
+        <p>
+          <strong>Object properties</strong> describe typed relationships between resources.
+          Add a <em>Person</em> class first, then use the <strong>ObjectProperty</strong> edge type
+          to draw a <code>hasOwner</code> property from <em>Animal</em> to <em>Person</em>.
+        </p>
+        <p>
+          Selecting the new edge in the Properties tab shows:
+        </p>
+        <ul>
+          <li><strong>label</strong> — <em>hasOwner</em></li>
+          <li><strong>@type</strong> — <code>owl:ObjectProperty</code></li>
+          <li><strong>rdfs:domain</strong> — set to the source class IRI automatically</li>
+          <li><strong>rdfs:range</strong> — set to the target class IRI automatically</li>
+        </ul>
+        <div class="tip">
+          💡 ObjectProperty edges are rendered as dashed blue arrows to distinguish them from
+          subclass arrowheads. You can customise colours and line styles in the
+          <strong>Stylesheet (✏)</strong> tab.
+        </div>
+      </div>
+      <div class="demo-wrap">
+        <div class="demo-label"><span>Boxes — owl:ObjectProperty added</span></div>
+        <div class="demo-container"
+             data-graph="./demos/owl-6-properties.boxes"
+             data-sidebar="0"></div>
+      </div>
+    </section>
+
+    <!-- ── Step 7 ─────────────────────────────────────────────────────── -->
+    <section class="step" id="step-7">
+      <div class="step-header">
+        <div class="step-num">7</div>
+        <h2>Run auto-layout</h2>
+      </div>
+      <div class="step-text">
+        <p>
+          Open the <strong>Layout (⊕)</strong> tab and click <strong>Dagre</strong>.
+          Dagre arranges directed graphs into a clean top-down hierarchy — ideal for a class tree.
+        </p>
+        <p>Other layouts worth trying:</p>
+        <ul>
+          <li><strong>KLay</strong> — hierarchical with precise edge routing</li>
+          <li><strong>Cola</strong> — physics-based; good for densely connected graphs</li>
+          <li><strong>Concentric</strong> — radial; important nodes near the centre</li>
+          <li><strong>Grid / Circle</strong> — geometric; useful as a starting point</li>
+        </ul>
+        <div class="tip">
+          💡 Select a subset of nodes with <kbd>Shift</kbd>+drag before running the layout to
+          move only those, leaving the rest in place. Press <kbd>F</kbd> to fit all nodes
+          on screen. Then hit <kbd>Ctrl+S</kbd> / <kbd>⌘S</kbd> — layout positions are saved
+          in the <code>.boxes</code> file.
+        </div>
+      </div>
+      <div class="demo-wrap">
+        <div class="demo-label"><span>Boxes — complete ontology with layout applied</span></div>
+        <div class="demo-container"
+             data-graph="./demos/owl-7-complete.boxes"
+             data-tab="layout"
+             data-sidebar="0"></div>
+      </div>
+    </section>
+
+    <!-- ── Step 8 ─────────────────────────────────────────────────────── -->
+    <section class="step" id="step-8">
+      <div class="step-header">
+        <div class="step-num">8</div>
+        <h2>Export to Turtle</h2>
+      </div>
+      <div class="step-text">
+        <p>
+          Click <strong>Export → RDF / Turtle</strong> in the editor toolbar. Boxes serialises
+          your graph using the namespace prefixes in the <strong>Context (@)</strong> tab,
+          compressing long IRIs into readable CURIEs.
+        </p>
+        <p>The resulting Turtle file can be opened directly in:</p>
+        <ul>
+          <li><a href="https://protege.stanford.edu/" target="_blank" rel="noopener">Protégé</a> — the OWL ontology editor</li>
+          <li>Any SPARQL triple-store (Apache Jena, GraphDB, Stardog, …)</li>
+          <li>OWL reasoners (HermiT, ELK, Pellet)</li>
+          <li>Python via <a href="https://rdflib.readthedocs.io/" target="_blank" rel="noopener">RDFLib</a></li>
+        </ul>
+        <p>Here is the Turtle output for the Animals ontology:</p>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-wrap-header">
+          <span class="lang">turtle</span>
+          animals.ttl — generated by Boxes → Export → RDF / Turtle
+        </div>
+        <pre><code><span class="tk-prefix">@prefix</span> <span class="tk-iri">owl:</span>  &lt;http://www.w3.org/2002/07/owl#&gt; <span class="tk-punct">.</span>
+<span class="tk-prefix">@prefix</span> <span class="tk-iri">rdfs:</span> &lt;http://www.w3.org/2000/01/rdf-schema#&gt; <span class="tk-punct">.</span>
+<span class="tk-prefix">@prefix</span> <span class="tk-iri">rdf:</span>  &lt;http://www.w3.org/1999/02/22-rdf-syntax-ns#&gt; <span class="tk-punct">.</span>
+<span class="tk-prefix">@prefix</span> <span class="tk-iri">ex:</span>   &lt;http://example.org/animals#&gt; <span class="tk-punct">.</span>
+
+<span class="tk-comment"># Ontology declaration</span>
+<span class="tk-iri">ex:</span> <span class="tk-kw">a</span> <span class="tk-iri">owl:Ontology</span> <span class="tk-punct">.</span>
+
+<span class="tk-comment"># Class hierarchy</span>
+<span class="tk-iri">ex:LivingThing</span> <span class="tk-kw">a</span> <span class="tk-iri">owl:Class</span> <span class="tk-punct">.</span>
+
+<span class="tk-iri">ex:Animal</span> <span class="tk-kw">a</span> <span class="tk-iri">owl:Class</span> <span class="tk-punct">;</span>
+    <span class="tk-iri">rdfs:subClassOf</span> <span class="tk-iri">ex:LivingThing</span> <span class="tk-punct">.</span>
+
+<span class="tk-iri">ex:Mammal</span> <span class="tk-kw">a</span> <span class="tk-iri">owl:Class</span> <span class="tk-punct">;</span>
+    <span class="tk-iri">rdfs:subClassOf</span> <span class="tk-iri">ex:Animal</span> <span class="tk-punct">.</span>
+
+<span class="tk-iri">ex:Bird</span> <span class="tk-kw">a</span> <span class="tk-iri">owl:Class</span> <span class="tk-punct">;</span>
+    <span class="tk-iri">rdfs:subClassOf</span> <span class="tk-iri">ex:Animal</span> <span class="tk-punct">.</span>
+
+<span class="tk-iri">ex:Dog</span> <span class="tk-kw">a</span> <span class="tk-iri">owl:Class</span> <span class="tk-punct">;</span>
+    <span class="tk-iri">rdfs:subClassOf</span> <span class="tk-iri">ex:Mammal</span> <span class="tk-punct">.</span>
+
+<span class="tk-iri">ex:Cat</span> <span class="tk-kw">a</span> <span class="tk-iri">owl:Class</span> <span class="tk-punct">;</span>
+    <span class="tk-iri">rdfs:subClassOf</span> <span class="tk-iri">ex:Mammal</span> <span class="tk-punct">.</span>
+
+<span class="tk-iri">ex:Eagle</span> <span class="tk-kw">a</span> <span class="tk-iri">owl:Class</span> <span class="tk-punct">;</span>
+    <span class="tk-iri">rdfs:subClassOf</span> <span class="tk-iri">ex:Bird</span> <span class="tk-punct">.</span>
+
+<span class="tk-iri">ex:Person</span> <span class="tk-kw">a</span> <span class="tk-iri">owl:Class</span> <span class="tk-punct">.</span>
+
+<span class="tk-comment"># Object property</span>
+<span class="tk-iri">ex:hasOwner</span> <span class="tk-kw">a</span> <span class="tk-iri">owl:ObjectProperty</span> <span class="tk-punct">;</span>
+    <span class="tk-iri">rdfs:domain</span> <span class="tk-iri">ex:Animal</span> <span class="tk-punct">;</span>
+    <span class="tk-iri">rdfs:range</span>  <span class="tk-iri">ex:Person</span>  <span class="tk-punct">.</span>
+
+<span class="tk-comment"># Individuals</span>
+<span class="tk-iri">ex:Rex</span>    <span class="tk-kw">a</span> <span class="tk-iri">ex:Dog</span>  <span class="tk-punct">.</span>
+<span class="tk-iri">ex:Fido</span>   <span class="tk-kw">a</span> <span class="tk-iri">ex:Dog</span>  <span class="tk-punct">.</span>
+<span class="tk-iri">ex:Tweety</span> <span class="tk-kw">a</span> <span class="tk-iri">ex:Bird</span> <span class="tk-punct">.</span></code></pre>
+      </div>
+
+      <div class="step-text" style="margin-top:20px">
+        <div class="tip">
+          💡 You can also export to <strong>JSON-LD</strong> or <strong>RDF/XML</strong>. To
+          import an existing Turtle file, use <strong>Import → RDF / Turtle</strong> — it merges
+          into the current graph, preserving your palette and stylesheet.
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Next steps ─────────────────────────────────────────────────── -->
+    <section class="step" id="next" style="margin-bottom:0">
+      <div class="step-header">
+        <div class="step-num" style="background:var(--color-primary);font-size:1.1rem">🎉</div>
+        <h2>Next steps</h2>
+      </div>
+      <div class="next-grid">
+        <a href="./demo/" class="next-card">
+          <div class="nc-icon">🚀</div>
+          <h3>Build your own ontology</h3>
+          <p>Open Boxes, pick the OWL template, and start modelling your domain.</p>
+        </a>
+        <a href="api.html" class="next-card">
+          <div class="nc-icon">📋</div>
+          <h3>API Reference</h3>
+          <p>Embed BoxesEditor in your own app with the Vue, React, or vanilla JS API.</p>
+        </a>
+        <a href="format.html" class="next-card">
+          <div class="nc-icon">📄</div>
+          <h3>.boxes File Format</h3>
+          <p>Complete specification of the JSON file format, palette, and stylesheet fields.</p>
+        </a>
+        <a href="https://www.w3.org/TR/owl2-primer/" class="next-card" target="_blank" rel="noopener">
+          <div class="nc-icon">📖</div>
+          <h3>OWL 2 Primer (W3C)</h3>
+          <p>The official W3C introduction to OWL 2 concepts and syntax.</p>
+        </a>
+      </div>
+    </section>
+
+  </article>
+</div>
+
+<!-- ── Footer ────────────────────────────────────────────────────────────── -->
+<footer class="footer">
+  <div class="container">
+    <p>
+      📦 <strong style="color:rgba(255,255,255,0.8)">Boxes</strong>
+      &nbsp;·&nbsp; Apache 2.0 &nbsp;·&nbsp;
+      <a href="./">Home</a> &nbsp;·&nbsp;
+      <a href="tutorial.html">Tutorial</a> &nbsp;·&nbsp;
+      <a href="api.html">API Docs</a> &nbsp;·&nbsp;
+      <a href="./demo/">Editor</a> &nbsp;·&nbsp;
+      <a href="https://github.com/boxes-project/boxes">GitHub ↗</a>
+    </p>
+  </div>
+</footer>
+
+<script type="module" src="./src/tutorial.js"></script>
+<script>
+  // TOC active section highlighting
+  const tocLinks = document.querySelectorAll('.tut-toc a[href^="#"]');
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      const a = document.querySelector(`.tut-toc a[href="#${e.target.id}"]`);
+      if (a) a.classList.toggle('active', e.isIntersecting);
+    });
+  }, { rootMargin: '-15% 0px -75% 0px', threshold: 0 });
+  document.querySelectorAll('[id]').forEach(s => {
+    if (document.querySelector(`.tut-toc a[href="#${s.id}"]`)) io.observe(s);
+  });
+</script>
+
+</body>
+</html>

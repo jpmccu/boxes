@@ -13,7 +13,7 @@ function suppressKnownEvalWarnings(warning, warn) {
   warn(warning);
 }
 
-/** Copy public/demos/*.boxes → dist/demos/ so tutorial iframes can fetch them. */
+/** Copy public/demos/*.boxes → dist/demos/ so demo.html can fetch them. */
 function copyDemoFiles() {
   return {
     name: 'copy-demo-files',
@@ -44,9 +44,8 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       input: {
-        main:     resolve(__dirname, 'public/index.html'),
-        demo:     resolve(__dirname, 'public/demo.html'),
-        tutorial: resolve(__dirname, 'public/owl-tutorial.html'),
+        main: resolve(__dirname, 'public/index.html'),
+        demo: resolve(__dirname, 'public/demo.html'),
       },
       onwarn: suppressKnownEvalWarnings,
     }
