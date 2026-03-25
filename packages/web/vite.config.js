@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
+import { cpSync, existsSync } from 'fs';
 
 function suppressKnownEvalWarnings(warning, warn) {
   // cytoscape-pdf-export (via PDFKit) uses eval() in its webpack bundle.
@@ -10,6 +11,20 @@ function suppressKnownEvalWarnings(warning, warn) {
     warning.id?.includes('core/dist/')
   )) return;
   warn(warning);
+}
+
+/** Copy public/demos/*.boxes → dist/demos/ so tutorial iframes can fetch them. */
+function copyDemoFiles() {
+  return {
+    name: 'copy-demo-files',
+    closeBundle() {
+      const src = resolve(__dirname, 'public/demos');
+      const dst = resolve(__dirname, 'dist/demos');
+      if (existsSync(src)) {
+        cpSync(src, dst, { recursive: true });
+      }
+    },
+  };
 }
 
 export default defineConfig({
@@ -29,11 +44,14 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       input: {
-        main: resolve(__dirname, 'public/index.html')
+        main:     resolve(__dirname, 'public/index.html'),
+        demo:     resolve(__dirname, 'public/demo.html'),
+        tutorial: resolve(__dirname, 'public/owl-tutorial.html'),
       },
       onwarn: suppressKnownEvalWarnings,
     }
   },
+  plugins: [copyDemoFiles()],
   server: {
     port: 3000
   }

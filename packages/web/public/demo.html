@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Boxes — Demo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #f4f4f5; }
+    #demo-container {
+      width: 100%;
+      height: 100%;
+    }
+    /* When sidebar is hidden, let the canvas fill 100% */
+    #demo-container.no-sidebar .bxe-sidebar {
+      display: none !important;
+    }
+    /* Error banner */
+    #demo-error {
+      display: none;
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fff5f5;
+      color: #c0392b;
+      font-family: system-ui, sans-serif;
+      font-size: 0.9rem;
+      padding: 16px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div id="demo-container"></div>
+  <div id="demo-error"></div>
+  <script type="module" src="demo.js"></script>
+</body>
+</html>

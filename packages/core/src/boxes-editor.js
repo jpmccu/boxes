@@ -2078,6 +2078,11 @@ export class BoxesEditor {
   canUndo() { return this._undoStack.length > 0; }
   canRedo() { return this._redoStack.length > 0; }
 
+  /** Programmatically switch the active sidebar tab by id (palette|properties|stylesheet|layout|context). */
+  setActiveTab(tabId) {
+    if (this._tabBtns[tabId]) this._switchPane(tabId);
+  }
+
   /**
    * Select elements by ID
    */
