@@ -7,6 +7,20 @@
   <meta name="description" content="Step-by-step tutorial: model a class hierarchy, add instances and object properties, then export to Turtle/RDF using the Boxes graph editor.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
   <link rel="stylesheet" href="./src/style.css">
+  <!--
+    Import map: lets the browser resolve the bare specifier "boxes-core" when the
+    page is served statically (without Vite).  Vite transforms the import at build
+    /dev time and never touches this map, so it is only used in plain-HTTP / file://
+    serving scenarios (e.g. `npx serve` from the repo or packages/ root).
+    Path is relative to this HTML file: ../core/dist/ → packages/core/dist/
+  -->
+  <script type="importmap">
+  {
+    "imports": {
+      "boxes-core": "../core/dist/boxes-core.js"
+    }
+  }
+  </script>
   <style>
     /* ── Tutorial layout ──────────────────────────────────────────────────── */
     .tut-hero {
@@ -185,6 +199,24 @@
       background: #f4f4f5;
       position: relative;
     }
+
+    /*
+     * In the tutorial demos the sidebar should slide over the canvas rather than
+     * shrink it — this keeps the canvas at its full width regardless of sidebar
+     * state and prevents the demo box from ever overflowing its 100% column width.
+     */
+    .demo-container .bxe-sidebar {
+      position: absolute;
+      right: 0;
+      top: 0;
+      height: 100%;
+      z-index: 5;
+      box-shadow: -3px 0 12px rgba(0,0,0,0.12);
+    }
+    /* Resize handle is meaningless for an overlay sidebar */
+    .demo-container .bxe-resize-handle { display: none !important; }
+    /* Canvas always fills the full container width */
+    .demo-container .bxe-canvas-wrap { flex: 1; }
     /* Loading shimmer before the editor initialises */
     .demo-container::after {
       content: 'Loading live demo…';

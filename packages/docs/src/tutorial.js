@@ -27,8 +27,7 @@ async function initDemo(el) {
   const editor = new BoxesEditor(el, { layout: { name: 'preset' } });
 
   if (!sidebar) {
-    const s = el.querySelector('.bxe-sidebar');
-    if (s) s.style.display = 'none';
+    editor.setSidebarOpen(false);
   } else {
     editor.setActiveTab?.(tabId);
   }

@@ -369,7 +369,13 @@ export class BoxesEditor {
   }
 
   _createUI() {
-    this.container.style.cssText = 'display:flex;overflow:hidden;width:100%;height:100%;';
+    // Use individual assignments (not cssText) so we don't wipe any height/styles the
+    // caller has already set on the container (e.g. a CSS class with height:440px).
+    // The caller is responsible for giving the container a height; child elements
+    // (bxe-canvas-wrap, bxe-sidebar) already carry height:100% in their CSS rules.
+    this.container.style.display = 'flex';
+    this.container.style.overflow = 'hidden';
+    this.container.style.width = '100%';
 
     // Canvas wrapper holds both the cy container and the panzoom overlay.
     this._canvasWrap = document.createElement('div');
@@ -2084,6 +2090,16 @@ export class BoxesEditor {
   }
 
   /**
+   * Show or hide the sidebar panel.
+   * Uses the same logic as the panel toggle button so that the toggle button
+   * remains consistent (clicking it afterwards will correctly open/close).
+   */
+  setSidebarOpen(open) {
+    if (open && this._sidebarCollapsed) this._toggleSidebar();
+    else if (!open && !this._sidebarCollapsed) this._toggleSidebar();
+  }
+
+  /**
    * Select elements by ID
    */
   selectElements(elementIds) {
@@ -2179,7 +2195,10 @@ export class BoxesEditor {
     }
     if (this.container) {
       this.container.innerHTML = '';
-      this.container.style.cssText = '';
+      // Only clear the specific properties _createUI set, not all inline styles.
+      this.container.style.display = '';
+      this.container.style.overflow = '';
+      this.container.style.width = '';
     }
   }
 
