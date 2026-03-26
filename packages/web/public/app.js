@@ -75,6 +75,7 @@ function startWithTemplate(templateOrId) {
   if (editor) { editor.destroy(); editor = null; }
   const container = document.getElementById('editor-container');
   editor = new BoxesEditor(container, { template, layout: { name: 'preset' } });
+  window.__editor = editor;
 }
 
 function saveToFile() {
