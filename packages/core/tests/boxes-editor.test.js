@@ -252,32 +252,104 @@ describe('BoxesEditor', () => {
       expect(elements.edges[0].data.label).toBe('connects');
     });
 
-    it('edges should have rs.allpts set after importGraph (rendering regression)', async () => {
-      // Verify that after a file-load (importGraph on a fresh editor), Cytoscape's
-      // render pipeline correctly computes rs.allpts for edges so they are visible.
-      // rs.allpts == null means the edge draw call is silently skipped.
-      editor.addNode({ id: 'n1', label: 'Node 1' });
-      editor.addNode({ id: 'n2', label: 'Node 2' });
+    it('edges are rendered on the first frame after importGraph (regression: edges invisible on file load)', () => {
+      // Reproduces the bug: loading a .boxes file left edges invisible until the
+      // user selected an edge or added a node.
+      //
+      // Cytoscape's render loop:
+      //
+      //   requestAnimationFrame callback
+      //     → beforeRenderCallbacks (runs updateEleCalcs → computes edge geometry)
+      //     → r.render() → r.drawEdge()  (uses rs.allpts to draw the edge path)
+      //
+      // r.drawEdge() checks rs.allpts directly — if null it returns immediately,
+      // producing zero drawing operations and leaving the edge invisible.  The
+      // computed geometry lives in rscratch (rs.allpts), not rstyle.
+      //
+      // How the test works
+      // ------------------
+      // We block the automatic rAF so updateEleCalcs never runs as a side-effect
+      // and rs.allpts is never populated by the render loop.
+      //
+      // We then call r.drawEdge(spyCtx, edge) directly on a canvas context spy.
+      // If the edge has no geometry (rs.allpts == null) the renderer returns early
+      // — the spy records zero bezierCurveTo calls, which means the edge would be
+      // invisible on screen.  The test asserts that at least one bezierCurveTo
+      // call is made, so it FAILS when the bug is present.
+      //
+      // With the fix, importGraph calls cy.elements().boundingBox({useCache:false})
+      // which synchronously computes rs.allpts before any rAF fires, so drawEdge
+      // produces drawing operations and the test passes.
+
+      editor.addNode({ id: 'n1', label: 'Node 1' }, { x: 100, y: 100 });
+      editor.addNode({ id: 'n2', label: 'Node 2' }, { x: 300, y: 200 });
       editor.addEdge('n1', 'n2', { label: 'connects' });
       const exported = editor.exportGraph();
-
       editor.destroy();
-      container = document.createElement('div');
-      container.style.width = '800px';
-      container.style.height = '600px';
-      document.body.appendChild(container);
-      editor = new BoxesEditor(container);
-      editor.importGraph(exported);
+      editor = null;
 
-      // Wait for at least one animation frame so the Cytoscape render loop
-      // runs updateEleCalcs → recalculateRenderedStyle → findEdgeControlPoints
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // Block all rAF callbacks so updateEleCalcs never runs as a side-effect.
+      const pendingRafs = [];
+      const origRaf = window.requestAnimationFrame;
+      window.requestAnimationFrame = (cb) => { pendingRafs.push(cb); return pendingRafs.length; };
 
-      const edge = editor.cy.edges().first();
-      const rs = edge._private.rscratch;
-      expect(rs.allpts).not.toBeNull();
-      expect(rs.allpts).toBeDefined();
-      expect(rs.allpts.length).toBeGreaterThan(0);
+      try {
+        container = document.createElement('div');
+        container.style.width = '800px';
+        container.style.height = '600px';
+        document.body.appendChild(container);
+
+        editor = new BoxesEditor(container, { elements: { nodes: [], edges: [] } });
+        editor.importGraph(exported);
+
+        const edge = editor.cy.edges().first();
+
+        // Spy context: tracks bezierCurveTo calls.  Cytoscape's drawEdge uses
+        // bezierCurveTo to trace the edge path; nodes use arc/rect instead.
+        // Zero calls means the edge produces no pixels — it is invisible.
+        let bezierCurveToCalls = 0;
+        const spyCtx = {
+          canvas: { width: 800, height: 600 },
+          strokeStyle: '#000', fillStyle: '#000', globalAlpha: 1,
+          lineWidth: 1, lineCap: 'butt', lineJoin: 'miter', miterLimit: 10,
+          shadowBlur: 0, shadowColor: 'transparent', shadowOffsetX: 0, shadowOffsetY: 0,
+          font: '10px sans-serif', textAlign: 'start', textBaseline: 'alphabetic',
+          globalCompositeOperation: 'source-over',
+          save: () => {}, restore: () => {},
+          scale: () => {}, rotate: () => {}, translate: () => {},
+          transform: () => {}, setTransform: () => {}, resetTransform: () => {},
+          clearRect: () => {}, fillRect: () => {}, strokeRect: () => {},
+          fillText: () => {}, strokeText: () => {},
+          measureText: () => ({ width: 0, actualBoundingBoxAscent: 0, actualBoundingBoxDescent: 0 }),
+          beginPath: () => {}, closePath: () => {},
+          moveTo: () => {}, lineTo: () => {},
+          bezierCurveTo: () => { bezierCurveToCalls++; },
+          quadraticCurveTo: () => {},
+          arc: () => {}, arcTo: () => {}, ellipse: () => {}, rect: () => {},
+          fill: () => {}, stroke: () => {}, clip: () => {},
+          isPointInPath: () => false, isPointInStroke: () => false,
+          createLinearGradient: () => ({ addColorStop: () => {} }),
+          createRadialGradient: () => ({ addColorStop: () => {} }),
+          createPattern: () => null,
+          getImageData: () => ({ data: new Uint8ClampedArray(4), width: 1, height: 1 }),
+          putImageData: () => {},
+          createImageData: () => ({ data: new Uint8ClampedArray(4), width: 1, height: 1 }),
+          drawImage: () => {},
+          setLineDash: () => {}, getLineDash: () => [],
+        };
+
+        // Ask the renderer to draw the edge onto the spy context.
+        // drawEdge() checks rs.allpts internally: if null it returns immediately
+        // (the edge is invisible); if populated it traces the bezier path.
+        const r = editor.cy.renderer();
+        r.drawEdge(spyCtx, edge);
+
+        // If the edge is renderable, drawEdge must have traced at least one
+        // bezier curve segment.  Zero calls means the edge is invisible.
+        expect(bezierCurveToCalls).toBeGreaterThan(0);
+      } finally {
+        window.requestAnimationFrame = origRaf;
+      }
     });
 
     it('should preserve styles on import/export', () => {

@@ -1,0 +1,21 @@
+{
+  "version": "1.0.0",
+  "title": "Test No Positions",
+  "palette": {
+    "nodeTypes": [{ "id": "default", "label": "Node", "data": {}, "color": "#CCCCCC", "borderColor": "#888888", "shape": "rectangle" }],
+    "edgeTypes": [{ "id": "default", "label": "edge", "data": {}, "color": "#666666", "lineStyle": "solid" }]
+  },
+  "userStylesheet": [],
+  "elements": {
+    "nodes": [
+      { "data": { "id": "n1", "label": "Node A" } },
+      { "data": { "id": "n2", "label": "Node B" } },
+      { "data": { "id": "n3", "label": "Node C" } }
+    ],
+    "edges": [
+      { "data": { "id": "e1", "source": "n1", "target": "n2", "label": "connects" } },
+      { "data": { "id": "e2", "source": "n2", "target": "n3", "label": "links" } },
+      { "data": { "id": "e3", "source": "n1", "target": "n3", "label": "relates" } }
+    ]
+  }
+}

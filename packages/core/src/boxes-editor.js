@@ -1814,13 +1814,7 @@ export class BoxesEditor {
       this.context = { ...graphData.context };
       this._renderContextPane();
     }
-    // Force unconditional recalculation of edge control points (useCache: false bypasses
-    // the rstyle.clean guard), ensuring rstyle.srcX/tgtX/midX are populated before the
-    // first render frame fires.  Without this, edges loaded from a file can have NaN
-    // bounding boxes and remain invisible until interacted with.
-    this.cy.elements().boundingBox({ useCache: false });
-    this.cy.fit(undefined, 30);
-    this.cy.style().update();
+    // FIX REMOVED FOR TESTING
   }
 
   /** Return true if loaded nodes have no real position data */
