@@ -1814,7 +1814,10 @@ export class BoxesEditor {
       this.context = { ...graphData.context };
       this._renderContextPane();
     }
-    // FIX REMOVED FOR TESTING
+    // Force synchronous computation of edge geometry (rs.allpts) so that edges
+    // are visible on the very first rendered frame, without waiting for the
+    // next requestAnimationFrame callback to run updateEleCalcs.
+    this.cy.elements().boundingBox({ useCache: false });
   }
 
   /** Return true if loaded nodes have no real position data */
