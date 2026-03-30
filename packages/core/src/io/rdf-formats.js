@@ -433,6 +433,7 @@ export const jsonldImporter = {
   name: 'JSON-LD',
   extensions: ['.jsonld', '.json'],
   mimeTypes:  ['application/ld+json', 'application/json'],
+  defaultTemplateId: 'owl-ontology',
   async import(text, options) {
     return importFromJsonLD(text, options || {});
   },
@@ -457,6 +458,7 @@ export const rdfXmlImporter = {
   name: 'RDF/XML',
   extensions: ['.rdf', '.owl', '.xml'],
   mimeTypes:  ['application/rdf+xml', 'application/owl+xml', 'text/xml'],
+  defaultTemplateId: 'owl-ontology',
   async import(text, options) {
     return importFromRdfXml(text, options || {});
   },
