@@ -273,9 +273,9 @@ describe('BoxesEditor', () => {
       //
       // We then call r.drawEdge(spyCtx, edge) directly on a canvas context spy.
       // If the edge has no geometry (rs.allpts == null) the renderer returns early
-      // — the spy records zero bezierCurveTo calls, which means the edge would be
-      // invisible on screen.  The test asserts that at least one bezierCurveTo
-      // call is made, so it FAILS when the bug is present.
+      // — the spy records zero path drawing calls, which means the edge would be
+      // invisible on screen.  The test asserts that at least one lineTo or
+      // quadraticCurveTo call is made, so it FAILS when the bug is present.
       //
       // With the fix, importGraph calls cy.elements().boundingBox({useCache:false})
       // which synchronously computes rs.allpts before any rAF fires, so drawEdge
@@ -304,10 +304,10 @@ describe('BoxesEditor', () => {
 
         const edge = editor.cy.edges().first();
 
-        // Spy context: tracks bezierCurveTo calls.  Cytoscape's drawEdge uses
-        // bezierCurveTo to trace the edge path; nodes use arc/rect instead.
-        // Zero calls means the edge produces no pixels — it is invisible.
-        let bezierCurveToCalls = 0;
+        // Spy context: tracks edge path drawing calls.  Cytoscape's drawEdge
+        // uses lineTo for straight edges and quadraticCurveTo for bezier edges.
+        // Zero path calls means the edge produces no pixels — it is invisible.
+        let edgePathCalls = 0;
         const spyCtx = {
           canvas: { width: 800, height: 600 },
           strokeStyle: '#000', fillStyle: '#000', globalAlpha: 1,
@@ -322,9 +322,9 @@ describe('BoxesEditor', () => {
           fillText: () => {}, strokeText: () => {},
           measureText: () => ({ width: 0, actualBoundingBoxAscent: 0, actualBoundingBoxDescent: 0 }),
           beginPath: () => {}, closePath: () => {},
-          moveTo: () => {}, lineTo: () => {},
-          bezierCurveTo: () => { bezierCurveToCalls++; },
-          quadraticCurveTo: () => {},
+          moveTo: () => {}, lineTo: () => { edgePathCalls++; },
+          bezierCurveTo: () => { edgePathCalls++; },
+          quadraticCurveTo: () => { edgePathCalls++; },
           arc: () => {}, arcTo: () => {}, ellipse: () => {}, rect: () => {},
           fill: () => {}, stroke: () => {}, clip: () => {},
           isPointInPath: () => false, isPointInStroke: () => false,
@@ -340,13 +340,14 @@ describe('BoxesEditor', () => {
 
         // Ask the renderer to draw the edge onto the spy context.
         // drawEdge() checks rs.allpts internally: if null it returns immediately
-        // (the edge is invisible); if populated it traces the bezier path.
+        // (the edge is invisible); if populated it traces the edge path.
         const r = editor.cy.renderer();
         r.drawEdge(spyCtx, edge);
 
-        // If the edge is renderable, drawEdge must have traced at least one
-        // bezier curve segment.  Zero calls means the edge is invisible.
-        expect(bezierCurveToCalls).toBeGreaterThan(0);
+        // If the edge is renderable, drawEdge must have made at least one path
+        // drawing call (lineTo for straight edges, quadraticCurveTo for bezier).
+        // Zero calls means the edge is invisible.
+        expect(edgePathCalls).toBeGreaterThan(0);
       } finally {
         window.requestAnimationFrame = origRaf;
       }
