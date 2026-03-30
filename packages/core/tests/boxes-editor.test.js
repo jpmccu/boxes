@@ -277,9 +277,10 @@ describe('BoxesEditor', () => {
       // invisible on screen.  The test asserts that at least one lineTo or
       // quadraticCurveTo call is made, so it FAILS when the bug is present.
       //
-      // With the fix, importGraph calls cy.elements().boundingBox({useCache:false})
-      // which synchronously computes rs.allpts before any rAF fires, so drawEdge
-      // produces drawing operations and the test passes.
+      // With the fix, importGraph calls cy.renderer().flushRenderedStyleQueue()
+      // which runs updateEleCalcs(true) → recalculateRenderedStyle() for only
+      // the dirty elements, synchronously populating rs.allpts before any rAF
+      // fires, so drawEdge produces drawing operations and the test passes.
 
       editor.addNode({ id: 'n1', label: 'Node 1' }, { x: 100, y: 100 });
       editor.addNode({ id: 'n2', label: 'Node 2' }, { x: 300, y: 200 });

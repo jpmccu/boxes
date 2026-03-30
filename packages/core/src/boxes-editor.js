@@ -1814,10 +1814,20 @@ export class BoxesEditor {
       this.context = { ...graphData.context };
       this._renderContextPane();
     }
-    // Force synchronous computation of edge geometry (rs.allpts) so that edges
-    // are visible on the very first rendered frame, without waiting for the
-    // next requestAnimationFrame callback to run updateEleCalcs.
-    this.cy.elements().boundingBox({ useCache: false });
+    // Flush the rendered-style queue so that edge geometry (rs.allpts) is
+    // computed synchronously before any rAF fires.  Without this, drawEdge()
+    // returns immediately when rs.allpts is null, leaving edges invisible on
+    // the very first rendered frame after a file load.
+    //
+    // flushRenderedStyleQueue() calls updateEleCalcs(true) which runs
+    // recalculateRenderedStyle() for only the elements that are currently
+    // dirty (those that were just added via cy.add()).  This is safe for
+    // plugins like cytoscape-edgehandles because it does NOT touch elements
+    // that are not in the dirty queue, whereas calling
+    // cy.elements().boundingBox({ useCache: false }) would call
+    // recalculateRenderedStyle() on every element including the edge-handles
+    // ghost nodes, corrupting their rscratch state.
+    this.cy.renderer().flushRenderedStyleQueue();
   }
 
   /** Return true if loaded nodes have no real position data */
