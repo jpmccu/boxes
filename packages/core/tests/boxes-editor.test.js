@@ -252,32 +252,95 @@ describe('BoxesEditor', () => {
       expect(elements.edges[0].data.label).toBe('connects');
     });
 
-    it('edges should have rs.allpts set after importGraph (rendering regression)', async () => {
-      // Verify that after a file-load (importGraph on a fresh editor), Cytoscape's
-      // render pipeline correctly computes rs.allpts for edges so they are visible.
-      // rs.allpts == null means the edge draw call is silently skipped.
-      editor.addNode({ id: 'n1', label: 'Node 1' });
-      editor.addNode({ id: 'n2', label: 'Node 2' });
+    it('importGraph synchronously applies styles and computes edge geometry (regression: edges invisible on file load)', () => {
+      // Regression test: loading a .boxes file left edges invisible until the
+      // user selected an edge or added a node.
+      //
+      // Root cause
+      // ----------
+      // After importGraph() the render loop fires its first rAF callback:
+      //
+      //   beforeRenderCallbacks  →  updateEleCalcs(true)
+      //     1. elesToUpdate.cleanStyle()            ← applies current stylesheet
+      //     2. recalculateRenderedStyle(elesToUpdate) ← computes edge geometry
+      //   r.render() → drawLayeredElements() → drawCachedElement()
+      //
+      // drawCachedElement() uses ele.boundingBox() to decide whether to draw.
+      // The bounding box for an edge is derived from rstyle.srcX/midX/tgtX
+      // (the computed endpoint positions set by recalculateRenderedStyle).  If
+      // those positions are undefined, bodyBounds.w is NaN, the texture-cache
+      // path returns null, and the fallback drawEdge() is reached.  drawEdge()
+      // then bails out immediately because rs.allpts is null, producing zero
+      // canvas operations — the edge is invisible.
+      //
+      // The fix: importGraph calls cy.renderer().flushRenderedStyleQueue() which
+      // runs updateEleCalcs(true) synchronously — applying the stylesheet AND
+      // computing geometry — before any rAF fires.  Both rs.allpts (checked by
+      // drawEdge) and rstyle.srcX/tgtX (used for the bounding box) are populated
+      // immediately, so the edge is visible on the very first rendered frame.
+      //
+      // How the test works
+      // ------------------
+      // We block rAF so updateEleCalcs never runs as a side-effect.  Then we
+      // inspect the internal renderer state directly:
+      //
+      //   rs.allpts      — the computed path-point array used by drawEdge()
+      //   rstyle.srcX/Y  — the source-endpoint coords used by boundingBox()
+      //   rstyle.tgtX/Y  — the target-endpoint coords used by boundingBox()
+      //
+      // Without the fix all of these are null/undefined because
+      // recalculateRenderedStyle has never been called.  With the fix they are
+      // finite numbers, so drawCachedElement's bounding-box check succeeds and
+      // drawEdge's rs.allpts check succeeds — the edge is drawn.
+
+      editor.addNode({ id: 'n1', label: 'Node 1' }, { x: 100, y: 100 });
+      editor.addNode({ id: 'n2', label: 'Node 2' }, { x: 300, y: 200 });
       editor.addEdge('n1', 'n2', { label: 'connects' });
       const exported = editor.exportGraph();
-
       editor.destroy();
-      container = document.createElement('div');
-      container.style.width = '800px';
-      container.style.height = '600px';
-      document.body.appendChild(container);
-      editor = new BoxesEditor(container);
-      editor.importGraph(exported);
+      editor = null;
 
-      // Wait for at least one animation frame so the Cytoscape render loop
-      // runs updateEleCalcs → recalculateRenderedStyle → findEdgeControlPoints
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // Block all rAF callbacks so updateEleCalcs never runs as a side-effect.
+      const pendingRafs = [];
+      const origRaf = window.requestAnimationFrame;
+      window.requestAnimationFrame = (cb) => { pendingRafs.push(cb); return pendingRafs.length; };
 
-      const edge = editor.cy.edges().first();
-      const rs = edge._private.rscratch;
-      expect(rs.allpts).not.toBeNull();
-      expect(rs.allpts).toBeDefined();
-      expect(rs.allpts.length).toBeGreaterThan(0);
+      try {
+        container = document.createElement('div');
+        container.style.width = '800px';
+        container.style.height = '600px';
+        document.body.appendChild(container);
+
+        editor = new BoxesEditor(container, { elements: { nodes: [], edges: [] } });
+        editor.importGraph(exported);
+
+        const edge = editor.cy.edges().first();
+        const rs = edge[0]._private.rscratch;      // geometry scratch space
+        const rstyle = edge[0]._private.rstyle;    // rendered-style positions
+
+        // --- geometry (rs.allpts) ---
+        // drawEdge() bails immediately when rs.allpts is null, leaving the edge
+        // invisible.  recalculateRenderedStyle() sets rs.allpts via projectLines().
+        expect(rs.allpts).not.toBeNull();
+
+        // --- bounding-box positions (rstyle.srcX/Y, rstyle.tgtX/Y) ---
+        // drawCachedElement() derives the edge bounding box from these values
+        // (set by recalculateRenderedStyle → updates rstyle from rscratch).
+        // If they are undefined, bodyBounds.w is NaN → getElement() returns null
+        // → drawEdge falls back → rs.allpts check fails → edge invisible.
+        // Finite numbers here confirm styles were applied and geometry was computed.
+        expect(isFinite(rstyle.srcX)).toBe(true);
+        expect(isFinite(rstyle.srcY)).toBe(true);
+        expect(isFinite(rstyle.tgtX)).toBe(true);
+        expect(isFinite(rstyle.tgtY)).toBe(true);
+
+        // --- style application ---
+        // visible() evaluates pstyle() values (opacity, visibility, display,
+        // width).  A false result here means the stylesheet was not applied.
+        expect(edge.visible()).toBe(true);
+      } finally {
+        window.requestAnimationFrame = origRaf;
+      }
     });
 
     it('should preserve styles on import/export', () => {

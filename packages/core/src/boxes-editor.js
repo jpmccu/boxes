@@ -1814,13 +1814,20 @@ export class BoxesEditor {
       this.context = { ...graphData.context };
       this._renderContextPane();
     }
-    // Force unconditional recalculation of edge control points (useCache: false bypasses
-    // the rstyle.clean guard), ensuring rstyle.srcX/tgtX/midX are populated before the
-    // first render frame fires.  Without this, edges loaded from a file can have NaN
-    // bounding boxes and remain invisible until interacted with.
-    this.cy.elements().boundingBox({ useCache: false });
-    this.cy.fit(undefined, 30);
-    this.cy.style().update();
+    // Flush the rendered-style queue so that edge geometry (rs.allpts) is
+    // computed synchronously before any rAF fires.  Without this, drawEdge()
+    // returns immediately when rs.allpts is null, leaving edges invisible on
+    // the very first rendered frame after a file load.
+    //
+    // flushRenderedStyleQueue() calls updateEleCalcs(true) which runs
+    // recalculateRenderedStyle() for only the elements that are currently
+    // dirty (those that were just added via cy.add()).  This is safe for
+    // plugins like cytoscape-edgehandles because it does NOT touch elements
+    // that are not in the dirty queue, whereas calling
+    // cy.elements().boundingBox({ useCache: false }) would call
+    // recalculateRenderedStyle() on every element including the edge-handles
+    // ghost nodes, corrupting their rscratch state.
+    this.cy.renderer().flushRenderedStyleQueue();
   }
 
   /** Return true if loaded nodes have no real position data */
