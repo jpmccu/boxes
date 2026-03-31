@@ -4,6 +4,7 @@ import cytoscapeDagre from 'cytoscape-dagre';
 import cytoscapeCola from 'cytoscape-cola';
 import cytoscapeKlay from 'cytoscape-klay';
 import cytoscapeEuler from 'cytoscape-euler';
+import { createJSONEditor } from 'vanilla-jsoneditor';
 
 // Register Cytoscape extensions once at module load (idempotent)
 cytoscape.use(cytoscapeEdgehandles);
@@ -218,6 +219,84 @@ const LAYOUT_DEFINITIONS = {
 };
 
 /**
+ * Known Cytoscape CSS property definitions for the style editor.
+ * Used to render appropriate input widgets (color picker, number stepper, dropdown).
+ */
+const ARROW_SHAPES = [
+  'triangle','triangle-tee','circle-triangle','triangle-cross','triangle-backcurve',
+  'vee','tee','square','circle','diamond',
+  'er-many','er-one','er-mandatory','er-many-pending','er-one-pending','none'
+];
+/** Fallback color value used when a stored color cannot be parsed as a 6-digit hex. */
+const DEFAULT_COLOR_PICKER_VALUE = '#000000';
+/** Matches a valid 6-digit CSS hex color (e.g. #ff0000). */
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+const STYLE_PROP_DEFS = {
+  // Colors
+  'background-color':       { type: 'color' },
+  'border-color':           { type: 'color' },
+  'color':                  { type: 'color' },
+  'line-color':             { type: 'color' },
+  'source-arrow-color':     { type: 'color' },
+  'target-arrow-color':     { type: 'color' },
+  'mid-source-arrow-color': { type: 'color' },
+  'mid-target-arrow-color': { type: 'color' },
+  'shadow-color':           { type: 'color' },
+  'text-outline-color':     { type: 'color' },
+  'text-shadow-color':      { type: 'color' },
+  'text-background-color':  { type: 'color' },
+  'underline-color':        { type: 'color' },
+  'overlay-color':          { type: 'color' },
+  'selection-box-color':    { type: 'color' },
+  // Numbers (steppers)
+  'width':                        { type: 'number', min: 0, step: 1 },
+  'height':                       { type: 'number', min: 0, step: 1 },
+  'padding':                      { type: 'number', min: 0, step: 1 },
+  'border-width':                 { type: 'number', min: 0, step: 1 },
+  'font-size':                    { type: 'number', min: 1, step: 1 },
+  'line-height':                  { type: 'number', min: 0, max: 10, step: 0.1 },
+  'opacity':                      { type: 'number', min: 0, max: 1, step: 0.05 },
+  'background-opacity':           { type: 'number', min: 0, max: 1, step: 0.05 },
+  'border-opacity':               { type: 'number', min: 0, max: 1, step: 0.05 },
+  'text-opacity':                 { type: 'number', min: 0, max: 1, step: 0.05 },
+  'background-blacken':           { type: 'number', min: -1, max: 1, step: 0.05 },
+  'arrow-scale':                  { type: 'number', min: 0, step: 0.1 },
+  'z-index':                      { type: 'number', min: 0, step: 1 },
+  'source-distance-from-node':    { type: 'number', min: 0, step: 1 },
+  'target-distance-from-node':    { type: 'number', min: 0, step: 1 },
+  'text-margin-x':                { type: 'number', step: 1 },
+  'text-margin-y':                { type: 'number', step: 1 },
+  'min-zoomed-font-size':         { type: 'number', min: 0, step: 1 },
+  'text-outline-width':           { type: 'number', min: 0, step: 1 },
+  'text-border-width':            { type: 'number', min: 0, step: 1 },
+  // Enums (dropdowns)
+  'shape': { type: 'enum', options: [
+    'ellipse','triangle','round-triangle','rectangle','round-rectangle',
+    'bottom-round-rectangle','cut-rectangle','barrel','rhomboid','right-rhomboid',
+    'diamond','round-diamond','pentagon','round-pentagon','hexagon','round-hexagon',
+    'concave-hexagon','heptagon','round-heptagon','octagon','round-octagon',
+    'star','tag','round-tag','vee'
+  ]},
+  'line-style':             { type: 'enum', options: ['solid','dotted','dashed'] },
+  'curve-style':            { type: 'enum', options: ['bezier','unbundled-bezier','haystack','segments','straight','straight-triangle','taxi'] },
+  'text-valign':            { type: 'enum', options: ['top','center','bottom'] },
+  'text-halign':            { type: 'enum', options: ['left','center','right'] },
+  'target-arrow-shape':     { type: 'enum', options: ARROW_SHAPES },
+  'source-arrow-shape':     { type: 'enum', options: ARROW_SHAPES },
+  'mid-target-arrow-shape': { type: 'enum', options: ARROW_SHAPES },
+  'mid-source-arrow-shape': { type: 'enum', options: ARROW_SHAPES },
+  'font-style':             { type: 'enum', options: ['normal','italic','oblique'] },
+  'font-weight':            { type: 'enum', options: ['normal','bold'] },
+  'text-transform':         { type: 'enum', options: ['none','uppercase','lowercase'] },
+  'text-wrap':              { type: 'enum', options: ['none','wrap','ellipsis'] },
+  'text-justification':     { type: 'enum', options: ['left','center','right','auto'] },
+  'text-background-shape':  { type: 'enum', options: ['rectangle','roundrectangle'] },
+  'visibility':             { type: 'enum', options: ['visible','hidden'] },
+  'display':                { type: 'enum', options: ['element','none'] },
+  'events':                 { type: 'enum', options: ['yes','no'] },
+};
+
+/**
  * BoxesEditor - A Cytoscape.js-based Labeled Property Graph editor
  */
 export class BoxesEditor {
@@ -344,6 +423,10 @@ export class BoxesEditor {
 .bxe-style-rule-props { padding:5px 6px; }
 .bxe-style-prop-row { display:flex; gap:4px; margin-bottom:3px; align-items:center; }
 .bxe-style-prop-row input { flex:1; border:1px solid #e0e0e0; border-radius:3px; padding:2px 4px; font-size:12px; }
+.bxe-style-prop-row select { flex:1; border:1px solid #e0e0e0; border-radius:3px; padding:2px 4px; font-size:12px; background:#fff; }
+.bxe-style-prop-row input[type=color] { flex:none; width:28px; height:22px; padding:1px; cursor:pointer; }
+.bxe-style-color-wrap { display:flex; gap:3px; flex:1; min-width:0; }
+.bxe-style-color-wrap input[type=text] { flex:1; min-width:0; }
 .bxe-btn-link { background:none; border:none; color:#0d6efd; cursor:pointer; font-size:12px; padding:2px 0; }
 .bxe-btn-link:hover { text-decoration:underline; }
 .bxe-empty { color:#999; font-size:12px; text-align:center; padding:12px 0; }
@@ -354,15 +437,7 @@ export class BoxesEditor {
 .bxe-ctx-item.danger { color:#dc3545; }
 .bxe-ctx-item.danger:hover { background:#fff0f0; }
 .bxe-ctx-sep { height:1px; background:#dee2e6; }
-.bxe-ctx-row { display:flex; align-items:flex-start; gap:3px; padding:3px 0; border-bottom:1px solid #f0f0f0; }
-.bxe-ctx-key { width:80px; flex-shrink:0; font-family:monospace; }
-.bxe-ctx-val { flex:1; min-width:0; font-family:monospace; font-size:12px; }
-.bxe-ctx-colon { color:#999; font-size:12px; flex-shrink:0; padding-top:3px; }
-.bxe-ctx-obj-val { resize:vertical; min-height:44px; line-height:1.4; white-space:pre; overflow-x:auto; }
-.bxe-ctx-obj-val.bxe-ctx-invalid { border:1px solid #e74c3c !important; background:#fff5f5 !important; }
-.bxe-ctx-type-badge { font-size:12px; color:#888; font-family:monospace; letter-spacing:0; flex-shrink:0; padding-top:4px; }
-.bxe-ctx-addbtns { display:flex; gap:4px; flex-wrap:wrap; padding-top:4px; }
-.bxe-ctx-addbtns .bxe-btn-add { flex:1; }
+.bxe-ctx-editor { min-height:300px; margin:-4px; }
 .bxe-label-editor { position:absolute; z-index:20; background:rgba(255,255,255,.95); border:2px solid #4d90fe; border-radius:4px; padding:2px 6px; font-size:13px; font-family:inherit; outline:none; box-sizing:border-box; text-align:center; box-shadow:0 2px 8px rgba(0,0,0,.2); line-height:1.4; }
 `;
     document.head.appendChild(style);
@@ -517,6 +592,7 @@ export class BoxesEditor {
     this._stylesheetRulesEl = document.createElement('div');
     stylePane.appendChild(this._stylesheetRulesEl);
     stylePane.addEventListener('change', (e) => this._handleStylesheetEvent(e));
+    stylePane.addEventListener('input', (e) => this._handleStylesheetEvent(e));
     stylePane.addEventListener('click', (e) => this._handleStylesheetEvent(e));
     stylePane.addEventListener('focusout', (e) => this._handleStylesheetEvent(e));
     this._panes['stylesheet'] = stylePane;
@@ -541,11 +617,9 @@ export class BoxesEditor {
     ctxTitle.className = 'bxe-pane-title';
     ctxTitle.textContent = 'JSON-LD Context';
     contextPane.appendChild(ctxTitle);
-    this._contextEntriesEl = document.createElement('div');
-    contextPane.appendChild(this._contextEntriesEl);
-    contextPane.addEventListener('change', (e) => this._handleContextEvent(e));
-    contextPane.addEventListener('click', (e) => this._handleContextEvent(e));
-    contextPane.addEventListener('focusout', (e) => this._handleContextEvent(e));
+    this._contextEditorEl = document.createElement('div');
+    this._contextEditorEl.className = 'bxe-ctx-editor';
+    contextPane.appendChild(this._contextEditorEl);
     this._panes['context'] = contextPane;
 
     [palettePane, propsPane, stylePane, layoutPane, contextPane].forEach(p => tabBody.appendChild(p));
@@ -1136,6 +1210,31 @@ export class BoxesEditor {
     }
   }
 
+  _styleValueWidget(prop, val, ri, propName) {
+    const def = STYLE_PROP_DEFS[propName];
+    const escProp = this._esc(propName);
+    if (def?.type === 'color') {
+      const hex = HEX_COLOR_RE.test(val) ? val : DEFAULT_COLOR_PICKER_VALUE;
+      return `<div class="bxe-style-color-wrap">` +
+        `<input type="color" value="${hex}" data-field="value-picker" data-rule="${ri}" data-prop="${escProp}">` +
+        `<input type="text" value="${this._esc(String(val))}" placeholder="color" data-field="value" data-rule="${ri}" data-prop="${escProp}">` +
+        `</div>`;
+    }
+    if (def?.type === 'enum') {
+      const opts = def.options.map(o => `<option value="${o}" ${o === val ? 'selected' : ''}>${o}</option>`).join('');
+      return `<select data-field="value" data-rule="${ri}" data-prop="${escProp}">${opts}</select>`;
+    }
+    if (def?.type === 'number') {
+      const attrs = [
+        def.min !== undefined ? `min="${def.min}"` : '',
+        def.max !== undefined ? `max="${def.max}"` : '',
+        def.step !== undefined ? `step="${def.step}"` : '',
+      ].filter(Boolean).join(' ');
+      return `<input type="number" value="${this._esc(String(val))}" data-field="value" data-rule="${ri}" data-prop="${escProp}" ${attrs}>`;
+    }
+    return `<input type="text" value="${this._esc(String(val))}" placeholder="value" data-field="value" data-rule="${ri}" data-prop="${escProp}">`;
+  }
+
   _refreshStylesheet() {
     if (!this._stylesheetRulesEl) return;
     const rules = this.userStylesheet;
@@ -1145,7 +1244,7 @@ export class BoxesEditor {
       const propsHtml = props.map(([prop, val]) => `
       <div class="bxe-style-prop-row">
         <input type="text" value="${this._esc(prop)}" placeholder="property" data-field="key" data-rule="${i}" data-prop="${this._esc(prop)}">
-        <input type="text" value="${this._esc(String(val))}" placeholder="value" data-field="value" data-rule="${i}" data-prop="${this._esc(prop)}">
+        ${this._styleValueWidget(prop, val, i, prop)}
         <button class="bxe-btn-del" data-action="del-prop" data-rule="${i}" data-prop="${this._esc(prop)}" title="Remove">×</button>
       </div>`).join('');
       return `
@@ -1180,8 +1279,38 @@ export class BoxesEditor {
     const el = e.target;
     if (!el) return;
 
+    // ── Color picker real-time preview during drag ────────────────────────────
+    if (e.type === 'input' && el.dataset.field === 'value-picker' && el.dataset.prop) {
+      const ri = parseInt(el.dataset.rule);
+      const prop = el.dataset.prop;
+      const rule = this.userStylesheet[ri];
+      if (!rule || !this.cy) return;
+      // Keep sibling text input in sync
+      const wrap = el.closest('.bxe-style-color-wrap');
+      const textInput = wrap?.querySelector('[data-field="value"]');
+      if (textInput) textInput.value = el.value;
+      // Preview the new color in Cytoscape without touching userStylesheet or undo
+      const originalVal = rule.style[prop];
+      rule.style[prop] = el.value;
+      this.cy.style().fromJson(this._buildStylesheet()).update();
+      rule.style[prop] = originalVal;
+      return;
+    }
+
     // ── Existing rule / prop changes ────────────────────────────────────────
     if (e.type === 'change') {
+      // Color picker committed value
+      if (el.dataset.field === 'value-picker' && el.dataset.prop) {
+        const ri = parseInt(el.dataset.rule);
+        const prop = el.dataset.prop;
+        const rule = this.userStylesheet[ri];
+        if (!rule) return;
+        const wrap = el.closest('.bxe-style-color-wrap');
+        const textInput = wrap?.querySelector('[data-field="value"]');
+        if (textInput) textInput.value = el.value;
+        this.updateStyleRule(ri, rule.selector, { ...rule.style, [prop]: el.value });
+        return;
+      }
       if (el.dataset.field === 'selector' && el.dataset.rule !== 'new') {
         const ri = parseInt(el.dataset.rule);
         const rule = this.userStylesheet[ri];
@@ -1209,6 +1338,10 @@ export class BoxesEditor {
         const prop = el.dataset.prop;
         const rule = this.userStylesheet[ri];
         if (!rule) return;
+        // Sync color picker if present and value is valid hex
+        const wrap = el.closest('.bxe-style-color-wrap');
+        const picker = wrap?.querySelector('[data-field="value-picker"]');
+        if (picker && HEX_COLOR_RE.test(el.value)) picker.value = el.value;
         this.updateStyleRule(ri, rule.selector, { ...rule.style, [prop]: el.value });
         return;
       }
@@ -2180,6 +2313,10 @@ export class BoxesEditor {
   destroy() {
     this._destroyEdgeHandle();
     this._destroyLayoutPanel();
+    if (this._contextEditor) {
+      this._contextEditor.destroy();
+      this._contextEditor = null;
+    }
     if (this.cy) {
       this.cy.destroy();
       this.cy = null;
@@ -2853,92 +2990,48 @@ export class BoxesEditor {
 
   // ─── Context Pane ─────────────────────────────────────────────────────────
 
-  _renderContextPane() {
-    const el = this._contextEntriesEl;
-    if (!el) return;
-    const entries = Object.entries(this.context);
-
-    const rowsHtml = entries.map(([key, val]) => {
-      const isObj = typeof val === 'object' && val !== null;
-      const keyEsc = this._esc(key);
-      const valEl = isObj
-        ? `<textarea class="bxe-ctx-val bxe-cell-input bxe-ctx-obj-val" rows="2" data-role="val" data-type="object">${this._esc(JSON.stringify(val, null, 2))}</textarea>`
-        : `<input class="bxe-ctx-val bxe-cell-input" type="text" value="${this._esc(String(val))}" placeholder="namespace URI" data-role="val" data-type="string" />`;
-      return `
-        <div class="bxe-ctx-row" data-key="${keyEsc}">
-          <input class="bxe-ctx-key bxe-cell-input" type="text" value="${keyEsc}" placeholder="key" data-role="key" />
-          <span class="bxe-ctx-colon">:</span>
-          ${valEl}
-          <button class="bxe-btn-del" data-role="del" title="Remove">×</button>
-        </div>`;
-    }).join('');
-
-    // Always show a blank row at the bottom for adding new entries.
-    const blankRow = `
-      <div class="bxe-ctx-row bxe-ctx-row-blank" data-key="">
-        <input class="bxe-ctx-key bxe-cell-input" type="text" value="" placeholder="key" data-role="key" />
-        <span class="bxe-ctx-colon">:</span>
-        <input class="bxe-ctx-val bxe-cell-input" type="text" value="" placeholder="value or { JSON object }" data-role="val" data-type="auto" />
-      </div>`;
-
-    el.innerHTML = rowsHtml + blankRow;
+  _initContextEditor() {
+    if (!this._contextEditorEl || this._contextEditor) return;
+    try {
+      this._contextEditor = createJSONEditor({
+        target: this._contextEditorEl,
+        props: {
+          content: { json: { ...this.context } },
+          mode: 'tree',
+          mainMenuBar: false,
+          navigationBar: false,
+          onChange: (updatedContent, previousContent, { contentErrors }) => {
+            if (contentErrors?.parseError) {
+              console.warn('[Boxes] Context editor JSON parse error:', contentErrors.parseError);
+              return;
+            }
+            let ctx;
+            if ('json' in updatedContent && updatedContent.json !== undefined) {
+              ctx = updatedContent.json;
+            } else if (updatedContent.text !== undefined) {
+              try { ctx = JSON.parse(updatedContent.text); } catch (e) {
+                console.warn('[Boxes] Context editor JSON parse error:', e);
+                return;
+              }
+            }
+            if (!ctx || typeof ctx !== 'object' || Array.isArray(ctx)) return;
+            this.context = { ...ctx };
+            this._emit('contextChanged', { context: { ...this.context } });
+          }
+        }
+      });
+    } catch (err) {
+      console.warn('[Boxes] Failed to initialize JSON context editor:', err);
+    }
   }
 
-  _handleContextEvent(e) {
-    const row = e.target.closest('.bxe-ctx-row');
-    if (!row) return;
-    const oldKey = row.dataset.key;
-    const role = e.target.dataset.role;
-    const valType = e.target.dataset.type;
-
-    // ── Blank row commit (focusout when focus leaves the row entirely) ───────
-    if (e.type === 'focusout' && oldKey === '') {
-      if (e.relatedTarget && row.contains(e.relatedTarget)) return;
-      const keyInput = row.querySelector('[data-role="key"]');
-      const valInput = row.querySelector('[data-role="val"]');
-      const newKey = keyInput?.value.trim();
-      if (!newKey) return;
-      const rawVal = valInput?.value || '';
-      let val = rawVal;
-      if (rawVal.trim().startsWith('{')) {
-        try { val = JSON.parse(rawVal); } catch { /* keep as string */ }
-      }
-      this.context[newKey] = val;
-      this._renderContextPane();
-      this._emit('contextChanged', { context: { ...this.context } });
+  _renderContextPane() {
+    if (!this._contextEditorEl) return;
+    if (!this._contextEditor) {
+      this._initContextEditor();
       return;
     }
-
-    if (role === 'del') {
-      delete this.context[oldKey];
-      this._renderContextPane();
-      this._emit('contextChanged', { context: { ...this.context } });
-
-    } else if (role === 'key' && e.type === 'change') {
-      const newKey = e.target.value.trim();
-      if (!newKey || newKey === oldKey || !oldKey) { e.target.value = oldKey; return; }
-      const rebuilt = {};
-      for (const [k, v] of Object.entries(this.context)) rebuilt[k === oldKey ? newKey : k] = v;
-      this.context = rebuilt;
-      row.dataset.key = newKey;
-      this._emit('contextChanged', { context: { ...this.context } });
-
-    } else if (role === 'val' && e.type === 'change' && oldKey) {
-      if (valType === 'object') {
-        try {
-          const parsed = JSON.parse(e.target.value);
-          if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('Must be a JSON object');
-          e.target.classList.remove('bxe-ctx-invalid');
-          this.context[oldKey] = parsed;
-          this._emit('contextChanged', { context: { ...this.context } });
-        } catch {
-          e.target.classList.add('bxe-ctx-invalid');
-        }
-      } else {
-        this.context[oldKey] = e.target.value;
-        this._emit('contextChanged', { context: { ...this.context } });
-      }
-    }
+    this._contextEditor.set({ json: { ...this.context } });
   }
 
   // ─── Layout Panel ─────────────────────────────────────────────────────────
