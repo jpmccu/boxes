@@ -9,3 +9,6 @@ export {
 export {
   importFromArrows, exportToArrows, arrowsImporter, arrowsExporter,
 } from './io/arrows.js';
+export {
+  exportToLucid, lucidExporter,
+} from './io/lucid.js';
