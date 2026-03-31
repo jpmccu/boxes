@@ -20,7 +20,7 @@
     "web:dev": "npm run dev --workspace=packages/web",
     "web:start": "npm run start --workspace=packages/web",
     "docs:dev": "npm run dev --workspace=packages/docs",
-    "docs:build": "npm run build --workspace=packages/docs"
+    "docs:build": "npm run build --workspace=packages/web && npm run build --workspace=packages/docs"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",

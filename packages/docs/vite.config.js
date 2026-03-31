@@ -1,21 +1,33 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import { cpSync, existsSync, mkdirSync } from 'fs';
+import { execSync } from 'child_process';
 
 /**
- * After the docs build completes, copy the pre-built web app into dist/demo/
- * so that all ./demo/ links in index.html resolve correctly.
- *
- * The web package must be built first (packages/web/dist/ must exist).
+ * After the docs build completes, rebuild the web package (so its demo picks
+ * up any core changes) and copy its output into dist/demo/ so that all
+ * ./demo/ links in index.html resolve correctly.
  */
 function copyWebDemo() {
   return {
     name: 'copy-web-demo',
     closeBundle() {
-      const src = resolve(__dirname, '../web/dist');
+      const webDir = resolve(__dirname, '../web');
+      const src = resolve(webDir, 'dist');
       const dst = resolve(__dirname, 'dist/demo');
+
+      // Always rebuild the web package so the demo reflects the latest core
+      // changes — the core dist is already up-to-date at this point because
+      // the docs build (which runs first) resolves boxes-core from it.
+      console.info('[copy-web-demo] Building packages/web...');
+      try {
+        execSync('npm run build', { cwd: webDir, stdio: 'inherit' });
+      } catch (e) {
+        console.warn('[copy-web-demo] packages/web build failed — demo may be stale:', e.message);
+      }
+
       if (!existsSync(src)) {
-        console.warn('[copy-web-demo] packages/web/dist not found — skipping demo copy. Run `npm run build` in packages/web first.');
+        console.warn('[copy-web-demo] packages/web/dist not found — skipping demo copy.');
         return;
       }
       mkdirSync(dst, { recursive: true });
