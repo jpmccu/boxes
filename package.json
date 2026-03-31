@@ -16,7 +16,6 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "electron:dev": "npm run dev --workspace=packages/electron",
     "web:dev": "npm run dev --workspace=packages/web",
     "web:start": "npm run start --workspace=packages/web",
     "docs:dev": "npm run dev --workspace=packages/docs",
