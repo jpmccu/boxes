@@ -13,6 +13,50 @@ function suppressKnownEvalWarnings(warning, warn) {
   warn(warning);
 }
 
+/**
+ * cytoscape-pdf-export is distributed as a webpack bundle built with webpack's
+ * eval devtool. When Rollup's CommonJS plugin converts it to ESM it renames
+ * `exports` parameters to `exports$N`. The core build patches those renames by
+ * injecting `var exports = exports$N;`. However, the web build then minifies
+ * the pre-built core chunks and the minifier removes those `var` declarations
+ * as dead code (because `exports` is only referenced inside eval() strings,
+ * which are opaque to static analysis).
+ *
+ * This plugin runs with enforce:'post' so it executes after Vite's built-in
+ * minification and re-injects the aliases that the minifier stripped.
+ */
+function fixWebpackEvalExports() {
+  return {
+    name: 'fix-webpack-eval-exports',
+    enforce: 'post',
+    renderChunk(code, chunk) {
+      if (!chunk.fileName.includes('cytoscape-pdf-export')) return null;
+
+      let fixed = code;
+      // Arrow functions:  (..., exports$N, ...) => {
+      fixed = fixed.replace(
+        /\(([^)\n]*\bexports\$\d+\b[^)\n]*)\)\s*=>\s*\{/g,
+        (match, params) => {
+          const renamed = (params.match(/\bexports\$\d+\b/) ?? [])[0];
+          if (!renamed) return match;
+          return `(${params}) => {\nvar exports = ${renamed};`;
+        }
+      );
+      // Regular anonymous functions:  function(..., exports$N, ...) {
+      fixed = fixed.replace(
+        /\bfunction\s*\(([^)\n]*\bexports\$\d+\b[^)\n]*)\)\s*\{/g,
+        (match, params) => {
+          const renamed = (params.match(/\bexports\$\d+\b/) ?? [])[0];
+          if (!renamed) return match;
+          return `function(${params}) {\nvar exports = ${renamed};`;
+        }
+      );
+
+      return fixed !== code ? { code: fixed, map: null } : null;
+    }
+  };
+}
+
 /** Copy public/demos/*.boxes → dist/demos/ so demo.html can fetch them. */
 function copyDemoFiles() {
   return {
@@ -50,7 +94,7 @@ export default defineConfig({
       onwarn: suppressKnownEvalWarnings,
     }
   },
-  plugins: [copyDemoFiles()],
+  plugins: [fixWebpackEvalExports(), copyDemoFiles()],
   server: {
     port: 3000
   }

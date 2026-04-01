@@ -49,7 +49,8 @@ function fixWebpackEvalExports() {
       fixed = fixed.replace(
         /\(([^)\n]*\bexports\$\d+\b[^)\n]*)\)\s*=>\s*\{/g,
         (match, params) => {
-          const renamed = params.match(/\bexports\$\d+\b/)[0];
+          const renamed = (params.match(/\bexports\$\d+\b/) ?? [])[0];
+          if (!renamed) return match;
           return `(${params}) => {\nvar exports = ${renamed};`;
         }
       );
@@ -57,7 +58,8 @@ function fixWebpackEvalExports() {
       fixed = fixed.replace(
         /\bfunction\s*\(([^)\n]*\bexports\$\d+\b[^)\n]*)\)\s*\{/g,
         (match, params) => {
-          const renamed = params.match(/\bexports\$\d+\b/)[0];
+          const renamed = (params.match(/\bexports\$\d+\b/) ?? [])[0];
+          if (!renamed) return match;
           return `function(${params}) {\nvar exports = ${renamed};`;
         }
       );
