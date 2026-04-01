@@ -368,6 +368,122 @@ describe('BoxesEditor', () => {
     });
   });
 
+  describe('find / search', () => {
+    beforeEach(() => {
+      editor = new BoxesEditor(container);
+      editor.addNode({ id: 'n1', label: 'Apple' });
+      editor.addNode({ id: 'n2', label: 'Banana', color: 'yellow' });
+      editor.addNode({ id: 'n3', label: 'Apricot' });
+    });
+
+    it('should find nodes by label', () => {
+      editor._executeFind('apple');
+      expect(editor._findMatches).toHaveLength(1);
+      expect(editor._findMatches[0]).toBe('n1');
+    });
+
+    it('should find multiple matches', () => {
+      editor._executeFind('ap');
+      expect(editor._findMatches).toHaveLength(2);
+      expect(editor._findMatches).toContain('n1');
+      expect(editor._findMatches).toContain('n3');
+    });
+
+    it('should find nodes by property value', () => {
+      editor._executeFind('yellow');
+      expect(editor._findMatches).toHaveLength(1);
+      expect(editor._findMatches[0]).toBe('n2');
+    });
+
+    it('should find nodes by property key', () => {
+      editor._executeFind('color');
+      expect(editor._findMatches).toHaveLength(1);
+      expect(editor._findMatches[0]).toBe('n2');
+    });
+
+    it('should be case-insensitive', () => {
+      editor._executeFind('APPLE');
+      expect(editor._findMatches).toHaveLength(1);
+      expect(editor._findMatches[0]).toBe('n1');
+    });
+
+    it('should return no matches for unrecognised query', () => {
+      editor._executeFind('zzznomatch');
+      expect(editor._findMatches).toHaveLength(0);
+    });
+
+    it('should clear matches when query is empty', () => {
+      editor._executeFind('apple');
+      editor._executeFind('');
+      expect(editor._findMatches).toHaveLength(0);
+    });
+
+    it('should set current index to 0 after initial find', () => {
+      editor._executeFind('ap');
+      expect(editor._findCurrentIdx).toBe(0);
+    });
+
+    it('should advance to next match with _findNext', () => {
+      editor._executeFind('ap');
+      editor._findNext();
+      expect(editor._findCurrentIdx).toBe(1);
+    });
+
+    it('should wrap around to first match after last', () => {
+      editor._executeFind('ap');
+      editor._findNext();
+      editor._findNext();
+      expect(editor._findCurrentIdx).toBe(0);
+    });
+
+    it('should go to previous match with _findPrev', () => {
+      editor._executeFind('ap');
+      editor._findPrev();
+      expect(editor._findCurrentIdx).toBe(1);
+    });
+
+    it('should apply bxe-match-current class to current match', () => {
+      editor._executeFind('apple');
+      const node = editor.cy.getElementById('n1');
+      expect(node.hasClass('bxe-match-current')).toBe(true);
+    });
+
+    it('should apply bxe-match class to non-current matches', () => {
+      editor._executeFind('ap');
+      const n3 = editor.cy.getElementById('n3');
+      expect(n3.hasClass('bxe-match')).toBe(true);
+    });
+
+    it('should clear highlights when find is closed', () => {
+      editor._executeFind('apple');
+      editor._closeFind();
+      const node = editor.cy.getElementById('n1');
+      expect(node.hasClass('bxe-match')).toBe(false);
+      expect(node.hasClass('bxe-match-current')).toBe(false);
+    });
+
+    it('should open and close the find bar', () => {
+      expect(editor._findBar.classList.contains('bxe-hidden')).toBe(true);
+      editor._openFind();
+      expect(editor._findBar.classList.contains('bxe-hidden')).toBe(false);
+      editor._closeFind();
+      expect(editor._findBar.classList.contains('bxe-hidden')).toBe(true);
+    });
+
+    it('should toggle the find bar', () => {
+      editor._toggleFind();
+      expect(editor._findBar.classList.contains('bxe-hidden')).toBe(false);
+      editor._toggleFind();
+      expect(editor._findBar.classList.contains('bxe-hidden')).toBe(true);
+    });
+
+    it('should not include internal _style fields in search', () => {
+      editor.addNode({ id: 'n4', label: 'Test', _style: { 'background-color': 'searchme' } });
+      editor._executeFind('searchme');
+      expect(editor._findMatches).toHaveLength(0);
+    });
+  });
+
   describe('cleanup', () => {
     it('should destroy the editor properly', () => {
       editor = new BoxesEditor(container);
