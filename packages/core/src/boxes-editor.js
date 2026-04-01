@@ -231,6 +231,12 @@ const ARROW_SHAPES = [
 const DEFAULT_COLOR_PICKER_VALUE = '#000000';
 /** Matches a valid 6-digit CSS hex color (e.g. #ff0000). */
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+/**
+ * Minimum cursor movement in screen pixels before a mousedown on the node
+ * magnet handle is classified as a drag (starts edge drawing) rather than a
+ * click (selects the node).
+ */
+const EH_DRAG_THRESHOLD = 4;
 const STYLE_PROP_DEFS = {
   // Colors
   'background-color':       { type: 'color' },
@@ -2490,6 +2496,8 @@ export class BoxesEditor {
     this._ehDrawing = false;
     this._ehSourceNode = null;   // source node saved across the draw gesture
     this._ehDidComplete = false; // set true when ehcomplete fires
+    this._ehPendingMousemove = null; // temporary mousemove added during mousedown tracking
+    this._ehPendingMouseup = null;   // temporary mouseup added during mousedown tracking
 
     // Returns the ring width in screen pixels: 2× the node's border-width,
     // scaled by the current zoom, with a minimum so it's always grabbable.
@@ -2516,6 +2524,22 @@ export class BoxesEditor {
       const insideOuter =
         (dx / outerHW) ** 2 + (dy / outerHH) ** 2 <= 1;
       return insideOuter && outsideInner;
+    };
+
+    // True when (clientX, clientY) falls anywhere within the outer boundary of
+    // the ring+hole div — i.e. inside the node OR inside the ring band.  Used
+    // to capture pointer events over the entire node so a drag anywhere on the
+    // node can initiate edge drawing.
+    const isInNodeOrRing = (clientX, clientY, div) => {
+      const rect = div.getBoundingClientRect();
+      const cx   = rect.left  + rect.width  / 2;
+      const cy   = rect.top   + rect.height / 2;
+      const outerHW = rect.width  / 2;
+      const outerHH = rect.height / 2;
+      const dx = clientX - cx;
+      const dy = clientY - cy;
+      return outerHW > 0 && outerHH > 0 &&
+        (dx / outerHW) ** 2 + (dy / outerHH) ** 2 <= 1;
     };
 
     const positionHandle = (node, div) => {
@@ -2574,6 +2598,14 @@ export class BoxesEditor {
     };
 
     const removeHandle = () => {
+      if (this._ehPendingMousemove) {
+        window.removeEventListener('mousemove', this._ehPendingMousemove);
+        this._ehPendingMousemove = null;
+      }
+      if (this._ehPendingMouseup) {
+        window.removeEventListener('mouseup', this._ehPendingMouseup);
+        this._ehPendingMouseup = null;
+      }
       if (this._ehHandleDiv) {
         const div = this._ehHandleDiv;
         div.removeEventListener('mousedown', this._ehStartDrawing);
@@ -2613,12 +2645,17 @@ export class BoxesEditor {
       div._ring = ring;
 
       // Dynamically enable/disable pointer events based on whether the cursor
-      // is in the ring vs the node body.  When pointer-events is 'none' the
-      // Cytoscape canvas receives the event normally, so dragging still works.
+      // is within the ring+node area.  Pointer-events are 'none' only outside
+      // the outer boundary (where Cytoscape/browser handles events normally).
+      // The cursor style distinguishes the ring band (crosshair = draw) from
+      // the node interior (default = click-to-select / drag-to-draw).
       const updatePointerEvents = (clientX, clientY) => {
         if (!this._ehHandleDiv) return;
         const inRing = isInRing(clientX, clientY, div, div._nodeW, div._nodeH);
-        div.style.pointerEvents = inRing ? 'auto' : 'none';
+        const active = isInNodeOrRing(clientX, clientY, div);
+        div.style.pointerEvents = active ? 'auto' : 'none';
+        // Show crosshair in the ring band (draw-edge hint) and default cursor
+        // in the node interior (click-to-select / drag-to-draw hint).
         div.style.cursor = inRing ? 'crosshair' : 'default';
       };
 
@@ -2670,7 +2707,60 @@ export class BoxesEditor {
     this._ehStartDrawing = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      if (this._ehHandleNode) this._eh.start(this._ehHandleNode);
+      const node = this._ehHandleNode;
+      if (!node) return;
+
+      // Clean up any listeners that were left pending from a previous mousedown
+      // (e.g. if mouseup was missed) before installing new ones.
+      if (this._ehPendingMousemove) {
+        window.removeEventListener('mousemove', this._ehPendingMousemove);
+        this._ehPendingMousemove = null;
+      }
+      if (this._ehPendingMouseup) {
+        window.removeEventListener('mouseup', this._ehPendingMouseup);
+        this._ehPendingMouseup = null;
+      }
+
+      const startX = e.clientX;
+      const startY = e.clientY;
+      let drawStarted = false;
+
+      // Track cursor movement while the button is held.  Once the cursor
+      // travels more than EH_DRAG_THRESHOLD pixels, treat it as a drag and
+      // begin edge drawing.  If the button is released without reaching the
+      // threshold, treat it as a click and select the node instead.
+      const onMousemove = (ev) => {
+        if (drawStarted) return;
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        if (Math.sqrt(dx * dx + dy * dy) > EH_DRAG_THRESHOLD) {
+          drawStarted = true;
+          this._eh.start(node);
+        }
+      };
+
+      const onMouseup = (ev) => {
+        window.removeEventListener('mousemove', onMousemove);
+        window.removeEventListener('mouseup', onMouseup);
+        this._ehPendingMousemove = null;
+        this._ehPendingMouseup = null;
+        if (!drawStarted) {
+          // Click without drag: select the node.  Honour multi-select
+          // modifiers (Shift / Ctrl / Meta) the same way Cytoscape does.
+          if (!ev.shiftKey && !ev.ctrlKey && !ev.metaKey) {
+            this.cy.$(':selected').unselect();
+          }
+          node.select();
+          // Remove the handle so the cursor-over-node state is clean and
+          // Cytoscape can receive a subsequent drag (to move the node).
+          removeHandle();
+        }
+      };
+
+      this._ehPendingMousemove = onMousemove;
+      this._ehPendingMouseup = onMouseup;
+      window.addEventListener('mousemove', onMousemove);
+      window.addEventListener('mouseup', onMouseup);
     };
 
     this._ehMouseoverHandler = (e) => setHandleOn(e.target);
@@ -2953,6 +3043,14 @@ export class BoxesEditor {
     if (this._ehWindowMouseup) {
       window.removeEventListener('mouseup', this._ehWindowMouseup);
       this._ehWindowMouseup = null;
+    }
+    if (this._ehPendingMousemove) {
+      window.removeEventListener('mousemove', this._ehPendingMousemove);
+      this._ehPendingMousemove = null;
+    }
+    if (this._ehPendingMouseup) {
+      window.removeEventListener('mouseup', this._ehPendingMouseup);
+      this._ehPendingMouseup = null;
     }
     if (this._ehHandleDiv) {
       const div = this._ehHandleDiv;
