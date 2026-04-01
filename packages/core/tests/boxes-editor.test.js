@@ -484,6 +484,52 @@ describe('BoxesEditor', () => {
     });
   });
 
+  describe('toolbar buttons', () => {
+    beforeEach(() => {
+      editor = new BoxesEditor(container);
+    });
+
+    it('should have a cut button', () => {
+      expect(editor._cutBtn).toBeDefined();
+      expect(editor._cutBtn.tagName).toBe('BUTTON');
+    });
+
+    it('should have a copy button', () => {
+      expect(editor._copyBtn).toBeDefined();
+      expect(editor._copyBtn.tagName).toBe('BUTTON');
+    });
+
+    it('should have a paste button', () => {
+      expect(editor._pasteBtn).toBeDefined();
+      expect(editor._pasteBtn.tagName).toBe('BUTTON');
+    });
+
+    it('copy button invokes copy()', () => {
+      editor.addNode({ id: 'n1', label: 'A' });
+      editor.selectElements(['n1']);
+      editor._copyBtn.click();
+      expect(editor._clipboard).not.toBeNull();
+      expect(editor._clipboard.nodes.some(n => n.data.id === 'n1')).toBe(true);
+    });
+
+    it('cut button invokes cut() and removes selected node', () => {
+      editor.addNode({ id: 'n1', label: 'A' });
+      editor.selectElements(['n1']);
+      editor._cutBtn.click();
+      expect(editor._clipboard).not.toBeNull();
+      expect(editor.cy.getElementById('n1').length).toBe(0);
+    });
+
+    it('paste button invokes paste() and adds clipboard contents', () => {
+      editor.addNode({ id: 'n1', label: 'A' });
+      editor.selectElements(['n1']);
+      editor.copy();
+      const before = editor.getElements().nodes.length;
+      editor._pasteBtn.click();
+      expect(editor.getElements().nodes.length).toBeGreaterThan(before);
+    });
+  });
+
   describe('cleanup', () => {
     it('should destroy the editor properly', () => {
       editor = new BoxesEditor(container);
