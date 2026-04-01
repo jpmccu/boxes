@@ -10,5 +10,5 @@ export {
   importFromArrows, exportToArrows, arrowsImporter, arrowsExporter,
 } from './io/arrows.js';
 export {
-  exportToLucid, lucidExporter,
+  exportToLucid, lucidExporter, computeNodeStyle,
 } from './io/lucid.js';

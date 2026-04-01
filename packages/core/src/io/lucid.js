@@ -59,16 +59,79 @@ const CYTOSCAPE_SHAPE_TO_LUCID = {
 };
 
 /**
+ * Determine whether a userStylesheet rule selector matches a node.
+ *
+ * We handle the subset of selectors that Boxes actually generates:
+ *   - `node`              → matches every node
+ *   - `.foo`              → matches nodes whose classes string contains "foo"
+ *   - `node.foo`          → same, scoped to nodes
+ *   - `node[id="…"]`      → matches the specific node with that id
+ *
+ * Any other selector is treated as not matching (safe: we just won't inherit
+ * those styles, which is correct since we can't evaluate arbitrary selectors
+ * without a full Cytoscape context).
+ *
+ * @param {string} selector
+ * @param {{ data: object, classes?: string }} node
+ * @returns {boolean}
+ */
+function _selectorMatchesNode(selector, node) {
+  const sel = selector.trim();
+
+  // `node` — universal node selector
+  if (sel === 'node') return true;
+
+  // `.className` or `node.className`
+  const classMatch = sel.match(/^(?:node)?\.([A-Za-z0-9_-]+)$/);
+  if (classMatch) {
+    const cls = classMatch[1];
+    const classes = (node.classes || '').split(/\s+/).filter(Boolean);
+    return classes.includes(cls);
+  }
+
+  // `node[id="<id>"]`
+  const idMatch = sel.match(/^node\[id="([^"]+)"\]$/);
+  if (idMatch) {
+    return String(node.data.id) === idMatch[1];
+  }
+
+  return false;
+}
+
+/**
+ * Compute the effective Cytoscape style for a node by merging applicable
+ * userStylesheet rules (in declaration order, lowest specificity first) with
+ * the node's own `_style` (highest specificity, applied last).
+ *
+ * @param {{ data: object, classes?: string }} node
+ * @param {Array<{ selector: string, style: object }>} userStylesheet
+ * @returns {object} merged style object
+ */
+export function computeNodeStyle(node, userStylesheet = []) {
+  const effective = {};
+  for (const rule of userStylesheet) {
+    if (_selectorMatchesNode(rule.selector, node)) {
+      Object.assign(effective, rule.style);
+    }
+  }
+  // Per-node _style overrides everything else
+  Object.assign(effective, node.data._style || {});
+  return effective;
+}
+
+/**
  * Build a Lucid shape object from a Boxes node.
  *
- * Cytoscape node positions refer to the centre of the node, while Lucid's
+ * Cytoscape node positions refer to the center of the node, while Lucid's
  * boundingBox uses the top-left corner, so we offset accordingly.
  *
  * @param {{ data: object, position?: { x: number, y: number } }} node
+ * @param {Array<{ selector: string, style: object }>} userStylesheet
  * @returns {object} LSI shape object
  */
-function _nodeToShape(node) {
-  const { id, label, _style = {} } = node.data;
+function _nodeToShape(node, userStylesheet) {
+  const { id, label } = node.data;
+  const _style = computeNodeStyle(node, userStylesheet);
 
   const pos = node.position ?? { x: 0, y: 0 };
   const w = Number(_style.width)  || DEFAULT_NODE_W;
@@ -184,8 +247,9 @@ export function exportToLucid(boxesGraph, options = {}) {
 
   const { nodes: boxesNodes = [], edges: boxesEdges = [] } =
     boxesGraph?.elements ?? {};
+  const userStylesheet = boxesGraph?.userStylesheet ?? [];
 
-  const shapes = boxesNodes.map(_nodeToShape);
+  const shapes = boxesNodes.map(node => _nodeToShape(node, userStylesheet));
   const lines  = boxesEdges.map(_edgeToLine);
 
   return {

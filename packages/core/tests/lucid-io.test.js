@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { exportToLucid } from '../src/io/lucid.js';
+import { exportToLucid, computeNodeStyle } from '../src/io/lucid.js';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -324,5 +324,149 @@ describe('exportToLucid – edge cases', () => {
   it('should use lineType elbow for all lines', () => {
     const doc = exportToLucid(SIMPLE_GRAPH);
     expect(doc.pages[0].lines[0].lineType).toBe('elbow');
+  });
+});
+
+// ─── computeNodeStyle ─────────────────────────────────────────────────────────
+
+describe('computeNodeStyle', () => {
+  it('should return empty object when no stylesheet and no _style', () => {
+    const node = { data: { id: 'n0' } };
+    expect(computeNodeStyle(node, [])).toEqual({});
+  });
+
+  it('should return _style when no stylesheet rules match', () => {
+    const node = { data: { id: 'n0', _style: { 'background-color': 'red' } } };
+    expect(computeNodeStyle(node, [])).toEqual({ 'background-color': 'red' });
+  });
+
+  it('should apply "node" selector rule to every node', () => {
+    const node = { data: { id: 'n0' } };
+    const stylesheet = [{ selector: 'node', style: { 'background-color': '#aabbcc' } }];
+    expect(computeNodeStyle(node, stylesheet)['background-color']).toBe('#aabbcc');
+  });
+
+  it('should apply ".className" selector to nodes with that class', () => {
+    const node = { data: { id: 'n0' }, classes: 'person highlighted' };
+    const stylesheet = [{ selector: '.person', style: { 'background-color': '#ff0000' } }];
+    expect(computeNodeStyle(node, stylesheet)['background-color']).toBe('#ff0000');
+  });
+
+  it('should not apply ".className" selector when node lacks that class', () => {
+    const node = { data: { id: 'n0' }, classes: 'other' };
+    const stylesheet = [{ selector: '.person', style: { 'background-color': '#ff0000' } }];
+    expect(computeNodeStyle(node, stylesheet)).toEqual({});
+  });
+
+  it('should apply "node.className" selector to nodes with that class', () => {
+    const node = { data: { id: 'n0' }, classes: 'manager' };
+    const stylesheet = [{ selector: 'node.manager', style: { shape: 'diamond' } }];
+    expect(computeNodeStyle(node, stylesheet).shape).toBe('diamond');
+  });
+
+  it('should apply "node[id=...]" selector to the matching node only', () => {
+    const n0 = { data: { id: 'n0' } };
+    const n1 = { data: { id: 'n1' } };
+    const stylesheet = [{ selector: 'node[id="n0"]', style: { 'background-color': '#123456' } }];
+    expect(computeNodeStyle(n0, stylesheet)['background-color']).toBe('#123456');
+    expect(computeNodeStyle(n1, stylesheet)).toEqual({});
+  });
+
+  it('should let _style override a matching stylesheet rule', () => {
+    const node = { data: { id: 'n0', _style: { 'background-color': '#override' } } };
+    const stylesheet = [{ selector: 'node', style: { 'background-color': '#base' } }];
+    expect(computeNodeStyle(node, stylesheet)['background-color']).toBe('#override');
+  });
+
+  it('should merge multiple matching rules in order', () => {
+    const node = { data: { id: 'n0' }, classes: 'special' };
+    const stylesheet = [
+      { selector: 'node',     style: { 'background-color': '#aaa', shape: 'rectangle' } },
+      { selector: '.special', style: { 'background-color': '#bbb', 'border-width': 2 } },
+    ];
+    const result = computeNodeStyle(node, stylesheet);
+    expect(result['background-color']).toBe('#bbb');  // later rule wins
+    expect(result['shape']).toBe('rectangle');         // from first rule
+    expect(result['border-width']).toBe(2);            // from second rule
+  });
+
+  it('should skip unrecognised complex selectors without throwing', () => {
+    const node = { data: { id: 'n0' } };
+    const stylesheet = [
+      { selector: 'node[label="foo"]', style: { 'background-color': '#skip' } },
+      { selector: 'node:selected',     style: { 'background-color': '#skip2' } },
+    ];
+    let result;
+    expect(() => { result = computeNodeStyle(node, stylesheet); }).not.toThrow();
+    expect(result).toEqual({});
+  });
+});
+
+// ─── exportToLucid – stylesheet resolution ───────────────────────────────────
+
+describe('exportToLucid – userStylesheet resolution', () => {
+  it('should apply "node" stylesheet rule to shape fill', () => {
+    const graph = {
+      elements: {
+        nodes: [{ data: { id: 'n0', label: 'X' }, position: { x: 0, y: 0 } }],
+        edges: [],
+      },
+      userStylesheet: [{ selector: 'node', style: { 'background-color': '#123456' } }],
+    };
+    const doc = exportToLucid(graph);
+    expect(doc.pages[0].shapes[0].style.fill.color).toBe('#123456');
+  });
+
+  it('should apply class stylesheet rule to matching node only', () => {
+    const graph = {
+      elements: {
+        nodes: [
+          { data: { id: 'n0', label: 'A' }, classes: 'person', position: { x: 0, y: 0 } },
+          { data: { id: 'n1', label: 'B' }, classes: '',        position: { x: 200, y: 0 } },
+        ],
+        edges: [],
+      },
+      userStylesheet: [{ selector: '.person', style: { 'background-color': '#abcdef', shape: 'ellipse' } }],
+    };
+    const doc = exportToLucid(graph);
+    expect(doc.pages[0].shapes[0].style.fill.color).toBe('#abcdef');
+    expect(doc.pages[0].shapes[0].type).toBe('circle');
+    expect(doc.pages[0].shapes[1]).not.toHaveProperty('style');
+    expect(doc.pages[0].shapes[1].type).toBe('rectangle');
+  });
+
+  it('should let per-node _style override a stylesheet rule', () => {
+    const graph = {
+      elements: {
+        nodes: [{ data: { id: 'n0', label: 'X', _style: { 'background-color': '#override' } }, position: { x: 0, y: 0 } }],
+        edges: [],
+      },
+      userStylesheet: [{ selector: 'node', style: { 'background-color': '#base' } }],
+    };
+    const doc = exportToLucid(graph);
+    expect(doc.pages[0].shapes[0].style.fill.color).toBe('#override');
+  });
+
+  it('should use stylesheet shape when node has no _style shape', () => {
+    const graph = {
+      elements: {
+        nodes: [{ data: { id: 'n0', label: 'X' }, classes: 'decision', position: { x: 0, y: 0 } }],
+        edges: [],
+      },
+      userStylesheet: [{ selector: '.decision', style: { shape: 'diamond' } }],
+    };
+    const doc = exportToLucid(graph);
+    expect(doc.pages[0].shapes[0].type).toBe('diamond');
+  });
+
+  it('should work when userStylesheet is absent', () => {
+    const graph = {
+      elements: {
+        nodes: [{ data: { id: 'n0', label: 'X', _style: { 'background-color': '#ff0000' } }, position: { x: 0, y: 0 } }],
+        edges: [],
+      },
+    };
+    const doc = exportToLucid(graph);
+    expect(doc.pages[0].shapes[0].style.fill.color).toBe('#ff0000');
   });
 });
