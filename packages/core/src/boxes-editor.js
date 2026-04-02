@@ -553,14 +553,17 @@ export class BoxesEditor {
     this._cutBtn = document.createElement('button');
     this._cutBtn.title = 'Cut (Ctrl+X)';
     this._cutBtn.textContent = '\u2702';
+    this._cutBtn.disabled = true;
     this._cutBtn.addEventListener('click', () => this.cut());
     this._copyBtn = document.createElement('button');
     this._copyBtn.title = 'Copy (Ctrl+C)';
     this._copyBtn.textContent = '\u2398';
+    this._copyBtn.disabled = true;
     this._copyBtn.addEventListener('click', () => this.copy());
     this._pasteBtn = document.createElement('button');
     this._pasteBtn.title = 'Paste (Ctrl+V)';
     this._pasteBtn.textContent = '\uD83D\uDCCB';
+    this._pasteBtn.disabled = true;
     this._pasteBtn.addEventListener('click', () => this.paste());
     toolbar.appendChild(this._cutBtn);
     toolbar.appendChild(this._copyBtn);
@@ -778,6 +781,12 @@ export class BoxesEditor {
       }
     };
     document.addEventListener('keydown', this._keydownHandler);
+
+    // When the window regains focus, check the system clipboard so the paste
+    // button can be enabled if another window (or a text editor) put valid
+    // graph JSON there.
+    this._clipboardFocusHandler = () => this._checkSystemClipboard();
+    window.addEventListener('focus', this._clipboardFocusHandler);
 
     this._switchPane('palette');
     this._renderContextPane();
@@ -1518,6 +1527,28 @@ export class BoxesEditor {
     if (this._redoBtn) this._redoBtn.disabled = !this.canRedo();
   }
 
+  _updateClipboardButtons() {
+    const hasSel = !!(this.cy && this.cy.$(':selected').length > 0);
+    if (this._cutBtn) this._cutBtn.disabled = !hasSel;
+    if (this._copyBtn) this._copyBtn.disabled = !hasSel;
+    if (this._pasteBtn) this._pasteBtn.disabled = !this._clipboard;
+  }
+
+  /** Silently probe the system clipboard and enable paste if valid graph JSON is found. */
+  _checkSystemClipboard() {
+    if (!navigator.clipboard?.readText) return;
+    navigator.clipboard.readText().then(text => {
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed && Array.isArray(parsed.nodes) && Array.isArray(parsed.edges)) {
+          this._clipboard = parsed;
+          this._pasteOffset = 0;
+          this._updateClipboardButtons();
+        }
+      } catch (_) { /* not valid JSON */ }
+    }).catch(() => { /* permission denied or unavailable */ });
+  }
+
   _init() {
     this._injectCSS();
     this._createUI();
@@ -1667,12 +1698,14 @@ export class BoxesEditor {
       this._selectedElement = evt.target;
       this._refreshProperties(evt.target);
       this._switchPane('properties');
+      this._updateClipboardButtons();
     });
 
     this.cy.on('unselect', (evt) => {
       this._emit('unselect', { target: evt.target });
       this._emit('selectionChange', { type: 'unselect', target: evt.target, selected: this.cy.$(':selected').jsons() });
       if (!this.cy.$(':selected').length) this._clearProperties();
+      this._updateClipboardButtons();
     });
 
     this.cy.on('grabon', 'node', (evt) => {
@@ -2155,6 +2188,14 @@ export class BoxesEditor {
       edges: edges.map(e => e.json())
     };
     this._pasteOffset = 0;
+
+    // Write to the system clipboard so the data can be pasted into other
+    // browser windows or into a .boxes file in a text editor.
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(JSON.stringify(this._clipboard)).catch(() => {});
+    }
+
+    this._updateClipboardButtons();
     this._emit('clipboardChange', { hasClipboard: true });
     return true;
   }
@@ -2171,10 +2212,33 @@ export class BoxesEditor {
 
   /**
    * Paste the clipboard contents into the graph.
-   * Each paste cascades by 20px. Returns the newly added elements or false.
+   * Reads from the system clipboard first (JSON format); falls back to the
+   * in-memory clipboard. Each paste cascades by 20px. Returns the newly
+   * added elements or false.
    */
-  paste() {
-    if (!this._clipboard) return false;
+  async paste() {
+    // Try to read fresh data from the system clipboard.
+    let clipData = this._clipboard;
+    try {
+      if (navigator.clipboard?.readText) {
+        const text = await navigator.clipboard.readText();
+        const parsed = JSON.parse(text);
+        if (parsed && Array.isArray(parsed.nodes) && Array.isArray(parsed.edges)) {
+          // If the system clipboard contains different content than our local
+          // cache, treat it as a fresh copy and reset the paste cascade.
+          if (JSON.stringify(parsed) !== JSON.stringify(this._clipboard)) {
+            this._pasteOffset = 0;
+          }
+          this._clipboard = parsed;
+          clipData = this._clipboard;
+          this._updateClipboardButtons();
+        }
+      }
+    } catch (_) {
+      // Permission denied, clipboard unavailable, or invalid JSON — use local clipboard.
+    }
+
+    if (!clipData) return false;
     this._pushUndo();
 
     this._pasteOffset += 20;
@@ -2185,7 +2249,7 @@ export class BoxesEditor {
     const newNodes = [];
     const newEdges = [];
 
-    this._clipboard.nodes.forEach(nodeJson => {
+    clipData.nodes.forEach(nodeJson => {
       const newId = 'node-' + Math.random().toString(36).slice(2, 9);
       idMap[nodeJson.data.id] = newId;
 
@@ -2199,7 +2263,7 @@ export class BoxesEditor {
       newNodes.push(entry);
     });
 
-    this._clipboard.edges.forEach(edgeJson => {
+    clipData.edges.forEach(edgeJson => {
       const newSrc = idMap[edgeJson.data.source];
       const newTgt = idMap[edgeJson.data.target];
       if (!newSrc || !newTgt) return; // skip if endpoints weren't in clipboard
@@ -2536,6 +2600,10 @@ export class BoxesEditor {
     if (this._keydownHandler) {
       document.removeEventListener('keydown', this._keydownHandler);
       this._keydownHandler = null;
+    }
+    if (this._clipboardFocusHandler) {
+      window.removeEventListener('focus', this._clipboardFocusHandler);
+      this._clipboardFocusHandler = null;
     }
     if (this.container) {
       this.container.innerHTML = '';

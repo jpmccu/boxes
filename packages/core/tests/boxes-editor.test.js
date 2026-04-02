@@ -1,5 +1,14 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { BoxesEditor } from '../src/boxes-editor.js';
+
+// Provide a minimal navigator.clipboard stub so tests can verify system-clipboard
+// integration without a real browser.
+const clipboardStub = {
+  _value: '',
+  writeText: vi.fn(async (text) => { clipboardStub._value = text; }),
+  readText: vi.fn(async () => clipboardStub._value),
+};
+Object.defineProperty(navigator, 'clipboard', { value: clipboardStub, configurable: true });
 
 describe('BoxesEditor', () => {
   let container;
@@ -10,6 +19,10 @@ describe('BoxesEditor', () => {
     container.style.width = '800px';
     container.style.height = '600px';
     document.body.appendChild(container);
+    // Reset the clipboard stub before every test to prevent cross-test pollution.
+    clipboardStub._value = '';
+    clipboardStub.writeText.mockClear();
+    clipboardStub.readText.mockClear();
   });
 
   afterEach(() => {
@@ -504,12 +517,47 @@ describe('BoxesEditor', () => {
       expect(editor._pasteBtn.tagName).toBe('BUTTON');
     });
 
-    it('copy button invokes copy()', () => {
+    it('cut and copy buttons start disabled', () => {
+      expect(editor._cutBtn.disabled).toBe(true);
+      expect(editor._copyBtn.disabled).toBe(true);
+    });
+
+    it('paste button starts disabled', () => {
+      expect(editor._pasteBtn.disabled).toBe(true);
+    });
+
+    it('cut and copy buttons enable when a node is selected', () => {
+      editor.addNode({ id: 'n1', label: 'A' });
+      editor.selectElements(['n1']);
+      expect(editor._cutBtn.disabled).toBe(false);
+      expect(editor._copyBtn.disabled).toBe(false);
+    });
+
+    it('cut and copy buttons disable again when selection is cleared', () => {
+      editor.addNode({ id: 'n1', label: 'A' });
+      editor.selectElements(['n1']);
+      editor.cy.$(':selected').unselect();
+      // give cytoscape a tick to fire the unselect event
+      expect(editor._cutBtn.disabled).toBe(true);
+      expect(editor._copyBtn.disabled).toBe(true);
+    });
+
+    it('copy button invokes copy() and writes JSON to system clipboard', async () => {
       editor.addNode({ id: 'n1', label: 'A' });
       editor.selectElements(['n1']);
       editor._copyBtn.click();
       expect(editor._clipboard).not.toBeNull();
       expect(editor._clipboard.nodes.some(n => n.data.id === 'n1')).toBe(true);
+      // wait for the async writeText call
+      await Promise.resolve();
+      expect(clipboardStub.writeText).toHaveBeenCalledWith(JSON.stringify(editor._clipboard));
+    });
+
+    it('paste button enables after copy', () => {
+      editor.addNode({ id: 'n1', label: 'A' });
+      editor.selectElements(['n1']);
+      editor.copy();
+      expect(editor._pasteBtn.disabled).toBe(false);
     });
 
     it('cut button invokes cut() and removes selected node', () => {
@@ -520,13 +568,31 @@ describe('BoxesEditor', () => {
       expect(editor.cy.getElementById('n1').length).toBe(0);
     });
 
-    it('paste button invokes paste() and adds clipboard contents', () => {
+    it('paste button invokes paste() and adds clipboard contents', async () => {
       editor.addNode({ id: 'n1', label: 'A' });
       editor.selectElements(['n1']);
       editor.copy();
       const before = editor.getElements().nodes.length;
-      editor._pasteBtn.click();
+      await editor.paste();
       expect(editor.getElements().nodes.length).toBeGreaterThan(before);
+    });
+
+    it('paste() reads from system clipboard and uses it when valid graph JSON', async () => {
+      // Seed the system clipboard with a foreign graph (simulating a copy from another window)
+      const foreignClip = { nodes: [{ data: { id: 'foreign-1', label: 'Foreign' } }], edges: [] };
+      clipboardStub._value = JSON.stringify(foreignClip);
+
+      // local clipboard is null — no copy() was called in this editor
+      expect(editor._clipboard).toBeNull();
+      await editor.paste();
+
+      // The foreign node should now be in the graph
+      const ids = editor.getElements().nodes.map(n => n.data.id);
+      // The pasted node gets a new ID, but the graph should have one node
+      expect(ids.length).toBeGreaterThan(0);
+      // And the internal clipboard cache should be updated
+      expect(editor._clipboard).toEqual(foreignClip);
+      expect(editor._pasteBtn.disabled).toBe(false);
     });
   });
 
