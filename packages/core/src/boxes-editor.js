@@ -2080,6 +2080,16 @@ export class BoxesEditor {
     this.cy.elements().boundingBox({ useCache: false });
     this.cy.fit(undefined, 30);
     this.cy.style().update();
+
+    // Nudge every node 1px right then 1px left.  This is a zero-net-movement
+    // force-render trick that causes Cytoscape to fully recalculate edge
+    // control-point geometry after a graph is opened.  These moves are
+    // intentionally NOT recorded in the undo history.
+    const nodes = this.cy.nodes();
+    if (nodes.length) {
+      nodes.forEach(n => { const p = n.position(); n.position({ x: p.x + 1, y: p.y }); });
+      nodes.forEach(n => { const p = n.position(); n.position({ x: p.x - 1, y: p.y }); });
+    }
   }
 
   /** Return true if loaded nodes have no real position data */
