@@ -594,6 +594,60 @@ describe('BoxesEditor', () => {
       expect(editor._clipboard).toEqual(foreignClip);
       expect(editor._pasteBtn.disabled).toBe(false);
     });
+
+    it('paste() centers content on the viewport on first paste', async () => {
+      // Clipboard has two nodes at known positions so the content centre is (150, 100).
+      const clip = {
+        nodes: [
+          { data: { id: 'a', label: 'A' }, position: { x: 100, y: 100 } },
+          { data: { id: 'b', label: 'B' }, position: { x: 200, y: 100 } },
+        ],
+        edges: [],
+      };
+      clipboardStub._value = JSON.stringify(clip);
+      await editor.paste();
+
+      const ext = editor.cy.extent();
+      const viewCenterX = (ext.x1 + ext.x2) / 2;
+      const viewCenterY = (ext.y1 + ext.y2) / 2;
+
+      // Both pasted nodes should be shifted so the content centre (150,100) maps
+      // to the viewport centre.
+      const nodes = editor.getElements().nodes;
+      expect(nodes).toHaveLength(2);
+      const posA = nodes.find(n => n.data.label === 'A').position;
+      const posB = nodes.find(n => n.data.label === 'B').position;
+      const pastedCenterX = (posA.x + posB.x) / 2;
+      const pastedCenterY = (posA.y + posB.y) / 2;
+      expect(pastedCenterX).toBeCloseTo(viewCenterX, 1);
+      expect(pastedCenterY).toBeCloseTo(viewCenterY, 1);
+    });
+
+    it('paste() offsets subsequent pastes by content width', async () => {
+      // Content width is 200−100 = 100, but clamped to min 200.
+      const clip = {
+        nodes: [
+          { data: { id: 'a', label: 'A' }, position: { x: 100, y: 100 } },
+          { data: { id: 'b', label: 'B' }, position: { x: 200, y: 100 } },
+        ],
+        edges: [],
+      };
+      clipboardStub._value = JSON.stringify(clip);
+
+      await editor.paste(); // pasteIndex=0
+      await editor.paste(); // pasteIndex=1
+
+      const nodes = editor.getElements().nodes;
+      expect(nodes).toHaveLength(4);
+
+      // First group: pasteIndex=0, shift = viewCenter - contentCenter + 0*w
+      // Second group: pasteIndex=1, shift = viewCenter - contentCenter + 1*w
+      // So the second group should be contentWidth (200) further right than the first.
+      const labelsA = nodes.filter(n => n.data.label === 'A');
+      expect(labelsA).toHaveLength(2);
+      const xDiff = Math.abs(labelsA[1].position.x - labelsA[0].position.x);
+      expect(xDiff).toBeCloseTo(200, 1); // clamped content width
+    });
   });
 
   describe('cleanup', () => {

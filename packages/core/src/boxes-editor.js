@@ -326,7 +326,7 @@ export class BoxesEditor {
     this._restoringState = false;
     this._preGrabSnapshot = null;
     this._clipboard = null;   // { nodes: [...json], edges: [...json] }
-    this._pasteOffset = 0;    // increments each paste so repeated pastes cascade
+    this._pasteOffset = 0;    // count of pastes since last copy; used for cascade offset
     this._currentNodeTypeId = this._nodeTypes[0]?.id || null;
     this._selectedElement = null;
     this._ctxTarget = null;
@@ -2241,8 +2241,35 @@ export class BoxesEditor {
     if (!clipData) return false;
     this._pushUndo();
 
-    this._pasteOffset += 20;
-    const offset = this._pasteOffset;
+    // Compute the bounding box of the clipboard content so we can center it
+    // on the viewport.  Fall back to a 200-unit default width when nodes have
+    // no recorded positions (e.g. clipboard text from a text editor).
+    const positions = clipData.nodes.map(n => n.position).filter(Boolean);
+    let contentCenterX = 0, contentCenterY = 0, contentWidth = 200;
+    if (positions.length > 0) {
+      const xs = positions.map(p => p.x);
+      const ys = positions.map(p => p.y);
+      const minX = Math.min(...xs), maxX = Math.max(...xs);
+      const minY = Math.min(...ys), maxY = Math.max(...ys);
+      contentCenterX = (minX + maxX) / 2;
+      contentCenterY = (minY + maxY) / 2;
+      // Use the actual width but enforce a minimum so stacked single-node
+      // pastes still have visible separation.
+      contentWidth = Math.max(maxX - minX, 200);
+    }
+
+    // Viewport center in graph coordinates.
+    const ext = this.cy.extent();
+    const viewCenterX = (ext.x1 + ext.x2) / 2;
+    const viewCenterY = (ext.y1 + ext.y2) / 2;
+
+    // First paste (pasteIndex=0) centres the content on the viewport.
+    // Each subsequent paste shifts right by one content-width so copies
+    // cascade without overlapping.
+    const pasteIndex = this._pasteOffset;
+    const shiftX = viewCenterX - contentCenterX + pasteIndex * contentWidth;
+    const shiftY = viewCenterY - contentCenterY;
+    this._pasteOffset += 1;
 
     // Map old node IDs → new node IDs
     const idMap = {};
@@ -2255,7 +2282,7 @@ export class BoxesEditor {
 
       const newData = { ...nodeJson.data, id: newId };
       const newPos = nodeJson.position
-        ? { x: nodeJson.position.x + offset, y: nodeJson.position.y + offset }
+        ? { x: nodeJson.position.x + shiftX, y: nodeJson.position.y + shiftY }
         : undefined;
 
       const entry = { group: 'nodes', data: newData };
