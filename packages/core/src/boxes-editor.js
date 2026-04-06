@@ -2241,37 +2241,10 @@ export class BoxesEditor {
     if (!clipData) return false;
     this._pushUndo();
 
-    // Compute the bounding box of the clipboard content so we can center it
-    // on the viewport.  Fall back to a 200-unit default width when nodes have
-    // no recorded positions (e.g. clipboard text from a text editor).
-    const positions = clipData.nodes.map(n => n.position).filter(Boolean);
-    let contentCenterX = 0, contentCenterY = 0, contentWidth = 200;
-    if (positions.length > 0) {
-      const xs = positions.map(p => p.x);
-      const ys = positions.map(p => p.y);
-      const minX = Math.min(...xs), maxX = Math.max(...xs);
-      const minY = Math.min(...ys), maxY = Math.max(...ys);
-      contentCenterX = (minX + maxX) / 2;
-      contentCenterY = (minY + maxY) / 2;
-      // Use the actual width but enforce a minimum so stacked single-node
-      // pastes still have visible separation.
-      contentWidth = Math.max(maxX - minX, 200);
-    }
-
-    // Viewport center in graph coordinates.
-    const ext = this.cy.extent();
-    const viewCenterX = (ext.x1 + ext.x2) / 2;
-    const viewCenterY = (ext.y1 + ext.y2) / 2;
-
-    // First paste (pasteIndex=0) centres the content on the viewport.
-    // Each subsequent paste shifts right by one content-width so copies
-    // cascade without overlapping.
-    const pasteIndex = this._pasteOffset;
-    const shiftX = viewCenterX - contentCenterX + pasteIndex * contentWidth;
-    const shiftY = viewCenterY - contentCenterY;
-    this._pasteOffset += 1;
-
-    // Map old node IDs → new node IDs
+    // Map old node IDs → new node IDs, preserving original positions for now.
+    // We add nodes at their clipboard positions first so Cytoscape can compute
+    // the real rendered bounding box (which accounts for node width, label
+    // padding, etc.).  We shift them to their final positions afterwards.
     const idMap = {};
     const newNodes = [];
     const newEdges = [];
@@ -2280,13 +2253,8 @@ export class BoxesEditor {
       const newId = 'node-' + Math.random().toString(36).slice(2, 9);
       idMap[nodeJson.data.id] = newId;
 
-      const newData = { ...nodeJson.data, id: newId };
-      const newPos = nodeJson.position
-        ? { x: nodeJson.position.x + shiftX, y: nodeJson.position.y + shiftY }
-        : undefined;
-
-      const entry = { group: 'nodes', data: newData };
-      if (newPos) entry.position = newPos;
+      const entry = { group: 'nodes', data: { ...nodeJson.data, id: newId } };
+      if (nodeJson.position) entry.position = { ...nodeJson.position };
       newNodes.push(entry);
     });
 
@@ -2305,6 +2273,34 @@ export class BoxesEditor {
     this.cy.$(':selected').unselect();
     const added = this.cy.add([...newNodes, ...newEdges]);
     added.select();
+
+    // Now that Cytoscape has rendered the nodes, measure their actual bounding
+    // box.  This correctly accounts for node width, label extents, etc. — all
+    // things that can't be known from center positions alone.
+    const addedNodes = added.nodes();
+    if (addedNodes.length > 0 && newNodes.some(n => n.position)) {
+      const bb = addedNodes.boundingBox();
+      const bbCenterX = (bb.x1 + bb.x2) / 2;
+      const bbCenterY = (bb.y1 + bb.y2) / 2;
+
+      // Viewport center in graph coordinates.
+      const ext = this.cy.extent();
+      const viewCenterX = (ext.x1 + ext.x2) / 2;
+      const viewCenterY = (ext.y1 + ext.y2) / 2;
+
+      // First paste (pasteIndex=0) centres content on the viewport.
+      // Each subsequent paste shifts right by the actual rendered width so
+      // copies never overlap, even for wide label text.
+      const pasteIndex = this._pasteOffset;
+      const shiftX = viewCenterX - bbCenterX + pasteIndex * bb.w;
+      const shiftY = viewCenterY - bbCenterY;
+
+      addedNodes.forEach(node => {
+        const p = node.position();
+        node.position({ x: p.x + shiftX, y: p.y + shiftY });
+      });
+    }
+    this._pasteOffset += 1;
 
     this._updateStylesheet();
     this._emit('paste', { nodes: newNodes, edges: newEdges });
