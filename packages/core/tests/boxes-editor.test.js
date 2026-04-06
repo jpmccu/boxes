@@ -647,6 +647,40 @@ describe('BoxesEditor', () => {
       const xDiff = Math.abs(labelsA[1].position.x - labelsA[0].position.x);
       expect(xDiff).toBeCloseTo(actualBBWidth, 1);
     });
+
+    it('paste() resets cascade offset when the viewport center changes between pastes', async () => {
+      const clip = {
+        nodes: [
+          { data: { id: 'a', label: 'A' }, position: { x: 100, y: 100 } },
+        ],
+        edges: [],
+      };
+      clipboardStub._value = JSON.stringify(clip);
+
+      // First paste — establishes a cascade at pasteOffset=0, records viewCenter.
+      await editor.paste();
+      expect(editor._pasteOffset).toBe(1);
+
+      // Simulate pan: shift the viewport so the center changes significantly.
+      editor.cy.pan({ x: editor.cy.pan().x + 500, y: editor.cy.pan().y });
+
+      // Second paste — viewport center has changed; offset should reset to 0
+      // so the copy is centered on the NEW viewport center rather than
+      // continuing the old cascade.
+      await editor.paste();
+
+      // After the second paste the offset should be 1 again (reset to 0 then incremented).
+      expect(editor._pasteOffset).toBe(1);
+
+      // Both pasted nodes should land at the viewport center, not offset by bb.w.
+      const ext = editor.cy.extent();
+      const viewCenterX = (ext.x1 + ext.x2) / 2;
+      const allNodes = editor.getElements().nodes;
+      expect(allNodes).toHaveLength(2);
+      // The second pasted node should be centred on the current viewport center.
+      const secondNode = allNodes[allNodes.length - 1];
+      expect(secondNode.position.x).toBeCloseTo(viewCenterX, 1);
+    });
   });
 
   describe('cleanup', () => {

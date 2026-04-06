@@ -325,8 +325,9 @@ export class BoxesEditor {
     this._redoStack = [];
     this._restoringState = false;
     this._preGrabSnapshot = null;
-    this._clipboard = null;   // { nodes: [...json], edges: [...json] }
-    this._pasteOffset = 0;    // count of pastes since last copy; used for cascade offset
+    this._clipboard = null;       // { nodes: [...json], edges: [...json] }
+    this._pasteOffset = 0;        // count of pastes since last copy; used for cascade offset
+    this._pasteViewCenter = null; // viewport center {x,y} when cascade began; reset resets offset
     this._currentNodeTypeId = this._nodeTypes[0]?.id || null;
     this._selectedElement = null;
     this._ctxTarget = null;
@@ -1543,6 +1544,7 @@ export class BoxesEditor {
         if (parsed && Array.isArray(parsed.nodes) && Array.isArray(parsed.edges)) {
           this._clipboard = parsed;
           this._pasteOffset = 0;
+          this._pasteViewCenter = null;
           this._updateClipboardButtons();
         }
       } catch (_) { /* not valid JSON */ }
@@ -2188,6 +2190,7 @@ export class BoxesEditor {
       edges: edges.map(e => e.json())
     };
     this._pasteOffset = 0;
+    this._pasteViewCenter = null;
 
     // Write to the system clipboard so the data can be pasted into other
     // browser windows or into a .boxes file in a text editor.
@@ -2228,6 +2231,7 @@ export class BoxesEditor {
           // cache, treat it as a fresh copy and reset the paste cascade.
           if (JSON.stringify(parsed) !== JSON.stringify(this._clipboard)) {
             this._pasteOffset = 0;
+            this._pasteViewCenter = null;
           }
           this._clipboard = parsed;
           clipData = this._clipboard;
@@ -2287,6 +2291,19 @@ export class BoxesEditor {
       const ext = this.cy.extent();
       const viewCenterX = (ext.x1 + ext.x2) / 2;
       const viewCenterY = (ext.y1 + ext.y2) / 2;
+
+      // If the user has panned or zoomed since the cascade began, the previous
+      // cascade offsets no longer make sense — restart from 0 at the new
+      // viewport center so the first copy lands in view and subsequent copies
+      // cascade correctly from there.
+      if (this._pasteViewCenter &&
+          (Math.abs(this._pasteViewCenter.x - viewCenterX) > 1 ||
+           Math.abs(this._pasteViewCenter.y - viewCenterY) > 1)) {
+        this._pasteOffset = 0;
+      }
+
+      // Record the viewport center for the next paste to compare against.
+      this._pasteViewCenter = { x: viewCenterX, y: viewCenterY };
 
       // First paste (pasteIndex=0) centres content on the viewport.
       // Each subsequent paste shifts right by the actual rendered width so
