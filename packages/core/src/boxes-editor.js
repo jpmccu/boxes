@@ -2243,6 +2243,26 @@ export class BoxesEditor {
     }
 
     if (!clipData) return false;
+
+    // Snapshot the viewport center NOW — before adding any nodes — so the
+    // comparison is unaffected by anything Cytoscape does when elements are
+    // added.  This also runs unconditionally, regardless of whether the
+    // clipboard contains positioned nodes, keeping _pasteViewCenter in sync.
+    const ext = this.cy.extent();
+    const viewCenterX = (ext.x1 + ext.x2) / 2;
+    const viewCenterY = (ext.y1 + ext.y2) / 2;
+
+    // If the viewport center has moved since the last paste, the accumulated
+    // cascade offset no longer points at anything in view.  Reset it to 0 so
+    // the next content lands centred on the NEW viewport.
+    if (this._pasteViewCenter &&
+        (Math.abs(this._pasteViewCenter.x - viewCenterX) > 1 ||
+         Math.abs(this._pasteViewCenter.y - viewCenterY) > 1)) {
+      this._pasteOffset = 0;
+    }
+    // Always record the current viewport center as the baseline for the next paste.
+    this._pasteViewCenter = { x: viewCenterX, y: viewCenterY };
+
     this._pushUndo();
 
     // Map old node IDs → new node IDs, preserving original positions for now.
@@ -2286,24 +2306,6 @@ export class BoxesEditor {
       const bb = addedNodes.boundingBox();
       const bbCenterX = (bb.x1 + bb.x2) / 2;
       const bbCenterY = (bb.y1 + bb.y2) / 2;
-
-      // Viewport center in graph coordinates.
-      const ext = this.cy.extent();
-      const viewCenterX = (ext.x1 + ext.x2) / 2;
-      const viewCenterY = (ext.y1 + ext.y2) / 2;
-
-      // If the user has panned or zoomed since the cascade began, the previous
-      // cascade offsets no longer make sense — restart from 0 at the new
-      // viewport center so the first copy lands in view and subsequent copies
-      // cascade correctly from there.
-      if (this._pasteViewCenter &&
-          (Math.abs(this._pasteViewCenter.x - viewCenterX) > 1 ||
-           Math.abs(this._pasteViewCenter.y - viewCenterY) > 1)) {
-        this._pasteOffset = 0;
-      }
-
-      // Record the viewport center for the next paste to compare against.
-      this._pasteViewCenter = { x: viewCenterX, y: viewCenterY };
 
       // First paste (pasteIndex=0) centres content on the viewport.
       // Each subsequent paste shifts right by the actual rendered width so

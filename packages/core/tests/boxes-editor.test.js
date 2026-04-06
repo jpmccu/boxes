@@ -657,29 +657,41 @@ describe('BoxesEditor', () => {
       };
       clipboardStub._value = JSON.stringify(clip);
 
-      // First paste — establishes a cascade at pasteOffset=0, records viewCenter.
-      await editor.paste();
-      expect(editor._pasteOffset).toBe(1);
+      // Build up a non-zero cascade offset (paste several times without panning).
+      await editor.paste(); // index 0, pasteOffset → 1
+      await editor.paste(); // index 1, pasteOffset → 2
+      await editor.paste(); // index 2, pasteOffset → 3
+      expect(editor._pasteOffset).toBe(3);
 
-      // Simulate pan: shift the viewport so the center changes significantly.
+      // Simulate a significant pan so the viewport center moves.
       editor.cy.pan({ x: editor.cy.pan().x + 500, y: editor.cy.pan().y });
 
-      // Second paste — viewport center has changed; offset should reset to 0
-      // so the copy is centered on the NEW viewport center rather than
-      // continuing the old cascade.
+      // Paste after panning — the viewport-change check must fire and reset
+      // _pasteOffset to 0 BEFORE the positioning logic uses it.  If the reset
+      // didn't fire, this paste would use index 3 (offset by 3*bb.w from center).
       await editor.paste();
 
-      // After the second paste the offset should be 1 again (reset to 0 then incremented).
+      // The paste that triggered the reset used pasteIndex=0 (landed at center).
+      // _pasteOffset is then incremented to 1, ready for the next cascade entry.
       expect(editor._pasteOffset).toBe(1);
 
-      // Both pasted nodes should land at the viewport center, not offset by bb.w.
+      // Confirm the paste-after-pan node is centred on the NEW viewport center.
       const ext = editor.cy.extent();
       const viewCenterX = (ext.x1 + ext.x2) / 2;
       const allNodes = editor.getElements().nodes;
-      expect(allNodes).toHaveLength(2);
-      // The second pasted node should be centred on the current viewport center.
-      const secondNode = allNodes[allNodes.length - 1];
-      expect(secondNode.position.x).toBeCloseTo(viewCenterX, 1);
+      expect(allNodes).toHaveLength(4);
+      const lastNode = allNodes[allNodes.length - 1];
+      expect(lastNode.position.x).toBeCloseTo(viewCenterX, 1);
+
+      // A further paste without panning should be at index 1 (center+bb.w),
+      // NOT at index 0 again (confirming the cascade continues correctly).
+      await editor.paste();
+      expect(editor._pasteOffset).toBe(2);
+      const nodesAfter = editor.getElements().nodes;
+      expect(nodesAfter).toHaveLength(5);
+      const cascadeNode = nodesAfter[nodesAfter.length - 1];
+      // It should be further right than the previous paste, not at the same position.
+      expect(cascadeNode.position.x).toBeGreaterThan(lastNode.position.x + 1);
     });
   });
 
