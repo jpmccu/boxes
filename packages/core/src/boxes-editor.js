@@ -2045,6 +2045,14 @@ export class BoxesEditor {
       this._renderPalette();
     }
     if (graphData.elements) {
+      graphData.elements.nodes.forEach(n => {
+        if (n.position) {
+          // Nudge every node 1px left. We will nudge it back to the right by 1 px after loading,
+          // as a force-render trick to ensure edge control points are properly calculated and rendered on load.
+          // See the end of this method for details.
+          n.position.x = n.position.x - 1;
+        }
+      });
       this.loadElements(graphData.elements);
     }
     const incoming = graphData.userStylesheet || graphData.stylesheet;
@@ -2081,14 +2089,13 @@ export class BoxesEditor {
     this.cy.fit(undefined, 30);
     this.cy.style().update();
 
-    // Nudge every node 1px right then 1px left.  This is a zero-net-movement
+    // Nudge every node 1px right.  This is a negligible movement
     // force-render trick that causes Cytoscape to fully recalculate edge
     // control-point geometry after a graph is opened.  These moves are
     // intentionally NOT recorded in the undo history.
     const nodes = this.cy.nodes();
     if (nodes.length) {
       nodes.forEach(n => { const p = n.position(); n.position({ x: p.x + 1, y: p.y }); });
-      nodes.forEach(n => { const p = n.position(); n.position({ x: p.x - 1, y: p.y }); });
     }
   }
 
