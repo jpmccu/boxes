@@ -1,5 +1,14 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { BoxesEditor } from '../src/boxes-editor.js';
+
+// Provide a minimal navigator.clipboard stub so tests can verify system-clipboard
+// integration without a real browser.
+const clipboardStub = {
+  _value: '',
+  writeText: vi.fn(async (text) => { clipboardStub._value = text; }),
+  readText: vi.fn(async () => clipboardStub._value),
+};
+Object.defineProperty(navigator, 'clipboard', { value: clipboardStub, configurable: true });
 
 describe('BoxesEditor', () => {
   let container;
@@ -10,6 +19,10 @@ describe('BoxesEditor', () => {
     container.style.width = '800px';
     container.style.height = '600px';
     document.body.appendChild(container);
+    // Reset the clipboard stub before every test to prevent cross-test pollution.
+    clipboardStub._value = '';
+    clipboardStub.writeText.mockClear();
+    clipboardStub.readText.mockClear();
   });
 
   afterEach(() => {
@@ -365,6 +378,320 @@ describe('BoxesEditor', () => {
       editor.selectElements(['n1', 'n2']);
       const selected = editor.getSelected();
       expect(selected).toHaveLength(2);
+    });
+  });
+
+  describe('find / search', () => {
+    beforeEach(() => {
+      editor = new BoxesEditor(container);
+      editor.addNode({ id: 'n1', label: 'Apple' });
+      editor.addNode({ id: 'n2', label: 'Banana', color: 'yellow' });
+      editor.addNode({ id: 'n3', label: 'Apricot' });
+    });
+
+    it('should find nodes by label', () => {
+      editor._executeFind('apple');
+      expect(editor._findMatches).toHaveLength(1);
+      expect(editor._findMatches[0]).toBe('n1');
+    });
+
+    it('should find multiple matches', () => {
+      editor._executeFind('ap');
+      expect(editor._findMatches).toHaveLength(2);
+      expect(editor._findMatches).toContain('n1');
+      expect(editor._findMatches).toContain('n3');
+    });
+
+    it('should find nodes by property value', () => {
+      editor._executeFind('yellow');
+      expect(editor._findMatches).toHaveLength(1);
+      expect(editor._findMatches[0]).toBe('n2');
+    });
+
+    it('should find nodes by property key', () => {
+      editor._executeFind('color');
+      expect(editor._findMatches).toHaveLength(1);
+      expect(editor._findMatches[0]).toBe('n2');
+    });
+
+    it('should be case-insensitive', () => {
+      editor._executeFind('APPLE');
+      expect(editor._findMatches).toHaveLength(1);
+      expect(editor._findMatches[0]).toBe('n1');
+    });
+
+    it('should return no matches for unrecognised query', () => {
+      editor._executeFind('zzznomatch');
+      expect(editor._findMatches).toHaveLength(0);
+    });
+
+    it('should clear matches when query is empty', () => {
+      editor._executeFind('apple');
+      editor._executeFind('');
+      expect(editor._findMatches).toHaveLength(0);
+    });
+
+    it('should set current index to 0 after initial find', () => {
+      editor._executeFind('ap');
+      expect(editor._findCurrentIdx).toBe(0);
+    });
+
+    it('should advance to next match with _findNext', () => {
+      editor._executeFind('ap');
+      editor._findNext();
+      expect(editor._findCurrentIdx).toBe(1);
+    });
+
+    it('should wrap around to first match after last', () => {
+      editor._executeFind('ap');
+      editor._findNext();
+      editor._findNext();
+      expect(editor._findCurrentIdx).toBe(0);
+    });
+
+    it('should go to previous match with _findPrev', () => {
+      editor._executeFind('ap');
+      editor._findPrev();
+      expect(editor._findCurrentIdx).toBe(1);
+    });
+
+    it('should apply bxe-match-current class to current match', () => {
+      editor._executeFind('apple');
+      const node = editor.cy.getElementById('n1');
+      expect(node.hasClass('bxe-match-current')).toBe(true);
+    });
+
+    it('should apply bxe-match class to non-current matches', () => {
+      editor._executeFind('ap');
+      const n3 = editor.cy.getElementById('n3');
+      expect(n3.hasClass('bxe-match')).toBe(true);
+    });
+
+    it('should clear highlights when find is closed', () => {
+      editor._executeFind('apple');
+      editor._closeFind();
+      const node = editor.cy.getElementById('n1');
+      expect(node.hasClass('bxe-match')).toBe(false);
+      expect(node.hasClass('bxe-match-current')).toBe(false);
+    });
+
+    it('should open and close the find bar', () => {
+      expect(editor._findBar.classList.contains('bxe-hidden')).toBe(true);
+      editor._openFind();
+      expect(editor._findBar.classList.contains('bxe-hidden')).toBe(false);
+      editor._closeFind();
+      expect(editor._findBar.classList.contains('bxe-hidden')).toBe(true);
+    });
+
+    it('should toggle the find bar', () => {
+      editor._toggleFind();
+      expect(editor._findBar.classList.contains('bxe-hidden')).toBe(false);
+      editor._toggleFind();
+      expect(editor._findBar.classList.contains('bxe-hidden')).toBe(true);
+    });
+
+    it('should not include internal _style fields in search', () => {
+      editor.addNode({ id: 'n4', label: 'Test', _style: { 'background-color': 'searchme' } });
+      editor._executeFind('searchme');
+      expect(editor._findMatches).toHaveLength(0);
+    });
+  });
+
+  describe('toolbar buttons', () => {
+    beforeEach(() => {
+      editor = new BoxesEditor(container);
+    });
+
+    it('should have a cut button', () => {
+      expect(editor._cutBtn).toBeDefined();
+      expect(editor._cutBtn.tagName).toBe('BUTTON');
+    });
+
+    it('should have a copy button', () => {
+      expect(editor._copyBtn).toBeDefined();
+      expect(editor._copyBtn.tagName).toBe('BUTTON');
+    });
+
+    it('should have a paste button', () => {
+      expect(editor._pasteBtn).toBeDefined();
+      expect(editor._pasteBtn.tagName).toBe('BUTTON');
+    });
+
+    it('cut and copy buttons start disabled', () => {
+      expect(editor._cutBtn.disabled).toBe(true);
+      expect(editor._copyBtn.disabled).toBe(true);
+    });
+
+    it('paste button starts disabled', () => {
+      expect(editor._pasteBtn.disabled).toBe(true);
+    });
+
+    it('cut and copy buttons enable when a node is selected', () => {
+      editor.addNode({ id: 'n1', label: 'A' });
+      editor.selectElements(['n1']);
+      expect(editor._cutBtn.disabled).toBe(false);
+      expect(editor._copyBtn.disabled).toBe(false);
+    });
+
+    it('cut and copy buttons disable again when selection is cleared', () => {
+      editor.addNode({ id: 'n1', label: 'A' });
+      editor.selectElements(['n1']);
+      editor.cy.$(':selected').unselect();
+      // give cytoscape a tick to fire the unselect event
+      expect(editor._cutBtn.disabled).toBe(true);
+      expect(editor._copyBtn.disabled).toBe(true);
+    });
+
+    it('copy button invokes copy() and writes JSON to system clipboard', async () => {
+      editor.addNode({ id: 'n1', label: 'A' });
+      editor.selectElements(['n1']);
+      editor._copyBtn.click();
+      expect(editor._clipboard).not.toBeNull();
+      expect(editor._clipboard.nodes.some(n => n.data.id === 'n1')).toBe(true);
+      // wait for the async writeText call
+      await Promise.resolve();
+      expect(clipboardStub.writeText).toHaveBeenCalledWith(JSON.stringify(editor._clipboard));
+    });
+
+    it('paste button enables after copy', () => {
+      editor.addNode({ id: 'n1', label: 'A' });
+      editor.selectElements(['n1']);
+      editor.copy();
+      expect(editor._pasteBtn.disabled).toBe(false);
+    });
+
+    it('cut button invokes cut() and removes selected node', () => {
+      editor.addNode({ id: 'n1', label: 'A' });
+      editor.selectElements(['n1']);
+      editor._cutBtn.click();
+      expect(editor._clipboard).not.toBeNull();
+      expect(editor.cy.getElementById('n1').length).toBe(0);
+    });
+
+    it('paste button invokes paste() and adds clipboard contents', async () => {
+      editor.addNode({ id: 'n1', label: 'A' });
+      editor.selectElements(['n1']);
+      editor.copy();
+      const before = editor.getElements().nodes.length;
+      await editor.paste();
+      expect(editor.getElements().nodes.length).toBeGreaterThan(before);
+    });
+
+    it('paste() reads from system clipboard and uses it when valid graph JSON', async () => {
+      // Seed the system clipboard with a foreign graph (simulating a copy from another window)
+      const foreignClip = { nodes: [{ data: { id: 'foreign-1', label: 'Foreign' } }], edges: [] };
+      clipboardStub._value = JSON.stringify(foreignClip);
+
+      // local clipboard is null — no copy() was called in this editor
+      expect(editor._clipboard).toBeNull();
+      await editor.paste();
+
+      // The foreign node should now be in the graph
+      const ids = editor.getElements().nodes.map(n => n.data.id);
+      // The pasted node gets a new ID, but the graph should have one node
+      expect(ids.length).toBeGreaterThan(0);
+      // And the internal clipboard cache should be updated
+      expect(editor._clipboard).toEqual(foreignClip);
+      expect(editor._pasteBtn.disabled).toBe(false);
+    });
+
+    it('paste() centers content on the viewport on first paste', async () => {
+      // Clipboard has two nodes at known positions.
+      const clip = {
+        nodes: [
+          { data: { id: 'a', label: 'A' }, position: { x: 100, y: 100 } },
+          { data: { id: 'b', label: 'B' }, position: { x: 200, y: 100 } },
+        ],
+        edges: [],
+      };
+      clipboardStub._value = JSON.stringify(clip);
+      await editor.paste();
+
+      const ext = editor.cy.extent();
+      const viewCenterX = (ext.x1 + ext.x2) / 2;
+      const viewCenterY = (ext.y1 + ext.y2) / 2;
+
+      // The rendered bounding box of the pasted group should be centred on the
+      // viewport (the bbox center matches viewCenter).
+      const bb = editor.cy.nodes().boundingBox();
+      const pastedBBCenterX = (bb.x1 + bb.x2) / 2;
+      const pastedBBCenterY = (bb.y1 + bb.y2) / 2;
+      expect(pastedBBCenterX).toBeCloseTo(viewCenterX, 1);
+      expect(pastedBBCenterY).toBeCloseTo(viewCenterY, 1);
+    });
+
+    it('paste() offsets subsequent pastes by content width', async () => {
+      const clip = {
+        nodes: [
+          { data: { id: 'a', label: 'A' }, position: { x: 100, y: 100 } },
+          { data: { id: 'b', label: 'B' }, position: { x: 200, y: 100 } },
+        ],
+        edges: [],
+      };
+      clipboardStub._value = JSON.stringify(clip);
+
+      await editor.paste(); // pasteIndex=0
+      // Measure the actual rendered bounding box width after the first paste.
+      const firstBB = editor.cy.nodes().boundingBox();
+      const actualBBWidth = firstBB.w;
+
+      await editor.paste(); // pasteIndex=1
+
+      const nodes = editor.getElements().nodes;
+      expect(nodes).toHaveLength(4);
+
+      // The second paste's A node should be exactly bb.w further right than
+      // the first paste's A node.
+      const labelsA = nodes.filter(n => n.data.label === 'A');
+      expect(labelsA).toHaveLength(2);
+      const xDiff = Math.abs(labelsA[1].position.x - labelsA[0].position.x);
+      expect(xDiff).toBeCloseTo(actualBBWidth, 1);
+    });
+
+    it('paste() resets cascade offset when the viewport center changes between pastes', async () => {
+      const clip = {
+        nodes: [
+          { data: { id: 'a', label: 'A' }, position: { x: 100, y: 100 } },
+        ],
+        edges: [],
+      };
+      clipboardStub._value = JSON.stringify(clip);
+
+      // Build up a non-zero cascade offset (paste several times without panning).
+      await editor.paste(); // index 0, pasteOffset → 1
+      await editor.paste(); // index 1, pasteOffset → 2
+      await editor.paste(); // index 2, pasteOffset → 3
+      expect(editor._pasteOffset).toBe(3);
+
+      // Simulate a significant pan so the viewport center moves.
+      editor.cy.pan({ x: editor.cy.pan().x + 500, y: editor.cy.pan().y });
+
+      // Paste after panning — the viewport-change check must fire and reset
+      // _pasteOffset to 0 BEFORE the positioning logic uses it.  If the reset
+      // didn't fire, this paste would use index 3 (offset by 3*bb.w from center).
+      await editor.paste();
+
+      // The paste that triggered the reset used pasteIndex=0 (landed at center).
+      // _pasteOffset is then incremented to 1, ready for the next cascade entry.
+      expect(editor._pasteOffset).toBe(1);
+
+      // Confirm the paste-after-pan node is centred on the NEW viewport center.
+      const ext = editor.cy.extent();
+      const viewCenterX = (ext.x1 + ext.x2) / 2;
+      const allNodes = editor.getElements().nodes;
+      expect(allNodes).toHaveLength(4);
+      const lastNode = allNodes[allNodes.length - 1];
+      expect(lastNode.position.x).toBeCloseTo(viewCenterX, 1);
+
+      // A further paste without panning should be at index 1 (center+bb.w),
+      // NOT at index 0 again (confirming the cascade continues correctly).
+      await editor.paste();
+      expect(editor._pasteOffset).toBe(2);
+      const nodesAfter = editor.getElements().nodes;
+      expect(nodesAfter).toHaveLength(5);
+      const cascadeNode = nodesAfter[nodesAfter.length - 1];
+      // It should be further right than the previous paste, not at the same position.
+      expect(cascadeNode.position.x).toBeGreaterThan(lastNode.position.x + 1);
     });
   });
 

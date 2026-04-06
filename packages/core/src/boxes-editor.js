@@ -325,12 +325,15 @@ export class BoxesEditor {
     this._redoStack = [];
     this._restoringState = false;
     this._preGrabSnapshot = null;
-    this._clipboard = null;   // { nodes: [...json], edges: [...json] }
-    this._pasteOffset = 0;    // increments each paste so repeated pastes cascade
+    this._clipboard = null;       // { nodes: [...json], edges: [...json] }
+    this._pasteOffset = 0;        // count of pastes since last copy; used for cascade offset
+    this._pasteViewCenter = null; // viewport center {x,y} when cascade began; reset resets offset
     this._currentNodeTypeId = this._nodeTypes[0]?.id || null;
     this._selectedElement = null;
     this._ctxTarget = null;
     this._ctxPosition = null;
+    this._findMatches = [];
+    this._findCurrentIdx = -1;
     this.context = { ...(options.context ?? tmpl.context ?? {}) };
 
     this._init();
@@ -439,6 +442,17 @@ export class BoxesEditor {
 .bxe-ctx-sep { height:1px; background:#dee2e6; }
 .bxe-ctx-editor { min-height:300px; margin:-4px; }
 .bxe-label-editor { position:absolute; z-index:20; background:rgba(255,255,255,.95); border:2px solid #4d90fe; border-radius:4px; padding:2px 6px; font-size:13px; font-family:inherit; outline:none; box-sizing:border-box; text-align:center; box-shadow:0 2px 8px rgba(0,0,0,.2); line-height:1.4; }
+.bxe-find-bar { position:absolute; top:8px; left:50%; transform:translateX(-50%); z-index:25; display:flex; align-items:center; gap:4px; background:#fff; border:1px solid #ccc; border-radius:5px; padding:4px 8px; box-shadow:0 2px 8px rgba(0,0,0,.2); white-space:nowrap; }
+.bxe-find-bar.bxe-hidden { display:none; }
+.bxe-find-input { border:1px solid #ccc; border-radius:3px; padding:2px 6px; font-size:13px; width:180px; outline:none; font-family:inherit; }
+.bxe-find-input:focus { border-color:#4d90fe; box-shadow:0 0 0 2px rgba(77,144,254,.2); }
+.bxe-find-count { font-size:12px; color:#666; min-width:44px; text-align:center; }
+.bxe-find-count.no-match { color:#dc3545; }
+.bxe-find-nav-btn { padding:2px 7px; font-size:13px; cursor:pointer; background:#fff; border:1px solid #ccc; border-radius:3px; line-height:1.4; }
+.bxe-find-nav-btn:hover:not(:disabled) { background:#f0f0f0; }
+.bxe-find-nav-btn:disabled { opacity:.4; cursor:default; }
+.bxe-find-close-btn { padding:2px 5px; font-size:13px; cursor:pointer; background:none; border:none; color:#888; border-radius:3px; line-height:1.4; }
+.bxe-find-close-btn:hover { background:#f0f0f0; color:#333; }
 `;
     document.head.appendChild(style);
   }
@@ -470,6 +484,50 @@ export class BoxesEditor {
     this._panelToggleBtn.addEventListener('click', () => this._toggleSidebar());
     this._canvasWrap.appendChild(this._panelToggleBtn);
 
+    // Find bar (floating overlay on canvas, hidden by default)
+    this._findBar = document.createElement('div');
+    this._findBar.className = 'bxe-find-bar bxe-hidden';
+    this._findInput = document.createElement('input');
+    this._findInput.className = 'bxe-find-input';
+    this._findInput.type = 'text';
+    this._findInput.placeholder = 'Find\u2026';
+    this._findInput.setAttribute('aria-label', 'Find nodes');
+    this._findCount = document.createElement('span');
+    this._findCount.className = 'bxe-find-count';
+    this._findPrevBtn = document.createElement('button');
+    this._findPrevBtn.className = 'bxe-find-nav-btn';
+    this._findPrevBtn.title = 'Previous match (Shift+Enter)';
+    this._findPrevBtn.textContent = '\u2039';
+    this._findPrevBtn.disabled = true;
+    this._findNextBtn = document.createElement('button');
+    this._findNextBtn.className = 'bxe-find-nav-btn';
+    this._findNextBtn.title = 'Next match (Enter)';
+    this._findNextBtn.textContent = '\u203A';
+    this._findNextBtn.disabled = true;
+    this._findCloseBtn = document.createElement('button');
+    this._findCloseBtn.className = 'bxe-find-close-btn';
+    this._findCloseBtn.title = 'Close (Escape)';
+    this._findCloseBtn.textContent = '\u2715';
+    this._findInput.addEventListener('input', () => this._executeFind(this._findInput.value));
+    this._findInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.shiftKey ? this._findPrev() : this._findNext();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        this._closeFind();
+      }
+    });
+    this._findPrevBtn.addEventListener('click', () => this._findPrev());
+    this._findNextBtn.addEventListener('click', () => this._findNext());
+    this._findCloseBtn.addEventListener('click', () => this._closeFind());
+    this._findBar.appendChild(this._findInput);
+    this._findBar.appendChild(this._findCount);
+    this._findBar.appendChild(this._findPrevBtn);
+    this._findBar.appendChild(this._findNextBtn);
+    this._findBar.appendChild(this._findCloseBtn);
+    this._canvasWrap.appendChild(this._findBar);
+
     // Resize handle sits between canvas-wrap and sidebar
     this._resizeHandle = document.createElement('div');
     this._resizeHandle.className = 'bxe-resize-handle';
@@ -493,6 +551,29 @@ export class BoxesEditor {
     this._redoBtn.addEventListener('click', () => this.redo());
     toolbar.appendChild(this._undoBtn);
     toolbar.appendChild(this._redoBtn);
+    this._cutBtn = document.createElement('button');
+    this._cutBtn.title = 'Cut (Ctrl+X)';
+    this._cutBtn.textContent = '\u2702';
+    this._cutBtn.disabled = true;
+    this._cutBtn.addEventListener('click', () => this.cut());
+    this._copyBtn = document.createElement('button');
+    this._copyBtn.title = 'Copy (Ctrl+C)';
+    this._copyBtn.textContent = '\u2398';
+    this._copyBtn.disabled = true;
+    this._copyBtn.addEventListener('click', () => this.copy());
+    this._pasteBtn = document.createElement('button');
+    this._pasteBtn.title = 'Paste (Ctrl+V)';
+    this._pasteBtn.textContent = '\uD83D\uDCCB';
+    this._pasteBtn.disabled = true;
+    this._pasteBtn.addEventListener('click', () => this.paste());
+    toolbar.appendChild(this._cutBtn);
+    toolbar.appendChild(this._copyBtn);
+    toolbar.appendChild(this._pasteBtn);
+    this._findToolbarBtn = document.createElement('button');
+    this._findToolbarBtn.title = 'Find (Ctrl+F)';
+    this._findToolbarBtn.textContent = '\uD83D\uDD0D';
+    this._findToolbarBtn.addEventListener('click', () => this._toggleFind());
+    toolbar.appendChild(this._findToolbarBtn);
     this._sidebarEl.appendChild(toolbar);
 
     // Tab nav
@@ -687,6 +768,12 @@ export class BoxesEditor {
         if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
           e.preventDefault(); this.paste();
         }
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault(); this._toggleFind();
+      } else if (e.key === 'Escape') {
+        if (this._findBar && !this._findBar.classList.contains('bxe-hidden')) {
+          this._closeFind();
+        }
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         const tag = document.activeElement?.tagName;
         if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
@@ -695,6 +782,12 @@ export class BoxesEditor {
       }
     };
     document.addEventListener('keydown', this._keydownHandler);
+
+    // When the window regains focus, check the system clipboard so the paste
+    // button can be enabled if another window (or a text editor) put valid
+    // graph JSON there.
+    this._clipboardFocusHandler = () => this._checkSystemClipboard();
+    window.addEventListener('focus', this._clipboardFocusHandler);
 
     this._switchPane('palette');
     this._renderContextPane();
@@ -1435,6 +1528,29 @@ export class BoxesEditor {
     if (this._redoBtn) this._redoBtn.disabled = !this.canRedo();
   }
 
+  _updateClipboardButtons() {
+    const hasSel = !!(this.cy && this.cy.$(':selected').length > 0);
+    if (this._cutBtn) this._cutBtn.disabled = !hasSel;
+    if (this._copyBtn) this._copyBtn.disabled = !hasSel;
+    if (this._pasteBtn) this._pasteBtn.disabled = !this._clipboard;
+  }
+
+  /** Silently probe the system clipboard and enable paste if valid graph JSON is found. */
+  _checkSystemClipboard() {
+    if (!navigator.clipboard?.readText) return;
+    navigator.clipboard.readText().then(text => {
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed && Array.isArray(parsed.nodes) && Array.isArray(parsed.edges)) {
+          this._clipboard = parsed;
+          this._pasteOffset = 0;
+          this._pasteViewCenter = null;
+          this._updateClipboardButtons();
+        }
+      } catch (_) { /* not valid JSON */ }
+    }).catch(() => { /* permission denied or unavailable */ });
+  }
+
   _init() {
     this._injectCSS();
     this._createUI();
@@ -1525,6 +1641,14 @@ export class BoxesEditor {
       {
         selector: '.eh-reconnect-target',
         style: { 'border-width': 3, 'border-color': '#3498db', 'border-opacity': 1 }
+      },
+      {
+        selector: '.bxe-match',
+        style: { 'border-width': 3, 'border-color': '#ff9900', 'overlay-color': '#ff9900', 'overlay-padding': 5, 'overlay-opacity': 0.2 }
+      },
+      {
+        selector: '.bxe-match-current',
+        style: { 'border-width': 4, 'border-color': '#ff6600', 'overlay-color': '#ff6600', 'overlay-padding': 7, 'overlay-opacity': 0.4 }
       }
     ];
 
@@ -1576,12 +1700,14 @@ export class BoxesEditor {
       this._selectedElement = evt.target;
       this._refreshProperties(evt.target);
       this._switchPane('properties');
+      this._updateClipboardButtons();
     });
 
     this.cy.on('unselect', (evt) => {
       this._emit('unselect', { target: evt.target });
       this._emit('selectionChange', { type: 'unselect', target: evt.target, selected: this.cy.$(':selected').jsons() });
       if (!this.cy.$(':selected').length) this._clearProperties();
+      this._updateClipboardButtons();
     });
 
     this.cy.on('grabon', 'node', (evt) => {
@@ -1919,6 +2045,14 @@ export class BoxesEditor {
       this._renderPalette();
     }
     if (graphData.elements) {
+      graphData.elements.nodes.forEach(n => {
+        if (n.position) {
+          // Nudge every node 1px left. We will nudge it back to the right by 1 px after loading,
+          // as a force-render trick to ensure edge control points are properly calculated and rendered on load.
+          // See the end of this method for details.
+          n.position.x = n.position.x - 1;
+        }
+      });
       this.loadElements(graphData.elements);
     }
     const incoming = graphData.userStylesheet || graphData.stylesheet;
@@ -1954,6 +2088,15 @@ export class BoxesEditor {
     this.cy.elements().boundingBox({ useCache: false });
     this.cy.fit(undefined, 30);
     this.cy.style().update();
+
+    // Nudge every node 1px right.  This is a negligible movement
+    // force-render trick that causes Cytoscape to fully recalculate edge
+    // control-point geometry after a graph is opened.  These moves are
+    // intentionally NOT recorded in the undo history.
+    const nodes = this.cy.nodes();
+    if (nodes.length) {
+      nodes.forEach(n => { const p = n.position(); n.position({ x: p.x + 1, y: p.y }); });
+    }
   }
 
   /** Return true if loaded nodes have no real position data */
@@ -2064,6 +2207,15 @@ export class BoxesEditor {
       edges: edges.map(e => e.json())
     };
     this._pasteOffset = 0;
+    this._pasteViewCenter = null;
+
+    // Write to the system clipboard so the data can be pasted into other
+    // browser windows or into a .boxes file in a text editor.
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(JSON.stringify(this._clipboard)).catch(() => {});
+    }
+
+    this._updateClipboardButtons();
     this._emit('clipboardChange', { hasClipboard: true });
     return true;
   }
@@ -2080,35 +2232,74 @@ export class BoxesEditor {
 
   /**
    * Paste the clipboard contents into the graph.
-   * Each paste cascades by 20px. Returns the newly added elements or false.
+   * Reads from the system clipboard first (JSON format); falls back to the
+   * in-memory clipboard. Each paste cascades by 20px. Returns the newly
+   * added elements or false.
    */
-  paste() {
-    if (!this._clipboard) return false;
+  async paste() {
+    // Try to read fresh data from the system clipboard.
+    let clipData = this._clipboard;
+    try {
+      if (navigator.clipboard?.readText) {
+        const text = await navigator.clipboard.readText();
+        const parsed = JSON.parse(text);
+        if (parsed && Array.isArray(parsed.nodes) && Array.isArray(parsed.edges)) {
+          // If the system clipboard contains different content than our local
+          // cache, treat it as a fresh copy and reset the paste cascade.
+          if (JSON.stringify(parsed) !== JSON.stringify(this._clipboard)) {
+            this._pasteOffset = 0;
+            this._pasteViewCenter = null;
+          }
+          this._clipboard = parsed;
+          clipData = this._clipboard;
+          this._updateClipboardButtons();
+        }
+      }
+    } catch (_) {
+      // Permission denied, clipboard unavailable, or invalid JSON — use local clipboard.
+    }
+
+    if (!clipData) return false;
+
+    // Snapshot the viewport center NOW — before adding any nodes — so the
+    // comparison is unaffected by anything Cytoscape does when elements are
+    // added.  This also runs unconditionally, regardless of whether the
+    // clipboard contains positioned nodes, keeping _pasteViewCenter in sync.
+    const ext = this.cy.extent();
+    const viewCenterX = (ext.x1 + ext.x2) / 2;
+    const viewCenterY = (ext.y1 + ext.y2) / 2;
+
+    // If the viewport center has moved since the last paste, the accumulated
+    // cascade offset no longer points at anything in view.  Reset it to 0 so
+    // the next content lands centred on the NEW viewport.
+    if (this._pasteViewCenter &&
+        (Math.abs(this._pasteViewCenter.x - viewCenterX) > 1 ||
+         Math.abs(this._pasteViewCenter.y - viewCenterY) > 1)) {
+      this._pasteOffset = 0;
+    }
+    // Always record the current viewport center as the baseline for the next paste.
+    this._pasteViewCenter = { x: viewCenterX, y: viewCenterY };
+
     this._pushUndo();
 
-    this._pasteOffset += 20;
-    const offset = this._pasteOffset;
-
-    // Map old node IDs → new node IDs
+    // Map old node IDs → new node IDs, preserving original positions for now.
+    // We add nodes at their clipboard positions first so Cytoscape can compute
+    // the real rendered bounding box (which accounts for node width, label
+    // padding, etc.).  We shift them to their final positions afterwards.
     const idMap = {};
     const newNodes = [];
     const newEdges = [];
 
-    this._clipboard.nodes.forEach(nodeJson => {
+    clipData.nodes.forEach(nodeJson => {
       const newId = 'node-' + Math.random().toString(36).slice(2, 9);
       idMap[nodeJson.data.id] = newId;
 
-      const newData = { ...nodeJson.data, id: newId };
-      const newPos = nodeJson.position
-        ? { x: nodeJson.position.x + offset, y: nodeJson.position.y + offset }
-        : undefined;
-
-      const entry = { group: 'nodes', data: newData };
-      if (newPos) entry.position = newPos;
+      const entry = { group: 'nodes', data: { ...nodeJson.data, id: newId } };
+      if (nodeJson.position) entry.position = { ...nodeJson.position };
       newNodes.push(entry);
     });
 
-    this._clipboard.edges.forEach(edgeJson => {
+    clipData.edges.forEach(edgeJson => {
       const newSrc = idMap[edgeJson.data.source];
       const newTgt = idMap[edgeJson.data.target];
       if (!newSrc || !newTgt) return; // skip if endpoints weren't in clipboard
@@ -2123,6 +2314,29 @@ export class BoxesEditor {
     this.cy.$(':selected').unselect();
     const added = this.cy.add([...newNodes, ...newEdges]);
     added.select();
+
+    // Now that Cytoscape has rendered the nodes, measure their actual bounding
+    // box.  This correctly accounts for node width, label extents, etc. — all
+    // things that can't be known from center positions alone.
+    const addedNodes = added.nodes();
+    if (addedNodes.length > 0 && newNodes.some(n => n.position)) {
+      const bb = addedNodes.boundingBox();
+      const bbCenterX = (bb.x1 + bb.x2) / 2;
+      const bbCenterY = (bb.y1 + bb.y2) / 2;
+
+      // First paste (pasteIndex=0) centres content on the viewport.
+      // Each subsequent paste shifts right by the actual rendered width so
+      // copies never overlap, even for wide label text.
+      const pasteIndex = this._pasteOffset;
+      const shiftX = viewCenterX - bbCenterX + pasteIndex * bb.w;
+      const shiftY = viewCenterY - bbCenterY;
+
+      addedNodes.forEach(node => {
+        const p = node.position();
+        node.position({ x: p.x + shiftX, y: p.y + shiftY });
+      });
+    }
+    this._pasteOffset += 1;
 
     this._updateStylesheet();
     this._emit('paste', { nodes: newNodes, edges: newEdges });
@@ -2216,6 +2430,120 @@ export class BoxesEditor {
 
   canUndo() { return this._undoStack.length > 0; }
   canRedo() { return this._redoStack.length > 0; }
+
+  /** Toggle the find bar open/closed. */
+  _toggleFind() {
+    if (this._findBar.classList.contains('bxe-hidden')) {
+      this._openFind();
+    } else {
+      this._closeFind();
+    }
+  }
+
+  /** Open the find bar and focus the input. */
+  _openFind() {
+    this._findBar.classList.remove('bxe-hidden');
+    this._findInput.focus();
+    this._findInput.select();
+    if (this._findInput.value) {
+      this._executeFind(this._findInput.value);
+    }
+  }
+
+  /** Close the find bar and clear all highlights. */
+  _closeFind() {
+    this._findBar.classList.add('bxe-hidden');
+    this._clearFindHighlights();
+    this._findMatches = [];
+    this._findCurrentIdx = -1;
+    this._findInput.value = '';
+    this._updateFindUI();
+  }
+
+  /**
+   * Search all nodes for a query string, matching against id, label, and all
+   * non-internal data properties. Highlights all matches and navigates to the
+   * first one.
+   */
+  _executeFind(query) {
+    this._clearFindHighlights();
+    this._findMatches = [];
+    this._findCurrentIdx = -1;
+
+    if (query && query.trim()) {
+      const q = query.toLowerCase();
+      this.cy.nodes().forEach(node => {
+        const d = node.data();
+        const matched = Object.entries(d).some(([k, v]) => {
+          if (k.startsWith('_')) return false;
+          return String(v ?? '').toLowerCase().includes(q) || k.toLowerCase().includes(q);
+        });
+        if (matched) {
+          this._findMatches.push(node.id());
+        }
+      });
+      if (this._findMatches.length > 0) {
+        this._findCurrentIdx = 0;
+        this._applyFindHighlights();
+      }
+    }
+
+    this._updateFindUI();
+  }
+
+  /** Navigate to the next find match. */
+  _findNext() {
+    if (!this._findMatches.length) return;
+    this._findCurrentIdx = (this._findCurrentIdx + 1) % this._findMatches.length;
+    this._applyFindHighlights();
+    this._updateFindUI();
+  }
+
+  /** Navigate to the previous find match. */
+  _findPrev() {
+    if (!this._findMatches.length) return;
+    this._findCurrentIdx = (this._findCurrentIdx - 1 + this._findMatches.length) % this._findMatches.length;
+    this._applyFindHighlights();
+    this._updateFindUI();
+  }
+
+  /** Apply bxe-match / bxe-match-current classes and select + centre the current match. */
+  _applyFindHighlights() {
+    this.cy.nodes().removeClass('bxe-match bxe-match-current');
+    this._findMatches.forEach((id, i) => {
+      const node = this.cy.getElementById(id);
+      if (i === this._findCurrentIdx) {
+        node.addClass('bxe-match-current');
+        this.cy.elements().unselect();
+        node.select();
+        this.cy.animate({ center: { eles: node } }, { duration: 200 });
+      } else {
+        node.addClass('bxe-match');
+      }
+    });
+  }
+
+  /** Remove all find highlight classes from nodes. */
+  _clearFindHighlights() {
+    if (this.cy) {
+      this.cy.nodes().removeClass('bxe-match bxe-match-current');
+    }
+  }
+
+  /** Refresh the find bar count label and button states. */
+  _updateFindUI() {
+    const total = this._findMatches.length;
+    const hasQuery = this._findInput.value.trim().length > 0;
+    if (total === 0) {
+      this._findCount.textContent = hasQuery ? '0 matches' : '';
+      this._findCount.classList.toggle('no-match', hasQuery);
+    } else {
+      this._findCount.textContent = `${this._findCurrentIdx + 1} / ${total}`;
+      this._findCount.classList.remove('no-match');
+    }
+    this._findPrevBtn.disabled = total === 0;
+    this._findNextBtn.disabled = total === 0;
+  }
 
   /** Programmatically switch the active sidebar tab by id (palette|properties|stylesheet|layout|context). */
   setActiveTab(tabId) {
@@ -2317,6 +2645,8 @@ export class BoxesEditor {
       this._contextEditor.destroy();
       this._contextEditor = null;
     }
+    this._findMatches = [];
+    this._findCurrentIdx = -1;
     if (this.cy) {
       this.cy.destroy();
       this.cy = null;
@@ -2329,6 +2659,10 @@ export class BoxesEditor {
     if (this._keydownHandler) {
       document.removeEventListener('keydown', this._keydownHandler);
       this._keydownHandler = null;
+    }
+    if (this._clipboardFocusHandler) {
+      window.removeEventListener('focus', this._clipboardFocusHandler);
+      this._clipboardFocusHandler = null;
     }
     if (this.container) {
       this.container.innerHTML = '';
