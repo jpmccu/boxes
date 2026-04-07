@@ -115,6 +115,7 @@ function cancelAutosave() {
 function attachEditorChangeListeners() {
   if (!editor) return;
   editor.on('change', markDirty);
+  editor.on('historyChange', markDirty);
   editor.on('stylesheetChanged', markDirty);
   editor.on('paletteChanged', markDirty);
 }
