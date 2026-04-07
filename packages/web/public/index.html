@@ -89,7 +89,15 @@
     <div class="d-flex gap-2">
       <button id="new-btn" class="btn btn-sm btn-outline-light" title="New graph">New</button>
       <button id="open-btn" class="btn btn-sm btn-outline-light" title="Open file">Open</button>
-      <button id="save-btn" class="btn btn-sm btn-outline-light" title="Save file">Save</button>
+      <button id="save-btn" class="btn btn-sm btn-outline-light" title="Save file (Ctrl+S)" disabled>Save</button>
+      <button id="save-as-btn" class="btn btn-sm btn-outline-light" title="Save As… (Ctrl+Shift+S)">Save As…</button>
+    </div>
+    <div class="vr mx-2 bg-secondary align-self-center" style="height:20px"></div>
+    <div class="d-flex align-items-center gap-2" title="Automatically save changes to the current file">
+      <div class="form-check form-switch mb-0 d-flex align-items-center gap-1">
+        <input class="form-check-input mt-0" type="checkbox" id="autosave-toggle" role="switch">
+        <label class="form-check-label text-light" for="autosave-toggle" style="font-size:0.8rem;white-space:nowrap">Autosave</label>
+      </div>
     </div>
     <div class="vr mx-2 bg-secondary align-self-center" style="height:20px"></div>
     <div class="d-flex gap-2">
