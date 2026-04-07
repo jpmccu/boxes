@@ -24,6 +24,9 @@ registerExporter('rdfxml', rdfXmlExporter);
 let editor = null;
 let currentFileName = 'graph.json';
 let currentFileHandle = null; // FileSystemFileHandle when opened/saved via File System Access API
+let hasUnsavedChanges = false;
+let autosaveTimer = null;
+const AUTOSAVE_DELAY_MS = 3000;
 
 const BOXES_FILE_TYPES = [{ description: 'Boxes Graph', accept: { 'application/json': ['.boxes', '.json'] } }];
 
@@ -75,6 +78,45 @@ function startWithTemplate(templateOrId) {
   if (editor) { editor.destroy(); editor = null; }
   const container = document.getElementById('editor-container');
   editor = new BoxesEditor(container, { template, layout: { name: 'preset' } });
+  attachEditorChangeListeners();
+  markClean();
+}
+
+function markDirty() {
+  hasUnsavedChanges = true;
+  document.getElementById('save-btn').disabled = false;
+  scheduleAutosave();
+}
+
+function markClean() {
+  hasUnsavedChanges = false;
+  document.getElementById('save-btn').disabled = true;
+  cancelAutosave();
+}
+
+function scheduleAutosave() {
+  if (!document.getElementById('autosave-toggle').checked) return;
+  // Autosave only works when we already have a file handle; otherwise a save
+  // picker dialog would pop up unexpectedly.
+  if (!currentFileHandle) return;
+  cancelAutosave();
+  autosaveTimer = setTimeout(() => {
+    if (hasUnsavedChanges && editor && currentFileHandle) saveToFile();
+  }, AUTOSAVE_DELAY_MS);
+}
+
+function cancelAutosave() {
+  if (autosaveTimer !== null) {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = null;
+  }
+}
+
+function attachEditorChangeListeners() {
+  if (!editor) return;
+  editor.on('change', markDirty);
+  editor.on('stylesheetChanged', markDirty);
+  editor.on('paletteChanged', markDirty);
 }
 
 function saveToFile() {
@@ -109,6 +151,7 @@ async function _saveWithPicker(handle) {
     await writable.close();
     currentFileHandle = handle;
     currentFileName = handle.name;
+    markClean();
   } catch (err) {
     if (err.name !== 'AbortError') {
       alert(`Failed to save: ${err.message}`);
@@ -126,6 +169,7 @@ function _saveDownloadFallback() {
   a.download = currentFileName;
   a.click();
   URL.revokeObjectURL(url);
+  markClean();
 }
 
 function loadFromFile(file, handle = null) {
@@ -143,6 +187,7 @@ function loadFromFile(file, handle = null) {
       editor.importGraph(graphData);
       currentFileName = file.name;
       currentFileHandle = handle; // null when opened via legacy <input>
+      markClean();
     } catch (err) {
       alert('Failed to load file: Invalid JSON');
       console.error(err);
@@ -170,6 +215,7 @@ document.getElementById('new-btn').addEventListener('click', () => {
     if (editor) { editor.destroy(); editor = null; }
     currentFileName = 'graph.json';
     currentFileHandle = null;
+    markClean();
     document.getElementById('editor-container').classList.add('d-none');
     document.getElementById('welcome-screen').classList.remove('d-none');
   }
@@ -181,6 +227,15 @@ document.getElementById('file-input').addEventListener('change', (e) => {
   e.target.value = '';
 });
 document.getElementById('save-btn').addEventListener('click', saveToFile);
+document.getElementById('save-as-btn').addEventListener('click', saveAsFile);
+
+document.getElementById('autosave-toggle').addEventListener('change', () => {
+  if (document.getElementById('autosave-toggle').checked && hasUnsavedChanges && editor && currentFileHandle) {
+    scheduleAutosave();
+  } else {
+    cancelAutosave();
+  }
+});
 
 document.getElementById('tour-btn').addEventListener('click', () => {
   // If no editor is open yet, start with the OWL Ontology template first
@@ -302,6 +357,7 @@ document.getElementById('import-file-input').addEventListener('change', async (e
       // Suggest the same basename with .boxes for the next Save
       currentFileName = file.name.replace(/\.[^.]+$/, '.boxes');
       currentFileHandle = null; // imported format differs; require Save As to pick destination
+      markDirty(); // imported graph is unsaved in .boxes format
     } catch (err) {
       alert(`Import failed: ${err.message}`);
       console.error(err);
