@@ -544,8 +544,10 @@ export function matchEdgeType(edgeData, edgeTypes, prefixes) {
  *   @param {Array}  options.edgeTypes – edge type definitions from the template
  * @returns {string} Turtle text
  */
-export function exportToTurtle(graphData, { context = {}, edgeTypes = [] } = {}) {
-  const prefixes  = { ...context };
+export function exportToTurtle(graphData, { context = {}, edgeTypes } = {}) {
+  const resolvedEdgeTypes = edgeTypes ?? graphData.palette?.edgeTypes ?? [];
+  const resolvedContext   = Object.keys(context).length > 0 ? context : (graphData.context || {});
+  const prefixes  = { ...resolvedContext };
   const nodes     = graphData.elements?.nodes || [];
   const edges     = graphData.elements?.edges || [];
 
@@ -602,7 +604,7 @@ export function exportToTurtle(graphData, { context = {}, edgeTypes = [] } = {})
 
     if (d['@type']) {
       // ── Reified edge ──
-      const edgeType = matchEdgeType(d, edgeTypes, prefixes);
+      const edgeType = matchEdgeType(d, resolvedEdgeTypes, prefixes);
       const rawId    = d['@id'] || '';
       const edgeURI  = rawId.startsWith('_:')
         ? rawId

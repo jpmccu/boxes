@@ -90,7 +90,8 @@ function buildIriValuedProps(context, allPrefixes) {
  *   - Edge targets in plain-triple edges are always resource references.
  *   - @type values are always resource references (standard JSON-LD semantics).
  */
-export function graphDataToJsonLD(graphData, { edgeTypes = [] } = {}) {
+export function graphDataToJsonLD(graphData, { edgeTypes } = {}) {
+  const resolvedEdgeTypes = edgeTypes ?? graphData.palette?.edgeTypes ?? [];
   const context     = graphData.context || {};
   const nodes       = graphData.elements?.nodes || [];
   const edges       = graphData.elements?.edges || [];
@@ -159,7 +160,7 @@ export function graphDataToJsonLD(graphData, { edgeTypes = [] } = {}) {
 
     if (d['@type']) {
       // ── Reified edge: becomes its own JSON-LD node ─────────────────────────
-      const et     = matchEdgeType(d, edgeTypes, allPrefixes);
+      const et     = matchEdgeType(d, resolvedEdgeTypes, allPrefixes);
       const edgeId = d['@id'] || `_:e${d.id}`;
       const edgeObj = getOrCreate(edgeId);
 
@@ -348,7 +349,7 @@ function rdfLibSerializeToXml(store) {
 export async function exportToJsonLD(graphData, options) {
   const opts = options || {};
   const doc = graphDataToJsonLD(graphData, {
-    edgeTypes: opts.edgeTypes || [],
+    edgeTypes: opts.edgeTypes,
   });
   return JSON.stringify(doc, null, 2);
 }
