@@ -915,6 +915,120 @@ describe('@base context entry', () => {
   });
 });
 
+// ─── Palette-embedded edge types (graphData.palette.edgeTypes) ───────────────
+
+describe('exportToTurtle – palette.edgeTypes used as fallback', () => {
+  const nodes = [
+    { data: { id: 'ex:ClassA', '@id': 'ex:ClassA', '@type': 'owl:Class', label: 'ClassA' } },
+    { data: { id: 'ex:ClassB', '@id': 'ex:ClassB', '@type': 'owl:Class', label: 'ClassB' } },
+  ];
+
+  function makeGraphWithPalette(edgeTypes, edges) {
+    return {
+      palette: { edgeTypes },
+      context: OWL_CONTEXT,
+      elements: { nodes, edges },
+    };
+  }
+
+  it('emits rdfs:domain and rdfs:range for owl:ObjectProperty when edgeTypes come from palette', () => {
+    const gd = makeGraphWithPalette(
+      [{ id: 'owl:ObjectProperty', data: { '@type': 'owl:ObjectProperty' }, source_property: 'rdfs:domain', target_property: 'rdfs:range' }],
+      [{ data: { id: 'e1', source: 'ex:ClassA', target: 'ex:ClassB', '@id': 'ex:knows', '@type': 'owl:ObjectProperty', label: 'knows' } }],
+    );
+    // Call exportToTurtle WITHOUT passing edgeTypes option
+    const ttl = exportToTurtle(gd, { context: OWL_CONTEXT });
+    expect(ttl).toContain('a owl:ObjectProperty');
+    expect(ttl).toContain('rdfs:domain ex:ClassA');
+    expect(ttl).toContain('rdfs:range ex:ClassB');
+  });
+
+  it('emits rdfs:domain and rdfs:range for owl:DatatypeProperty when edgeTypes come from palette', () => {
+    const datatypeNodes = [
+      { data: { id: 'ex:MyClass', '@id': 'ex:MyClass', '@type': 'owl:Class', label: 'MyClass' } },
+      { data: { id: 'xsd:string', '@id': 'xsd:string', label: 'string' } },
+    ];
+    const gd = {
+      palette: {
+        edgeTypes: [{ id: 'owl:DatatypeProperty', data: { '@type': 'owl:DatatypeProperty' }, source_property: 'rdfs:domain', target_property: 'rdfs:range' }],
+      },
+      context: OWL_CONTEXT,
+      elements: {
+        nodes: datatypeNodes,
+        edges: [{ data: { id: 'e1', source: 'ex:MyClass', target: 'xsd:string', '@id': 'ex:name', '@type': 'owl:DatatypeProperty', label: 'name' } }],
+      },
+    };
+    const ttl = exportToTurtle(gd, { context: OWL_CONTEXT });
+    expect(ttl).toContain('a owl:DatatypeProperty');
+    expect(ttl).toContain('rdfs:domain ex:MyClass');
+    expect(ttl).toContain('rdfs:range xsd:string');
+  });
+
+  it('respects reverse_source_property from palette edge types', () => {
+    const gd = makeGraphWithPalette(
+      [{
+        id: 'PropertyShape',
+        data: { '@type': 'sh:PropertyShape', 'sh:path': '' },
+        target_property: 'sh:node',
+        reverse_source_property: 'sh:property',
+      }],
+      [{ data: { id: 'e1', source: 'ex:ClassA', target: 'ex:ClassB', '@id': 'ex:ps1', '@type': 'sh:PropertyShape', 'sh:path': 'ex:someProp', label: 'shape' } }],
+    );
+    const ttl = exportToTurtle(gd, { context: { ...OWL_CONTEXT, sh: 'http://www.w3.org/ns/shacl#' } });
+    expect(ttl).toContain('sh:property ex:ps1');
+    expect(ttl).toContain('sh:node ex:ClassB');
+  });
+
+  it('works with arbitrary palette edge type mapping custom properties', () => {
+    const customNodes = [
+      { data: { id: 'ex:A', '@id': 'ex:A', label: 'A' } },
+      { data: { id: 'ex:B', '@id': 'ex:B', label: 'B' } },
+    ];
+    const gd = {
+      palette: {
+        edgeTypes: [{
+          id: 'myCustomEdge',
+          data: { '@type': 'ex:MyRelation' },
+          source_property: 'ex:fromNode',
+          target_property: 'ex:toNode',
+        }],
+      },
+      context: { ex: 'http://example.org/' },
+      elements: {
+        nodes: customNodes,
+        edges: [{ data: { id: 'e1', source: 'ex:A', target: 'ex:B', '@id': 'ex:rel1', '@type': 'ex:MyRelation', label: 'rel' } }],
+      },
+    };
+    const ttl = exportToTurtle(gd, { context: { ex: 'http://example.org/' } });
+    expect(ttl).toContain('a ex:MyRelation');
+    expect(ttl).toContain('ex:fromNode ex:A');
+    expect(ttl).toContain('ex:toNode ex:B');
+  });
+
+  it('explicit edgeTypes option takes precedence over palette.edgeTypes', () => {
+    // palette has ObjectProperty with domain/range, but option overrides with empty
+    const gd = makeGraphWithPalette(
+      [{ id: 'owl:ObjectProperty', data: { '@type': 'owl:ObjectProperty' }, source_property: 'rdfs:domain', target_property: 'rdfs:range' }],
+      [{ data: { id: 'e1', source: 'ex:ClassA', target: 'ex:ClassB', '@id': 'ex:p', '@type': 'owl:ObjectProperty', label: 'p' } }],
+    );
+    // Pass explicit edgeTypes: [] — should suppress domain/range emission
+    const ttl = exportToTurtle(gd, { context: OWL_CONTEXT, edgeTypes: [] });
+    expect(ttl).not.toContain('rdfs:domain');
+    expect(ttl).not.toContain('rdfs:range');
+  });
+
+  it('falls back to palette edgeTypes when no options object is passed at all', () => {
+    const gd = makeGraphWithPalette(
+      [{ id: 'owl:ObjectProperty', data: { '@type': 'owl:ObjectProperty' }, source_property: 'rdfs:domain', target_property: 'rdfs:range' }],
+      [{ data: { id: 'e1', source: 'ex:ClassA', target: 'ex:ClassB', '@id': 'ex:p', '@type': 'owl:ObjectProperty', label: 'p' } }],
+    );
+    // exportToTurtle called with graphData only — uses embedded context and palette
+    const ttl = exportToTurtle(gd);
+    expect(ttl).toContain('rdfs:domain');
+    expect(ttl).toContain('rdfs:range');
+  });
+});
+
 describe('nodes with bare or numeric IDs', () => {
   it('exports node with bare id (no colon) wrapped in angle brackets', () => {
     const nodes = [{ data: { id: 'myNode', label: 'My Node' } }];

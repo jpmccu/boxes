@@ -18,7 +18,7 @@
       {
         "id": "owl:ObjectProperty",
         "label": "ObjectProperty",
-        "data": { "@type": "owl:ObjectProperty" },
+        "data": { "@type": "owl:ObjectProperty", "@id": "", "skos:definition": "" },
         "color": "#2471A3",
         "lineStyle": "dashed",
         "source_property": "rdfs:domain",
@@ -27,7 +27,7 @@
       {
         "id": "owl:DatatypeProperty",
         "label": "DatatypeProperty",
-        "data": { "@type": "owl:DatatypeProperty" },
+        "data": { "@type": "owl:DatatypeProperty", "@id": "", "skos:definition": "" },
         "color": "#1E8449",
         "lineStyle": "solid",
         "source_property": "rdfs:domain",
