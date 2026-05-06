@@ -3,6 +3,7 @@ import {
   rdfImporter, rdfExporter,
   jsonldImporter, jsonldExporter,
   rdfXmlImporter, rdfXmlExporter,
+  dotLdImporter, dotLdExporter,
 } from '/core/boxes-core.js';
 import { registerImporter, registerExporter, getImporters, getExporters, runImport, runExport } from './io/io-manager.js';
 import { lucidchartCSVImporter } from './io/importers/lucidchart-csv.js';
@@ -15,11 +16,13 @@ registerImporter('lucidchart-csv', lucidchartCSVImporter);
 registerImporter('rdf', rdfImporter);
 registerImporter('jsonld', jsonldImporter);
 registerImporter('rdfxml', rdfXmlImporter);
+registerImporter('dotld', dotLdImporter);
 registerExporter('svg', svgExporter);
 registerExporter('pdf', pdfExporter);
 registerExporter('rdf', rdfExporter);
 registerExporter('jsonld', jsonldExporter);
 registerExporter('rdfxml', rdfXmlExporter);
+registerExporter('dotld', dotLdExporter);
 
 let editor = null;
 let currentFileName = 'graph.json';
