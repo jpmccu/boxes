@@ -44,7 +44,7 @@ const BOXES_INTERNAL = new Set([
 // ─── Colour helper ────────────────────────────────────────────────────────────
 
 function darkenColor(hex, factor = 0.65) {
-  if (!hex || !hex.startsWith('#') || hex.length < 7) return '#444444';
+  if (!hex || !hex.startsWith('#') || hex.length !== 7) return '#444444';
   const r = Math.round(parseInt(hex.slice(1, 3), 16) * factor);
   const g = Math.round(parseInt(hex.slice(3, 5), 16) * factor);
   const b = Math.round(parseInt(hex.slice(5, 7), 16) * factor);
@@ -69,16 +69,31 @@ const PROP_PAIR_RE = /,\s*([\w-]+)\s*=\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[\
  * Parse all ::config ... :: blocks from a DOT-LD document.
  * Returns { typeDefs: Map<name, {shape, color, size}>,
  *           entityAssignments: Map<name, {type, props}> }
+ *
+ * Uses string-based block extraction (rather than a greedy regex) to avoid
+ * catastrophic backtracking on malformed input.
  */
 function parseConfigBlocks(text) {
   const typeDefs = new Map();
   const entityAssignments = new Map();
 
-  // Config blocks: ::config\n...\n::  (:: on its own line)
-  const CONFIG_BLOCK_RE = /::config\s*\n([\s\S]*?)\n::/g;
-  let blockMatch;
-  while ((blockMatch = CONFIG_BLOCK_RE.exec(text)) !== null) {
-    for (const rawLine of blockMatch[1].split('\n')) {
+  // Extract config block bodies using string search to avoid ReDoS
+  let searchFrom = 0;
+  while (searchFrom < text.length) {
+    const startMarker = text.indexOf('::config', searchFrom);
+    if (startMarker === -1) break;
+
+    const afterMarker = text.indexOf('\n', startMarker);
+    if (afterMarker === -1) break;
+
+    // Closing :: must be on its own line (preceded by \n)
+    const endMarker = text.indexOf('\n::', afterMarker);
+    if (endMarker === -1) break;
+
+    const blockContent = text.slice(afterMarker + 1, endMarker);
+    searchFrom = endMarker + 3;
+
+    for (const rawLine of blockContent.split('\n')) {
       const line = rawLine.trim();
       if (!line || line.startsWith('//')) continue;
 
@@ -123,10 +138,13 @@ function parseConfigBlocks(text) {
  * Extract all ::rel blocks from text.
  * Returns array of { source, arrow, target, label }
  * arrow: '->' | '<-' | '<->'
+ *
+ * Anchored to single lines (m flag) to prevent cross-line backtracking.
  */
 function parseRelBlocks(text) {
   const rels = [];
-  const REL_RE = /::rel\s+([\w-]+)\s+(->|<-|<->)\s+([\w-]+)\s+\[([^\]]*)\]\s*::/g;
+  // Anchored: each ::rel must be on a single line; [^\]\n]* prevents newline-spanning
+  const REL_RE = /^[ \t]*::rel[ \t]+([\w-]+)[ \t]+(->|<-|<->)[ \t]+([\w-]+)[ \t]+\[([^\]\n]*)\][ \t]*::[ \t]*$/gm;
   let m;
   while ((m = REL_RE.exec(text)) !== null) {
     rels.push({
