@@ -3,11 +3,13 @@ import {
   rdfImporter, rdfExporter,
   jsonldImporter, jsonldExporter,
   rdfXmlImporter, rdfXmlExporter,
+  dotLdImporter, dotLdExporter,
 } from '/core/boxes-core.js';
 import { registerImporter, registerExporter, getImporters, getExporters, runImport, runExport } from './io/io-manager.js';
 import { lucidchartCSVImporter } from './io/importers/lucidchart-csv.js';
 import { svgExporter } from './io/exporters/svg.js';
 import { pdfExporter } from './io/exporters/pdf.js';
+import { dotLdHtmlExporter } from './io/exporters/dot-ld-html.js';
 import { startTour, isTourDone } from './tour.js';
 
 // ── Register built-in I/O plugins ───────────────────────────────────────────
@@ -15,11 +17,14 @@ registerImporter('lucidchart-csv', lucidchartCSVImporter);
 registerImporter('rdf', rdfImporter);
 registerImporter('jsonld', jsonldImporter);
 registerImporter('rdfxml', rdfXmlImporter);
+registerImporter('dotld', dotLdImporter);
 registerExporter('svg', svgExporter);
 registerExporter('pdf', pdfExporter);
 registerExporter('rdf', rdfExporter);
 registerExporter('jsonld', jsonldExporter);
 registerExporter('rdfxml', rdfXmlExporter);
+registerExporter('dotld', dotLdExporter);
+registerExporter('dotld-html', dotLdHtmlExporter);
 
 let editor = null;
 let currentFileName = 'graph.json';

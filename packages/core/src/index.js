@@ -9,3 +9,6 @@ export {
 export {
   importFromArrows, exportToArrows, arrowsImporter, arrowsExporter,
 } from './io/arrows.js';
+export {
+  importFromDotLD, exportToDotLD, dotLdImporter, dotLdExporter,
+} from './io/dot-ld.js';
