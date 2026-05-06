@@ -97,7 +97,7 @@ function buildHtmlPage(graph) {
   const nodes     = graph.elements?.nodes || [];
   const edges     = graph.elements?.edges || [];
   const nodeTypes = (graph.palette?.nodeTypes || []).filter(nt => nt.id !== '_undefined');
-  const generated = new Date().toISOString().slice(0, 10);
+  const generated = new Date().toISOString().split('T')[0];
 
   // ── Build lookup structures ──────────────────────────────────────────────
   const nodeById  = new Map(nodes.map(n => [n.data.id, n]));
@@ -443,7 +443,7 @@ function buildHtmlPage(graph) {
     ${nodeTypes.length > 0 ? `
     <!-- Entity Types -->
     <section id="entity-types">
-      <h2>1. Entity Types</h2>
+      <h2>${tocItems.find(t => t.id === 'entity-types')?.n ?? 1}. Entity Types</h2>
       <p>The following types are defined in this knowledge graph. Each type specifies the visual shape and colour used for its member entities.</p>
       ${entityTypesSections}
     </section>` : ''}
@@ -451,7 +451,7 @@ function buildHtmlPage(graph) {
     ${nodes.length > 0 ? `
     <!-- Entities -->
     <section id="entities">
-      <h2>${nodeTypes.length > 0 ? '2' : '1'}. Entities</h2>
+      <h2>${tocItems.find(t => t.id === 'entities')?.n ?? 1}. Entities</h2>
       <p>Detailed view of all ${nodes.length} entities, grouped by type, showing properties and relationships.</p>
       ${typedEntitiesHtml}
       ${untypedEntitiesHtml}
@@ -460,7 +460,7 @@ function buildHtmlPage(graph) {
     ${edges.length > 0 ? `
     <!-- Relationships -->
     <section id="relationships">
-      <h2>${(nodeTypes.length > 0 ? 2 : 1) + (nodes.length > 0 ? 1 : 0)}. Relationships</h2>
+      <h2>${tocItems.find(t => t.id === 'relationships')?.n ?? 1}. Relationships</h2>
       <p>All ${edges.length} relationships defined in this knowledge graph.</p>
       ${relTable}
     </section>` : ''}

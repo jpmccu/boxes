@@ -63,7 +63,8 @@ const TYPE_DEF_RE = /^([\w-]+)\s*:\s*([\w-]+)\s*,\s*(#[0-9A-Fa-f]{6})\s*,\s*(\d+
 const ENTITY_ASSIGN_RE = /^([\w-]+)\s*:\s*type=([\w-]+)((?:\s*,\s*[\w-]+=(?:"[^"]*"|'[^']*'|[\w-]+))*)\s*(?:\/\/.*)?$/;
 
 // Matches property pairs inside the extra part:  , key=value
-const PROP_PAIR_RE = /,\s*([\w-]+)\s*=\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[\w-]+)/g;
+// Quote contents are capped at 500 characters to prevent backtracking on unclosed quotes.
+const PROP_PAIR_RE = /,\s*([\w-]+)\s*=\s*("(?:[^"\\]|\\.){0,500}"|'(?:[^'\\]|\\.){0,500}'|[\w-]+)/g;
 
 /**
  * Parse all ::config ... :: blocks from a DOT-LD document.
@@ -143,8 +144,9 @@ function parseConfigBlocks(text) {
  */
 function parseRelBlocks(text) {
   const rels = [];
-  // Anchored: each ::rel must be on a single line; [^\]\n]* prevents newline-spanning
-  const REL_RE = /^[ \t]*::rel[ \t]+([\w-]+)[ \t]+(->|<-|<->)[ \t]+([\w-]+)[ \t]+\[([^\]\n]*)\][ \t]*::[ \t]*$/gm;
+  // Anchored: each ::rel must be on a single line; [^\]\n]{0,200} caps label length
+  // and prevents cross-line backtracking.
+  const REL_RE = /^[ \t]*::rel[ \t]+([\w-]+)[ \t]+(->|<-|<->)[ \t]+([\w-]+)[ \t]+\[([^\]\n]{0,200})\][ \t]*::[ \t]*$/gm;
   let m;
   while ((m = REL_RE.exec(text)) !== null) {
     rels.push({
@@ -158,13 +160,34 @@ function parseRelBlocks(text) {
 }
 
 /**
+ * Remove all ::config ... :: block bodies from text using string search,
+ * replacing each block (start marker through closing ::) with whitespace
+ * so that line numbers are preserved.
+ */
+function stripConfigBlocks(text) {
+  let result = text;
+  let offset = 0;
+  while (offset < result.length) {
+    const start = result.indexOf('::config', offset);
+    if (start === -1) break;
+    const afterStart = result.indexOf('\n', start);
+    if (afterStart === -1) break;
+    const end = result.indexOf('\n::', afterStart);
+    if (end === -1) break;
+    // Replace the block content with newlines to preserve paragraph structure
+    result = result.slice(0, start) + result.slice(end + 3);
+    offset = start;
+  }
+  return result;
+}
+
+/**
  * Collect all [[EntityName]] references from prose (outside config/rel blocks).
  * Returns a Set of entity name strings.
  */
 function parseEntityRefs(text) {
-  const stripped = text
-    .replace(/::config[\s\S]*?::/g, '')
-    .replace(/::rel[^\n]*::/g, '');
+  const stripped = stripConfigBlocks(text)
+    .replace(/^[ \t]*::rel[^\n]*::[ \t]*$/gm, '');
   const refs = new Set();
   const REF_RE = /\[\[([\w-]+)\]\]/g;
   let m;
@@ -185,9 +208,8 @@ function extractTitle(text) {
  * block, not a list marker) to use as the document description.
  */
 function extractDescription(text) {
-  const stripped = text
-    .replace(/::config[\s\S]*?::/g, '')
-    .replace(/::rel[^\n]*::/g, '')
+  const stripped = stripConfigBlocks(text)
+    .replace(/^[ \t]*::rel[^\n]*::[ \t]*$/gm, '')
     .replace(/^#+.*/gm, '')
     .replace(/\[\[([\w-]+)\]\]/g, '$1');
 
