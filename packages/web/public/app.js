@@ -9,7 +9,6 @@ import { registerImporter, registerExporter, getImporters, getExporters, runImpo
 import { lucidchartCSVImporter } from './io/importers/lucidchart-csv.js';
 import { svgExporter } from './io/exporters/svg.js';
 import { pdfExporter } from './io/exporters/pdf.js';
-import { dotLdHtmlExporter } from './io/exporters/dot-ld-html.js';
 import { startTour, isTourDone } from './tour.js';
 
 // ── Register built-in I/O plugins ───────────────────────────────────────────
@@ -24,7 +23,6 @@ registerExporter('rdf', rdfExporter);
 registerExporter('jsonld', jsonldExporter);
 registerExporter('rdfxml', rdfXmlExporter);
 registerExporter('dotld', dotLdExporter);
-registerExporter('dotld-html', dotLdHtmlExporter);
 
 let editor = null;
 let currentFileName = 'graph.json';
