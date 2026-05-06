@@ -401,3 +401,222 @@ describe('DOT-LD round-trip', () => {
     expect(rtTypes).toEqual(origTypes);
   });
 });
+
+// ─── Palette type mapping tests (complex type mappings) ───────────────────────
+
+const OWL_NODE_TYPES = [
+  {
+    id: 'owl:Class',
+    label: 'Class',
+    data: { '@type': 'owl:Class', '@id': '', 'skos:definition': '' },
+    color: '#E6F3FF',
+    borderColor: '#2471A3',
+    shape: 'roundrectangle',
+  },
+  {
+    id: 'default',
+    label: 'Instance',
+    data: { '@type': '', '@id': '' },
+    color: '#FFFFFF',
+    borderColor: '#666666',
+    shape: 'ellipse',
+  },
+];
+
+const OWL_EDGE_TYPES = [
+  {
+    id: 'rdfs:subClassOf',
+    label: 'subClassOf',
+    data: { '@id': 'rdfs:subClassOf' },
+    color: '#555555',
+    lineStyle: 'solid',
+  },
+  {
+    id: 'owl:ObjectProperty',
+    label: 'ObjectProperty',
+    data: { '@type': 'owl:ObjectProperty', '@id': '', 'skos:definition': '' },
+    color: '#2471A3',
+    lineStyle: 'dashed',
+    source_property: 'rdfs:domain',
+    target_property: 'rdfs:range',
+  },
+];
+
+// DOT-LD document that uses labels matching the OWL palette
+const OWL_DOTLD = `# OWL Example
+
+::config
+owl:Class: round-rectangle, #E6F3FF, 100
+Animal: type=owl:Class
+Dog: type=owl:Class
+::
+
+::rel Animal -> Dog [subClassOf] ::
+`;
+
+// DOT-LD document that uses human-readable labels from the OWL palette
+const OWL_DOTLD_LABEL = `# OWL Example by label
+
+::config
+Class: round-rectangle, #E6F3FF, 100
+Animal: type=Class
+Dog: type=Class
+::
+
+::rel Animal -> Dog [subClassOf] ::
+`;
+
+describe('importFromDotLD with palette nodeTypes option', () => {
+  it('enriches nodes with @type from matching palette nodeType by id', () => {
+    const result = importFromDotLD(OWL_DOTLD, { nodeTypes: OWL_NODE_TYPES });
+    const animal = result.elements.nodes.find(n => n.data.id === 'Animal');
+    expect(animal).toBeTruthy();
+    expect(animal.data['@type']).toBe('owl:Class');
+  });
+
+  it('enriches nodes with @type from matching palette nodeType by label', () => {
+    const result = importFromDotLD(OWL_DOTLD_LABEL, { nodeTypes: OWL_NODE_TYPES });
+    const animal = result.elements.nodes.find(n => n.data.id === 'Animal');
+    expect(animal).toBeTruthy();
+    expect(animal.data['@type']).toBe('owl:Class');
+  });
+
+  it('does not overwrite properties already set in the entity assignment', () => {
+    const text = `# Test\n::config\nClass: ellipse, #333333, 80\nFoo: type=Class, @type="custom:Type"\n::\n`;
+    const result = importFromDotLD(text, { nodeTypes: OWL_NODE_TYPES });
+    const foo = result.elements.nodes.find(n => n.data.id === 'Foo');
+    // Entity assignment value takes precedence over palette default
+    expect(foo.data['@type']).toBe('custom:Type');
+  });
+
+  it('skips empty palette template values', () => {
+    const result = importFromDotLD(OWL_DOTLD, { nodeTypes: OWL_NODE_TYPES });
+    const animal = result.elements.nodes.find(n => n.data.id === 'Animal');
+    // '@id' is empty in the template, should not be added
+    expect('@id' in animal.data).toBe(false);
+    // 'skos:definition' is empty in the template, should not be added
+    expect('skos:definition' in animal.data).toBe(false);
+  });
+
+  it('works correctly when no nodeTypes option is provided', () => {
+    const result = importFromDotLD(OWL_DOTLD);
+    const animal = result.elements.nodes.find(n => n.data.id === 'Animal');
+    expect(animal).toBeTruthy();
+    expect(animal.data['@type']).toBeUndefined();
+  });
+});
+
+describe('importFromDotLD with palette edgeTypes option', () => {
+  it('enriches plain-triple edges with @id from matching edgeType by label', () => {
+    const result = importFromDotLD(OWL_DOTLD, { edgeTypes: OWL_EDGE_TYPES });
+    const edge = result.elements.edges.find(
+      e => e.data.source === 'Animal' && e.data.target === 'Dog'
+    );
+    expect(edge).toBeTruthy();
+    expect(edge.data['@id']).toBe('rdfs:subClassOf');
+  });
+
+  it('enriches reified edges with @type from matching edgeType by label', () => {
+    const text = `# Test\n::config\nClass: ellipse, #333333, 80\nA: type=Class\nB: type=Class\n::\n::rel A -> B [ObjectProperty] ::\n`;
+    const result = importFromDotLD(text, { edgeTypes: OWL_EDGE_TYPES });
+    const edge = result.elements.edges.find(e => e.data.source === 'A' && e.data.target === 'B');
+    expect(edge).toBeTruthy();
+    expect(edge.data['@type']).toBe('owl:ObjectProperty');
+  });
+
+  it('matches edgeType by local name of data[@id]', () => {
+    // "subClassOf" is the local name of "rdfs:subClassOf" in data['@id']
+    const text = `# Test\n::config\nClass: ellipse, #333333, 80\nA: type=Class\nB: type=Class\n::\n::rel A -> B [subClassOf] ::\n`;
+    const result = importFromDotLD(text, { edgeTypes: OWL_EDGE_TYPES });
+    const edge = result.elements.edges[0];
+    expect(edge.data['@id']).toBe('rdfs:subClassOf');
+  });
+
+  it('does not fail when edgeType has no matching label', () => {
+    const result = importFromDotLD(HVAC, { edgeTypes: OWL_EDGE_TYPES });
+    // The HVAC uses labels like "uses", "requires", "controls" which don't match OWL types
+    expect(result.elements.edges).toHaveLength(4);
+    // Edges should not have @id or @type since nothing matched
+    result.elements.edges.forEach(e => {
+      expect(e.data['@id']).toBeUndefined();
+      expect(e.data['@type']).toBeUndefined();
+    });
+  });
+
+  it('enriches bidirectional edges with palette data', () => {
+    const text = `# Test\n::config\nClass: ellipse, #333333, 80\nA: type=Class\nB: type=Class\n::\n::rel A <-> B [subClassOf] ::\n`;
+    const result = importFromDotLD(text, { edgeTypes: OWL_EDGE_TYPES });
+    expect(result.elements.edges).toHaveLength(2);
+    result.elements.edges.forEach(e => {
+      expect(e.data['@id']).toBe('rdfs:subClassOf');
+    });
+  });
+});
+
+describe('DOT-LD extended property key parsing', () => {
+  it('parses @-prefixed property keys from entity assignments', () => {
+    const text = `# Test\n::config\nClass: ellipse, #333333, 80\nFoo: type=Class, @type="owl:Class"\n::\n`;
+    const result = importFromDotLD(text);
+    const foo = result.elements.nodes.find(n => n.data.id === 'Foo');
+    expect(foo.data['@type']).toBe('owl:Class');
+  });
+
+  it('parses colon-containing property keys (prefixed IRIs) from entity assignments', () => {
+    const text = `# Test\n::config\nClass: ellipse, #333333, 80\nFoo: type=Class, skos:definition="A test concept"\n::\n`;
+    const result = importFromDotLD(text);
+    const foo = result.elements.nodes.find(n => n.data.id === 'Foo');
+    expect(foo.data['skos:definition']).toBe('A test concept');
+  });
+
+  it('round-trips @-prefixed properties through export and re-import', () => {
+    const graph = {
+      title: 'OWL Graph',
+      description: '',
+      palette: {
+        nodeTypes: [
+          { id: 'owl:Class', label: 'Class', color: '#E6F3FF', borderColor: '#2471A3', shape: 'roundrectangle', _dotldSize: 100 },
+        ],
+        edgeTypes: [],
+      },
+      elements: {
+        nodes: [
+          { data: { id: 'Animal', label: 'Animal', _dotldType: 'owl:Class', '@type': 'owl:Class' } },
+        ],
+        edges: [],
+      },
+      userStylesheet: [],
+    };
+    const markdown = exportToDotLD(graph);
+    expect(markdown).toContain('@type="owl:Class"');
+
+    const reimported = importFromDotLD(markdown);
+    const node = reimported.elements.nodes.find(n => n.data.id === 'Animal');
+    expect(node.data['@type']).toBe('owl:Class');
+  });
+
+  it('round-trips colon-containing property keys through export and re-import', () => {
+    const graph = {
+      title: 'SKOS Graph',
+      description: '',
+      palette: {
+        nodeTypes: [
+          { id: 'Concept', label: 'Concept', color: '#E6F3FF', borderColor: '#2471A3', shape: 'roundrectangle', _dotldSize: 100 },
+        ],
+        edgeTypes: [],
+      },
+      elements: {
+        nodes: [
+          { data: { id: 'Cat', label: 'Cat', _dotldType: 'Concept', 'skos:definition': 'A domestic feline' } },
+        ],
+        edges: [],
+      },
+      userStylesheet: [],
+    };
+    const markdown = exportToDotLD(graph);
+    expect(markdown).toContain('skos:definition=');
+
+    const reimported = importFromDotLD(markdown);
+    const node = reimported.elements.nodes.find(n => n.data.id === 'Cat');
+    expect(node.data['skos:definition']).toBe('A domestic feline');
+  });
+});

@@ -57,14 +57,19 @@ function darkenColor(hex, factor = 0.65) {
 // ─── Config block parser ──────────────────────────────────────────────────────
 
 // Matches a type definition:  name: shape, #RRGGBB, size
-const TYPE_DEF_RE = /^([\w-]+)\s*:\s*([\w-]+)\s*,\s*(#[0-9A-Fa-f]{6})\s*,\s*(\d+)\s*(?:\/\/.*)?$/;
+// Type names may be plain identifiers (equipment) or prefixed IRIs (owl:Class).
+const TYPE_DEF_RE = /^([\w][\w:.@-]*)\s*:\s*([\w-]+)\s*,\s*(#[0-9A-Fa-f]{6})\s*,\s*(\d+)\s*(?:\/\/.*)?$/;
 
 // Matches an entity assignment:  name: type=typename[, key=val]*
-const ENTITY_ASSIGN_RE = /^([\w-]+)\s*:\s*type=([\w-]+)((?:\s*,\s*[\w-]+=(?:"[^"]*"|'[^']*'|[\w-]+))*)\s*(?:\/\/.*)?$/;
+// The type value may be a plain identifier or a prefixed IRI (e.g. owl:Class).
+// Property keys support @-prefixed names (e.g. @id, @type) and colon-containing names
+// (e.g. rdfs:label, skos:definition) for round-tripping RDF-enriched data.
+const ENTITY_ASSIGN_RE = /^([\w-]+)\s*:\s*type=([\w][\w:.@-]*)((?:\s*,\s*[@\w][\w:.@-]*=(?:"[^"]*"|'[^']*'|[\w-]+))*)\s*(?:\/\/.*)?$/;
 
 // Matches property pairs inside the extra part:  , key=value
 // Quote contents are capped at 500 characters to prevent backtracking on unclosed quotes.
-const PROP_PAIR_RE = /,\s*([\w-]+)\s*=\s*("(?:[^"\\]|\\.){0,500}"|'(?:[^'\\]|\\.){0,500}'|[\w-]+)/g;
+// Keys support @-prefixed names (@id, @type) and colon-containing prefixed IRIs.
+const PROP_PAIR_RE = /,\s*([@\w][\w:.@-]*)\s*=\s*("(?:[^"\\]|\\.){0,500}"|'(?:[^'\\]|\\.){0,500}'|[\w-]+)/g;
 
 /**
  * Parse all ::config ... :: blocks from a DOT-LD document.
@@ -220,20 +225,84 @@ function extractDescription(text) {
   return '';
 }
 
+// ─── Palette type lookup helpers ──────────────────────────────────────────────
+
+/**
+ * Build lookup maps for palette nodeTypes (by id and by label).
+ */
+function buildNodeTypeLookup(nodeTypes) {
+  const byId    = new Map();
+  const byLabel = new Map();
+  for (const nt of (nodeTypes || [])) {
+    if (nt.id)    byId.set(nt.id, nt);
+    if (nt.label) byLabel.set(nt.label, nt);
+  }
+  return (name) => byId.get(name) || byLabel.get(name) || null;
+}
+
+/**
+ * Build a lookup function for palette edgeTypes.
+ * Matches by: label → id → local name of data['@id'].
+ */
+function buildEdgeTypeLookup(edgeTypes) {
+  const byLabel   = new Map();
+  const byId      = new Map();
+  const byLocalId = new Map();
+
+  for (const et of (edgeTypes || [])) {
+    if (et.label) byLabel.set(et.label, et);
+    if (et.id)    byId.set(et.id, et);
+    if (et.data?.['@id']) {
+      const atId = et.data['@id'];
+      const sep  = Math.max(atId.lastIndexOf(':'), atId.lastIndexOf('#'));
+      if (sep !== -1) {
+        const local = atId.slice(sep + 1);
+        if (local && !byLocalId.has(local)) byLocalId.set(local, et);
+      }
+    }
+  }
+
+  return (label) =>
+    byLabel.get(label) || byId.get(label) || byLocalId.get(label) || null;
+}
+
+/**
+ * Merge palette type data fields into an element's data object.
+ * Template values are applied only when the data key is not already present.
+ * Empty string, null and undefined template values are skipped.
+ */
+function mergeTypeData(data, typeData) {
+  if (!typeData) return;
+  for (const [k, v] of Object.entries(typeData)) {
+    if (v === '' || v === null || v === undefined) continue;
+    if (!(k in data)) data[k] = v;
+  }
+}
+
 // ─── Import ───────────────────────────────────────────────────────────────────
 
 /**
  * Convert a DOT-LD markdown document into the Boxes graph format.
  *
- * @param {string} text - Raw DOT-LD markdown text
+ * @param {string} text    - Raw DOT-LD markdown text
+ * @param {object} options
+ *   @param {object} options.context   - Prefix → namespace map (passed through for context)
+ *   @param {Array}  options.nodeTypes - Palette node type definitions; used to enrich nodes
+ *                                       with RDF data (@type, @id, …) from the matching type.
+ *   @param {Array}  options.edgeTypes - Palette edge type definitions; used to enrich edges
+ *                                       with RDF data (@id for plain triples, @type for
+ *                                       reified edges, etc.) matched by relationship label.
  * @returns {{ title, description, palette, elements, userStylesheet, version }}
  */
-export function importFromDotLD(text) {
+export function importFromDotLD(text, options = {}) {
   const { typeDefs, entityAssignments } = parseConfigBlocks(text);
   const rels         = parseRelBlocks(text);
   const entityRefs   = parseEntityRefs(text);
   const title        = extractTitle(text);
   const description  = extractDescription(text);
+
+  const findPaletteNodeType = buildNodeTypeLookup(options.nodeTypes);
+  const findPaletteEdgeType = buildEdgeTypeLookup(options.edgeTypes);
 
   // ── Collect all entity names ──────────────────────────────────────────────
   const allEntityNames = new Set([
@@ -298,6 +367,11 @@ export function importFromDotLD(text) {
       ...(assignment?.props || {}),
     };
 
+    // Enrich with palette nodeType data (@type, @id, etc.) when available.
+    // Template values are only applied for keys not already set by the entity assignment.
+    const paletteNt = findPaletteNodeType(typeName);
+    mergeTypeData(data, paletteNt?.data);
+
     const nt = nodeTypeMap.get(typeName);
     if (nt?._dotldSize) {
       data._style = {
@@ -316,16 +390,26 @@ export function importFromDotLD(text) {
   for (const rel of rels) {
     const { source, arrow, target, label } = rel;
 
+    // Enrich edge data with palette edgeType fields (@id for plain triples,
+    // @type / other data fields for reified edges), matched by relationship label.
+    const paletteEt = findPaletteEdgeType(label);
+    const extraEdgeData = {};
+    if (paletteEt?.data) {
+      for (const [k, v] of Object.entries(paletteEt.data)) {
+        if (v !== '' && v !== null && v !== undefined) extraEdgeData[k] = v;
+      }
+    }
+
     if (arrow === '<->') {
       // Bidirectional: emit two directed edges, both marked for round-trip export
       const pairId = `bidi_${edgeCounter++}`;
-      edges.push({ data: { id: `${pairId}_f`, source, target, label, _dotldBidi: pairId } });
-      edges.push({ data: { id: `${pairId}_r`, source: target, target: source, label, _dotldBidi: pairId } });
+      edges.push({ data: { id: `${pairId}_f`, source, target, label, _dotldBidi: pairId, ...extraEdgeData } });
+      edges.push({ data: { id: `${pairId}_r`, source: target, target: source, label, _dotldBidi: pairId, ...extraEdgeData } });
     } else if (arrow === '<-') {
       // Reversed: the named source *receives* the relationship from target
-      edges.push({ data: { id: `e${edgeCounter++}`, source: target, target: source, label } });
+      edges.push({ data: { id: `e${edgeCounter++}`, source: target, target: source, label, ...extraEdgeData } });
     } else {
-      edges.push({ data: { id: `e${edgeCounter++}`, source, target, label } });
+      edges.push({ data: { id: `e${edgeCounter++}`, source, target, label, ...extraEdgeData } });
     }
   }
 
@@ -389,9 +473,12 @@ function escapePropertyValue(value) {
  * markdown document.
  *
  * @param {object} boxesGraph - Result of BoxesEditor.exportGraph()
+ * @param {object} options
+ *   @param {object} options.context   - Prefix → namespace map (reserved for future use)
+ *   @param {Array}  options.edgeTypes - Palette edge type definitions (reserved for future use)
  * @returns {string} DOT-LD markdown text
  */
-export function exportToDotLD(boxesGraph) {
+export function exportToDotLD(boxesGraph, { context = {}, edgeTypes = [] } = {}) {
   const { title = '', description = '', palette, elements } = boxesGraph;
   const nodes     = elements?.nodes || [];
   const edges     = elements?.edges || [];
@@ -477,12 +564,16 @@ export const dotLdImporter = {
   name: 'DOT-LD Markdown',
   extensions: ['.md'],
   mimeTypes: ['text/markdown', 'text/plain'],
-  import: (text) => importFromDotLD(text),
+  import: (text, options) => importFromDotLD(text, options),
 };
 
 export const dotLdExporter = {
   name: 'DOT-LD Markdown',
   extension: '.md',
   mimeType: 'text/markdown',
-  export: (editor) => exportToDotLD(editor.exportGraph()),
+  export: (editor, options) => exportToDotLD(editor.exportGraph(), {
+    context:   editor.context || {},
+    edgeTypes: editor.getEdgeTypes ? editor.getEdgeTypes() : [],
+    ...(options || {}),
+  }),
 };
