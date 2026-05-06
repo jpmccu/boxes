@@ -442,7 +442,7 @@ const OWL_EDGE_TYPES = [
   },
 ];
 
-// DOT-LD document that uses labels matching the OWL palette
+// DOT-LD document that uses type names matching the OWL palette node type IDs
 const OWL_DOTLD = `# OWL Example
 
 ::config
@@ -454,7 +454,7 @@ Dog: type=owl:Class
 ::rel Animal -> Dog [subClassOf] ::
 `;
 
-// DOT-LD document that uses human-readable labels from the OWL palette
+// DOT-LD document that uses human-readable labels matching the OWL palette node type labels
 const OWL_DOTLD_LABEL = `# OWL Example by label
 
 ::config
@@ -464,6 +464,65 @@ Dog: type=Class
 ::
 
 ::rel Animal -> Dog [subClassOf] ::
+`;
+
+// Simple A/B class graph used by several edge-type tests
+const AB_SUBCLASSOF = `# Test
+
+::config
+Class: ellipse, #333333, 80
+A: type=Class
+B: type=Class
+::
+
+::rel A -> B [subClassOf] ::
+`;
+
+const AB_OBJECT_PROPERTY = `# Test
+
+::config
+Class: ellipse, #333333, 80
+A: type=Class
+B: type=Class
+::
+
+::rel A -> B [ObjectProperty] ::
+`;
+
+const AB_BIDI_SUBCLASSOF = `# Test
+
+::config
+Class: ellipse, #333333, 80
+A: type=Class
+B: type=Class
+::
+
+::rel A <-> B [subClassOf] ::
+`;
+
+// Fixtures for extended property key parsing
+const FOO_WITH_AT_TYPE = `# Test
+
+::config
+Class: ellipse, #333333, 80
+Foo: type=Class, @type="owl:Class"
+::
+`;
+
+const FOO_WITH_CUSTOM_TYPE = `# Test
+
+::config
+Class: ellipse, #333333, 80
+Foo: type=Class, @type="custom:Type"
+::
+`;
+
+const FOO_WITH_SKOS_DEFINITION = `# Test
+
+::config
+Class: ellipse, #333333, 80
+Foo: type=Class, skos:definition="A test concept"
+::
 `;
 
 describe('importFromDotLD with palette nodeTypes option', () => {
@@ -482,8 +541,7 @@ describe('importFromDotLD with palette nodeTypes option', () => {
   });
 
   it('does not overwrite properties already set in the entity assignment', () => {
-    const text = `# Test\n::config\nClass: ellipse, #333333, 80\nFoo: type=Class, @type="custom:Type"\n::\n`;
-    const result = importFromDotLD(text, { nodeTypes: OWL_NODE_TYPES });
+    const result = importFromDotLD(FOO_WITH_CUSTOM_TYPE, { nodeTypes: OWL_NODE_TYPES });
     const foo = result.elements.nodes.find(n => n.data.id === 'Foo');
     // Entity assignment value takes precedence over palette default
     expect(foo.data['@type']).toBe('custom:Type');
@@ -517,8 +575,7 @@ describe('importFromDotLD with palette edgeTypes option', () => {
   });
 
   it('enriches reified edges with @type from matching edgeType by label', () => {
-    const text = `# Test\n::config\nClass: ellipse, #333333, 80\nA: type=Class\nB: type=Class\n::\n::rel A -> B [ObjectProperty] ::\n`;
-    const result = importFromDotLD(text, { edgeTypes: OWL_EDGE_TYPES });
+    const result = importFromDotLD(AB_OBJECT_PROPERTY, { edgeTypes: OWL_EDGE_TYPES });
     const edge = result.elements.edges.find(e => e.data.source === 'A' && e.data.target === 'B');
     expect(edge).toBeTruthy();
     expect(edge.data['@type']).toBe('owl:ObjectProperty');
@@ -526,8 +583,7 @@ describe('importFromDotLD with palette edgeTypes option', () => {
 
   it('matches edgeType by local name of data[@id]', () => {
     // "subClassOf" is the local name of "rdfs:subClassOf" in data['@id']
-    const text = `# Test\n::config\nClass: ellipse, #333333, 80\nA: type=Class\nB: type=Class\n::\n::rel A -> B [subClassOf] ::\n`;
-    const result = importFromDotLD(text, { edgeTypes: OWL_EDGE_TYPES });
+    const result = importFromDotLD(AB_SUBCLASSOF, { edgeTypes: OWL_EDGE_TYPES });
     const edge = result.elements.edges[0];
     expect(edge.data['@id']).toBe('rdfs:subClassOf');
   });
@@ -544,8 +600,7 @@ describe('importFromDotLD with palette edgeTypes option', () => {
   });
 
   it('enriches bidirectional edges with palette data', () => {
-    const text = `# Test\n::config\nClass: ellipse, #333333, 80\nA: type=Class\nB: type=Class\n::\n::rel A <-> B [subClassOf] ::\n`;
-    const result = importFromDotLD(text, { edgeTypes: OWL_EDGE_TYPES });
+    const result = importFromDotLD(AB_BIDI_SUBCLASSOF, { edgeTypes: OWL_EDGE_TYPES });
     expect(result.elements.edges).toHaveLength(2);
     result.elements.edges.forEach(e => {
       expect(e.data['@id']).toBe('rdfs:subClassOf');
@@ -555,15 +610,13 @@ describe('importFromDotLD with palette edgeTypes option', () => {
 
 describe('DOT-LD extended property key parsing', () => {
   it('parses @-prefixed property keys from entity assignments', () => {
-    const text = `# Test\n::config\nClass: ellipse, #333333, 80\nFoo: type=Class, @type="owl:Class"\n::\n`;
-    const result = importFromDotLD(text);
+    const result = importFromDotLD(FOO_WITH_AT_TYPE);
     const foo = result.elements.nodes.find(n => n.data.id === 'Foo');
     expect(foo.data['@type']).toBe('owl:Class');
   });
 
   it('parses colon-containing property keys (prefixed IRIs) from entity assignments', () => {
-    const text = `# Test\n::config\nClass: ellipse, #333333, 80\nFoo: type=Class, skos:definition="A test concept"\n::\n`;
-    const result = importFromDotLD(text);
+    const result = importFromDotLD(FOO_WITH_SKOS_DEFINITION);
     const foo = result.elements.nodes.find(n => n.data.id === 'Foo');
     expect(foo.data['skos:definition']).toBe('A test concept');
   });

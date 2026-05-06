@@ -58,18 +58,21 @@ function darkenColor(hex, factor = 0.65) {
 
 // Matches a type definition:  name: shape, #RRGGBB, size
 // Type names may be plain identifiers (equipment) or prefixed IRIs (owl:Class).
-const TYPE_DEF_RE = /^([\w][\w:.@-]*)\s*:\s*([\w-]+)\s*,\s*(#[0-9A-Fa-f]{6})\s*,\s*(\d+)\s*(?:\/\/.*)?$/;
+// They must start with a letter or underscore (not a digit) to be valid identifiers.
+const TYPE_DEF_RE = /^([a-zA-Z_][a-zA-Z0-9_:.@-]*)\s*:\s*([\w-]+)\s*,\s*(#[0-9A-Fa-f]{6})\s*,\s*(\d+)\s*(?:\/\/.*)?$/;
 
 // Matches an entity assignment:  name: type=typename[, key=val]*
 // The type value may be a plain identifier or a prefixed IRI (e.g. owl:Class).
 // Property keys support @-prefixed names (e.g. @id, @type) and colon-containing names
 // (e.g. rdfs:label, skos:definition) for round-tripping RDF-enriched data.
-const ENTITY_ASSIGN_RE = /^([\w-]+)\s*:\s*type=([\w][\w:.@-]*)((?:\s*,\s*[@\w][\w:.@-]*=(?:"[^"]*"|'[^']*'|[\w-]+))*)\s*(?:\/\/.*)?$/;
+// All identifiers (type names, keys) must start with a letter, underscore, or @.
+const ENTITY_ASSIGN_RE = /^([\w-]+)\s*:\s*type=([a-zA-Z_][a-zA-Z0-9_:.@-]*)((?:\s*,\s*(?:@[a-zA-Z_][a-zA-Z0-9_.:-]*|[a-zA-Z_][a-zA-Z0-9_:.-]*)=(?:"[^"]*"|'[^']*'|[\w-]+))*)\s*(?:\/\/.*)?$/;
 
 // Matches property pairs inside the extra part:  , key=value
 // Quote contents are capped at 500 characters to prevent backtracking on unclosed quotes.
 // Keys support @-prefixed names (@id, @type) and colon-containing prefixed IRIs.
-const PROP_PAIR_RE = /,\s*([@\w][\w:.@-]*)\s*=\s*("(?:[^"\\]|\\.){0,500}"|'(?:[^'\\]|\\.){0,500}'|[\w-]+)/g;
+// All keys must start with a letter, underscore, or @.
+const PROP_PAIR_RE = /,\s*((?:@[a-zA-Z_][a-zA-Z0-9_.:-]*|[a-zA-Z_][a-zA-Z0-9_:.-]*))\s*=\s*("(?:[^"\\]|\\.){0,500}"|'(?:[^'\\]|\\.){0,500}'|[\w-]+)/g;
 
 /**
  * Parse all ::config ... :: blocks from a DOT-LD document.
@@ -254,6 +257,9 @@ function buildEdgeTypeLookup(edgeTypes) {
     if (et.id)    byId.set(et.id, et);
     if (et.data?.['@id']) {
       const atId = et.data['@id'];
+      // Find the last namespace separator (`:` for prefix, `#` for fragment).
+      // Math.max returns the greater position; both return -1 when absent, so
+      // if only one separator exists the other -1 is safely ignored.
       const sep  = Math.max(atId.lastIndexOf(':'), atId.lastIndexOf('#'));
       if (sep !== -1) {
         const local = atId.slice(sep + 1);
