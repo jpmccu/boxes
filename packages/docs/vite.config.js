@@ -57,6 +57,7 @@ export default defineConfig({
         format:       resolve(__dirname, 'format.html'),
         embed:        resolve(__dirname, 'embed.html'),
         presentation: resolve(__dirname, 'presentation.html'),
+        ontologistAssessment: resolve(__dirname, 'ontologist_assessment.html'),
       }
     }
   },
