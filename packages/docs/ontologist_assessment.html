@@ -1,0 +1,1650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ontologist Capability Assessment — Boxes</title>
+<meta name="description" content="Self-assessment rubric with adaptive probes across 9 ontology-engineering dimensions, ending in a staged, calibrated development plan.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+<link rel="stylesheet" href="./src/style.css">
+<style>
+:root {
+  --ink: var(--color-text);
+  --amber: #d97706;
+  --red: #dc2626;
+  --cream: rgba(217,119,6,.1);
+  --stone: var(--color-border);
+  --paper: var(--color-bg);
+  --muted: var(--color-text-muted);
+  --line: var(--color-border);
+  --ok: #157a45;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font: 15px/1.6 var(--font-sans);
+}
+.wrap { max-width: 1000px; margin: 0 auto; padding: 40px 22px 60px; }
+.wrap h2 { font-size: 17px; margin: 30px 0 10px; }
+.wrap h3 { font-size: 15px; margin: 20px 0 6px; }
+.steps { display: flex; gap: 6px; margin: 0 0 22px; flex-wrap: wrap; }
+.step {
+  font-size: 12px; padding: 6px 12px; border-radius: 20px;
+  background: var(--color-bg-alt); color: var(--muted); border: 1px solid var(--line);
+}
+.step.on { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+.step.done { background: var(--cream); color: var(--ink); border-color: var(--amber); }
+.card {
+  border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; margin: 0 0 14px;
+  background: var(--paper);
+}
+.card.focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(74,127,212,.12); }
+.dimhead { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.dimname { font-weight: 650; font-size: 15px; }
+.dimwhy { color: var(--muted); font-size: 13px; margin: 2px 0 12px; }
+.tag {
+  font-size: 11px; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--muted); background: var(--color-bg-alt); padding: 3px 8px; border-radius: 4px;
+  border: 1px solid var(--line); white-space: nowrap;
+}
+label.opt {
+  display: block; border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 9px 12px; margin: 0 0 6px; cursor: pointer; font-size: 14px;
+}
+label.opt:hover { background: var(--color-bg-alt); }
+label.opt.sel { border-color: var(--color-primary); background: var(--color-accent); }
+label.opt input { margin-right: 8px; }
+.lvl { font-weight: 650; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+button {
+  font: inherit; font-weight: 600; padding: 9px 18px; border-radius: var(--radius);
+  border: 1px solid var(--color-primary); background: var(--color-primary); color: #fff; cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+button:hover:not(:disabled) { background: var(--color-primary-dark); border-color: var(--color-primary-dark); }
+button.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+button.ghost:hover:not(:disabled) { background: transparent; border-color: var(--color-primary); color: var(--color-primary); }
+button:disabled { opacity: .4; cursor: not-allowed; }
+input[type=text] {
+  font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius); min-width: 240px;
+}
+select { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 650; }
+td.num, th.num { text-align: center; white-space: nowrap; }
+.pill { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 12px; font-weight: 600; }
+.pill.gap2 { background: rgba(220,38,38,.1); color: #b91c1c; }
+.pill.gap1 { background: var(--cream); color: #92400e; }
+.pill.gap0 { background: rgba(21,122,69,.1); color: var(--ok); }
+.pill.lead { background: var(--color-primary); color: #fff; }
+.bar { height: 8px; border-radius: 4px; background: var(--color-bg-alt); position: relative; min-width: 90px; }
+.bar > i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--color-primary); }
+.note { font-size: 13px; color: var(--muted); }
+.plan { border-left: 3px solid var(--amber); padding: 2px 0 2px 14px; margin: 10px 0 18px; }
+.plan li { margin: 3px 0; }
+.warn { background: var(--cream); border: 1px solid var(--amber); border-radius: var(--radius); padding: 10px 12px; font-size: 13px; }
+.fb { font-size: 13px; margin: 8px 0 0; padding: 9px 12px; border-radius: var(--radius); }
+.fb.good { background: rgba(21,122,69,.1); color: #14532d; }
+.fb.bad { background: rgba(220,38,38,.1); color: #7f1d1d; }
+.chartbox { height: 300px; margin: 8px 0 4px; }
+.hide { display: none !important; }
+.foot { margin-top: 26px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 12px; }
+textarea { width: 100%; min-height: 160px; font: 12px/1.5 var(--font-mono); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; }
+
+/* ── Hero (matches other Boxes doc pages) ─────────────────────────────────── */
+.assess-hero {
+  background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #0d1b3e 100%);
+  color: white;
+  padding: 76px 0 52px;
+  text-align: center;
+}
+.assess-hero .eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(74,127,212,.15); border: 1px solid rgba(74,127,212,.3);
+  border-radius: 100px; padding: 6px 16px; font-size: .8rem; font-weight: 600;
+  color: #93b8f0; margin-bottom: 20px; letter-spacing: .05em; text-transform: uppercase;
+}
+.assess-hero h1 {
+  font-size: clamp(1.8rem, 4vw, 2.6rem); font-weight: 800; margin: 0 0 12px;
+  letter-spacing: -0.03em; color: white; line-height: 1.15;
+}
+.assess-hero .hero-subtitle {
+  font-size: 1.05rem; color: rgba(255,255,255,.65); max-width: 640px;
+  margin: 0 auto; line-height: 1.6;
+}
+
+@media print {
+  .noprint { display: none !important; }
+  .assess-hero { display: none !important; }
+  body { font-size: 12px; }
+  .card { break-inside: avoid; }
+}
+</style>
+</head>
+<body class="page-top">
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="./">📦 <span>Boxes</span></a>
+      <ul class="nav-links">
+        <li><a href="./#features">Features</a></li>
+        <li><a href="tutorial.html">Tutorial</a></li>
+        <li><a href="api.html">API Docs</a></li>
+        <li><a href="format.html">File Format</a></li>
+        <li><a href="embed.html">Embed Example</a></li>
+        <li><a href="ontologist_assessment.html" class="active">Ontologist Assessment</a></li>
+        <li><a href="./demo/" class="btn-nav">Use Now →</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="assess-hero">
+    <div class="container">
+      <div class="eyebrow">📦 Skills Framework</div>
+      <h1>Ontologist Capability Assessment</h1>
+      <p class="hero-subtitle">Rubric self-rating, then adaptive probes to confirm it, then a staged plan from wherever you land. No pass mark.</p>
+    </div>
+  </section>
+
+<div class="wrap">
+
+  <div class="steps noprint">
+    <div class="step on" id="s1">1 · Self-assessment</div>
+    <div class="step" id="s2">2 · Adaptive confirmation</div>
+    <div class="step" id="s3">3 · Where you are &amp; next steps</div>
+  </div>
+
+  <!-- ===================== STAGE 1 ===================== -->
+  <section id="stage1">
+    <div class="card">
+      <div class="row">
+        <label for="pname" style="font-weight:600">Name</label>
+        <input type="text" id="pname" placeholder="Your name">
+        <span class="note">Progress saves automatically in this view.</span>
+      </div>
+    </div>
+    <p class="note" style="margin:0 0 14px">
+      Pick the statement that sounds most like you on each dimension — the one you'd say out loud, not the one you'd like to be true.
+      The next stage tests it either way, so over-rating just makes the assessment longer.
+      Levels: <b>0 Absent</b> · <b>1 Understands concepts</b> · <b>2 Works with guidance</b> · <b>3 Works independently</b>.
+      There is a fifth level — <b>sets direction</b> — that you can't claim here; it is only reachable by answering the hardest probe on a dimension.
+      There is no pass mark: this maps where you are and what the next step up looks like.
+    </p>
+    <div id="selfList"></div>
+    <div class="row" style="margin-top:16px">
+      <button id="toStage2" disabled>Start adaptive confirmation</button>
+      <span class="note" id="selfCount"></span>
+    </div>
+  </section>
+
+  <!-- ===================== STAGE 2 ===================== -->
+  <section id="stage2" class="hide">
+    <div class="card focus" id="probeCard">
+      <div class="dimhead">
+        <div>
+          <div class="tag" id="probeDim">—</div>
+          <div class="dimname" id="probeQ" style="margin-top:10px">—</div>
+        </div>
+        <div class="tag" id="probeProgress">—</div>
+      </div>
+      <div id="probeOpts" style="margin-top:12px"></div>
+      <div id="probeFb"></div>
+      <div class="row" style="margin-top:12px">
+        <button id="probeSubmit" disabled>Submit</button>
+        <button id="probeNext" class="hide">Next</button>
+        <button id="probeSkip" class="ghost">Can't answer</button>
+      </div>
+    </div>
+    <p class="note">Each item is pitched at a specific level. Answer correctly and the next steps up; miss it and the next steps down. No level is decided by a single answer — a miss at or below your own rating gets a second item at that level, a split gets a third, and whatever turns out to be your ceiling has to hold twice. Expect three to five items per dimension, around 40 in total.</p>
+  </section>
+
+  <!-- ===================== STAGE 3 ===================== -->
+  <section id="stage3" class="hide">
+    <div class="card" id="summaryCard"></div>
+
+    <h2>Confirmed profile</h2>
+    <div class="chartbox"><canvas id="profileChart"></canvas></div>
+    <table id="profileTable"></table>
+    <p class="note" style="margin-top:8px">Calibration column compares the self-rating with what the probes confirmed. Persistent over-rating is itself a finding.</p>
+
+    <h2>Development order</h2>
+    <p class="note" style="margin:0 0 10px">Ordered by how far the dimension sits from independent practice, weighted. Not a ranking of failures — a suggested sequence.</p>
+    <div id="gapList"></div>
+
+    <h2>Learning plan</h2>
+    <p class="note" style="margin:0 0 10px">Staged from where you are: each step lists what to do and the statement you should be able to make once you've done it.</p>
+    <div id="planList"></div>
+
+    <div class="row noprint" style="margin-top:24px">
+      <button onclick="window.print()">Print / save as PDF</button>
+      <button class="ghost" id="copyMd">Copy record as markdown</button>
+      <button class="ghost" id="restart">Start a new assessment</button>
+    </div>
+    <textarea id="mdOut" class="hide noprint" style="margin-top:12px"></textarea>
+  </section>
+
+  <div class="foot">
+    Rubric covers the core ontology-engineering skill set: RDF/RDFS and OWL 2 foundations, SHACL validation, ontology architecture and layering, competency-question elicitation, SPARQL, source-to-concept mapping, governance and provenance, and novel-domain investigation. Item bank holds 108 items — 9 dimensions × 4 levels × 3 — each with five options, and is editable: see <code>BANK</code> in the page source. Options are shuffled on every presentation, and each sitting draws different items, so the same person can be reassessed later without measuring memory.
+  </div>
+</div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <p>
+        📦 <strong style="color:rgba(255,255,255,0.8)">Boxes</strong>
+        &nbsp;·&nbsp; Apache 2.0 &nbsp;·&nbsp;
+        <a href="./">Home</a> &nbsp;·&nbsp;
+        <a href="tutorial.html">Tutorial</a> &nbsp;·&nbsp;
+        <a href="api.html">API Docs</a> &nbsp;·&nbsp;
+        <a href="./demo/">Editor</a> &nbsp;·&nbsp;
+        <a href="https://github.com/jpmccu/boxes">GitHub ↗</a>
+      </p>
+    </div>
+  </footer>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<script>
+/* ============================================================
+   EDITABLE ITEM BANK
+   Each dimension: id, name, why, weight (delivery criticality 1-3, used only to
+   order the development sequence), rubric anchors[0..3] written in first person,
+   THREE probes at each difficulty 1/2/3/4 (the engine draws one at random and
+   never reuses it within a sitting), each with FIVE options, and learn[L] =
+   actions that take someone from level L to level L+1. learn[3] holds the
+   direction-setting stretch. Adding further probes to a cell is safe — the draw
+   just widens — but keep five options, since the guess rate is baked into the
+   reliability figures. Keys are never the longest option; order is shuffled at
+   presentation, so the static position of a:N carries no meaning.
+   ============================================================ */
+const BANK = [
+{
+  id: "rdf", name: "RDF &amp; RDFS foundations", weight: 3, required: 3,
+  why: "The graph data model itself — triples, IRIs, literals, blank nodes, typing, and RDFS entailment.",
+  anchors: [
+    "I couldn't explain what a triple is, and I'd treat a graph as just another file format.",
+    "I can read RDF and explain triples, classes and properties, but I haven't authored a model myself.",
+    "I write correct RDF and RDFS by hand when I have an example or a reviewer to check me.",
+    "I design the triple structure and identity scheme for a new source unaided, and I can predict what RDFS will and won't entail."
+  ],
+  probes: [
+    { d:1, q:"Which statement is true of the RDF data model?",
+      opts:[
+        "Every subject must carry an explicit <code>rdf:type</code> before a store will accept the triple",
+        "Properties belong to the class that declares them, as columns belong to a table",
+        "A triple's object may be an IRI, a blank node, or a literal",
+        "The order in which triples are asserted is preserved and significant to queries",
+        "A graph must declare its classes before instances may be asserted"],
+      a:2, why:"RDF is a set of triples: no ordering, no typing requirement, and no ownership of properties by classes. Properties are first-class and reusable, which is what makes the model composable across domains rather than locked to one schema." },
+    { d:2, q:"What does <code>rdfs:domain</code> on a property assert?",
+      opts:[
+        "Any resource used as the subject of the property is inferred to be of that class",
+        "Using the property with a subject of a different class raises a validation error",
+        "The property is reserved to that class and may not be reused by other ontologies",
+        "Nothing formal is asserted — domain declarations serve as documentation for modellers",
+        "The property may be used only once per subject of that class"],
+      a:0, why:"RDFS is entailment, not constraint. A wrong domain silently infers new types rather than raising an error — which is exactly why validation needs SHACL." },
+    { d:3, q:"Why avoid blank nodes for entities that will be referenced across datasets or reloads?",
+      opts:[
+        "Blank nodes cannot be the subject of further triples, so structure around them is lost",
+        "They have no stable global identity, so reloads produce fresh, unmatchable nodes",
+        "Triple stores index them separately, making any query that touches them markedly slower",
+        "Blank nodes are stripped during serialisation, so the data they carry is silently lost",
+        "Blank nodes are excluded from inference, so entailments skip over them"],
+      a:1, why:"Blank node labels are local and regenerated on load. Anything that must be reconciled, cited in provenance, or referenced from another dataset needs a minted IRI derived from something durable." },
+    { d:4, q:"Two systems mint IRIs for what is probably the same real-world entity. The match is 92% confident and both systems must stay queryable. What do you commit to?",
+      opts:[
+        "Assert <code>owl:sameAs</code> so the reasoner merges them and every query sees one entity",
+        "Mint a third IRI for the merged entity and retire both of the originals",
+        "Keep both IRIs and assert a confidence-bearing link attributed to the matching process",
+        "Take the system of record's IRI as canonical and drop the other system's entirely",
+        "Load both and rely on the store's entity resolution to merge them at query time"],
+      a:2, why:"<code>owl:sameAs</code> commits the reasoner to an identity you are only 92% sure of, and it propagates everywhere irreversibly. Modelling the match as an assertion carrying confidence and provenance keeps a probabilistic decision honest — and revisable when better evidence arrives." },
+    { d:1, q:"What is an IRI's job in RDF?",
+      opts:[
+        "To act as a unique key within the boundaries of one graph",
+        "To identify a resource globally, so separate datasets can refer to the same thing",
+        "To provide a namespace prefix that shortens the serialised output",
+        "To give a resource an address that must resolve to a real web page",
+        "To group related triples so they can be replaced together on reload"],
+      a:1, why:"Global identity is the whole point: two datasets using the same IRI are talking about the same thing without any matching step. Dereferenceability is useful but optional." },
+    { d:1, q:"Which statement about literals is correct?",
+      opts:[
+        "A literal is a typed value and cannot be the subject of a triple",
+        "A literal may be the subject of a triple provided it carries a datatype",
+        "Literals must always be strings; numbers are modelled as separate nodes",
+        "Literals are interchangeable with IRIs wherever a value is expected",
+        "A literal may carry a language tag, but never a datatype"],
+      a:0, why:"Literals are values, not things: they terminate a path. Anything you need to describe further, traverse from, or reconcile has to be a node with an IRI." },
+    { d:2, q:"What does <code>rdfs:subClassOf</code> entail?",
+      opts:[
+        "Instances of the subclass are also inferred to be instances of the superclass",
+        "The subclass inherits every property declaration made on the superclass",
+        "Instances of the superclass may be reclassified into the subclass automatically",
+        "The two classes are asserted to have exactly the same set of members",
+        "Queries against the superclass must be rewritten to include each subclass"],
+      a:0, why:"Subclassing propagates membership upward, not properties downward — an important difference from object-oriented inheritance, and a common source of surprise for developers." },
+    { d:2, q:"You declare <code>:reportsTo rdfs:subPropertyOf :worksWith</code>. What follows?",
+      opts:[
+        "Any <code>:worksWith</code> triple is also inferred as a <code>:reportsTo</code> triple",
+        "The two properties become interchangeable in queries against the graph",
+        "Any <code>:reportsTo</code> triple is also inferred as a <code>:worksWith</code> triple",
+        "Nothing is inferred until both properties are given a domain and range",
+        "Both properties must share a domain and range before either may be used"],
+      a:2, why:"Entailment runs from the more specific property to the more general one. Getting the direction backwards is how graphs end up asserting reporting lines that nobody stated." },
+    { d:3, q:"A relationship between two entities needs to carry its own confidence and effective date. How do you model it?",
+      opts:[
+        "Attach both values as literals on the subject entity of the relationship",
+        "Promote the relationship to a node so it can carry properties of its own",
+        "Add two extra properties pointing from the subject to the object entity",
+        "Record the values in the SDD, since they describe the mapping rather than the data",
+        "Store both values on the object entity, as the more specific end of the relationship"],
+      a:1, why:"A plain triple has nowhere to hang qualifiers. Reifying the relationship — or holding it in a named graph — gives the statement an identity that provenance, confidence and validity can attach to." },
+    { d:3, q:"A source column holds a country name. Why might modelling it as a literal be the wrong call?",
+      opts:[
+        "Literals cannot be indexed, so queries filtering on country will be slow",
+        "Literals cannot carry a datatype, so the value's meaning would be untyped",
+        "Every literal must be unique within a graph, and country values repeat heavily",
+        "A literal cannot be traversed from or reconciled, so the country gains no context",
+        "Literal values are skipped by SHACL, so quality rules cannot reach them"],
+      a:3, why:"Once country is a typed node, it can carry a codebook mapping, roll up into a region, and be reconciled across sources. As a literal it is a dead end that every consumer must re-interpret." },
+    { d:4, q:"Two teams have modelled the same connection in opposite directions — one asserts <code>:hasSite</code>, the other <code>:siteOf</code>. What do you establish?",
+      opts:[
+        "Let both stand, since a reasoner can traverse a relationship in either direction",
+        "Ask both teams to assert both directions, so every query pattern works",
+        "One canonical direction with a declared inverse, chosen by how the data is queried",
+        "Whichever direction was published first, to avoid rewriting existing queries",
+        "Publish both properties as equivalent, letting the reasoner treat them as one"],
+      a:2, why:"Both directions asserted by hand doubles the data and invites contradiction. A canonical direction with an inverse gives one fact and two access paths, and the choice should follow the traversal the CQs actually need." },
+    { d:4, q:"What namespace and versioning policy should govern the IRIs you mint?",
+      opts:[
+        "Version every IRI, so any change to an entity produces a new identifier",
+        "Include the client and project in each IRI, keeping engagements cleanly separated",
+        "Use the client's existing domain, so identifiers look native to their estate",
+        "Keep entity IRIs version-free and version the vocabulary that describes them",
+        "Mint every IRI under a neutral registry domain, versioned per model release"],
+      a:3, why:"Entities persist while their descriptions evolve, so versioning identity breaks history and reuse. Versioning the vocabulary instead lets the ontology change without invalidating every assertion ever made — and keeps entity IRIs portable between engagements." }
+  ],
+  learn: {
+    0:["Work through the RDF 1.1 Primer, then re-model one existing flat table as typed nodes and named properties.",
+       "Write twenty triples by hand in Turtle for a domain you know, and have them reviewed."],
+    1:["Author a small RDFS vocabulary yourself and load it, then inspect what the store reports versus what you asserted.",
+       "Trace one SDD column all the way to the triples it produces, including the IRI it mints."],
+    2:["Design the identity and IRI scheme for a new source, and defend it in review.",
+       "Deliberately misuse <code>rdfs:domain</code> and <code>rdfs:subPropertyOf</code>, then predict the entailments before running the reasoner."],
+    3:["Own the identity and IRI conventions your team reuses, and write down the rule for when a match becomes an assertion rather than an equivalence.",
+       "Arbitrate a real cross-system identity dispute and record the decision as reusable precedent."]
+  }
+},
+{
+  id: "owl", name: "OWL 2 semantics &amp; reasoning", weight: 3, required: 3,
+  why: "Open-world semantics, axioms, profile choice, and what a reasoner will actually entail.",
+  anchors: [
+    "I don't know what OWL adds beyond RDFS, or what a reasoner does.",
+    "I can explain what reasoning is for and read simple axioms, but I couldn't author them correctly.",
+    "I author OWL axioms correctly when working from an existing pattern or with a reviewer.",
+    "I choose axioms and a profile deliberately, and I can predict what the reasoner will infer — and what it won't — before running it."
+  ],
+  probes: [
+    { d:1, q:"What does the open-world assumption mean in practice?",
+      opts:[
+        "Absence of a statement means unknown, not false, so missing data is no contradiction",
+        "Anyone may extend the ontology, so it must be published under an open licence",
+        "Any query may return incomplete results and should be re-run until it stabilises",
+        "The reasoner keeps deriving new statements until no further inferences are found",
+        "Any ontology may be extended by inference, so no model is ever complete"],
+      a:0, why:"The single most common source of surprise: OWL will not tell you something is missing, because missing is not false. That gap is exactly what SHACL was created to fill." },
+    { d:2, q:"You declare a property <code>owl:FunctionalProperty</code>, then load two different values for the same subject. Under OWL DL, what happens?",
+      opts:[
+        "The load is rejected and the second conflicting value is discarded by the store",
+        "A validation report lists the subject as violating a cardinality constraint",
+        "The two values are inferred to denote the same thing, or the ontology becomes inconsistent",
+        "The most recently loaded value silently overwrites the value already present",
+        "Both values are retained, and queries must choose between them explicitly"],
+      a:2, why:"Functionality is a semantic commitment, not a data-quality rule. Anyone expecting a violation report has reached for OWL where SHACL was needed — and in production that mistake shows up as mysteriously merged entities rather than an error." },
+    { d:3, q:"An ontology will be used for query answering over live relational sources via ONTOP-style virtualization. Which OWL 2 profile should it target?",
+      opts:[
+        "OWL 2 EL — polynomial-time classification of very large class hierarchies",
+        "OWL 2 QL — entailments can be rewritten into the source query",
+        "OWL 2 RL — rule-based forward chaining over materialized triples",
+        "Full OWL 2 DL — profile choice stops mattering once queries push down",
+        "No profile applies, because virtualization requires reasoning to be disabled"],
+      a:1, why:"QL exists precisely for query rewriting over relational data; EL and RL both assume materialization. Getting this wrong commits the engagement to reasoning that cannot be expressed as SQL, which surfaces only once the first real query is run." },
+    { d:4, q:"Inference is producing correct entailments, but production query latency is now unacceptable. What is the right call?",
+      opts:[
+        "Remove reasoning from the deployment and reproduce the needed logic in application code",
+        "Scale the reasoner's hardware and cache inferred results aggressively at the edge",
+        "Re-express every axiom as SHACL rules, which execute considerably faster than inference",
+        "Materialize the entailments queries depend on, and retire axioms nothing depends on",
+        "Restrict reasoning to query time only, so nothing is materialized in advance"],
+      a:3, why:"Reasoning is a design choice with a running cost, not a switch. Deciding which entailments earn their keep — and pruning axioms no query relies on — preserves the semantics that matter while making the cost bounded and explicit." },
+    { d:1, q:"What does running a reasoner over a graph produce?",
+      opts:[
+        "Corrections to statements in the graph that contradict the ontology",
+        "A validation report listing every axiom the data fails to satisfy",
+        "Additional triples that follow logically from what was asserted",
+        "A normalised copy of the graph with redundant statements removed",
+        "A ranked list of the statements most likely to be missing"],
+      a:2, why:"A reasoner adds entailments; it does not fix, remove or judge your data. Expecting corrections or a report is the reflex that leads people to use OWL where SHACL was needed." },
+    { d:1, q:"Which is something OWL can state that RDFS cannot?",
+      opts:[
+        "That two classes are disjoint, so nothing can belong to both",
+        "That a property's subject is expected to be of a particular class",
+        "That one class is a specialisation of another class",
+        "That a resource is an instance of a named class",
+        "That a resource carries a human-readable label in several languages"],
+      a:0, why:"Disjointness, cardinality, inverses and property characteristics are OWL's contribution. RDFS gives you hierarchy and domain/range, which is enough to type a graph but not to reason about contradiction." },
+    { d:2, q:"You declare <code>:employs owl:inverseOf :employedBy</code> and assert only <code>:employs</code>. What can queries see?",
+      opts:[
+        "Only the asserted direction, until the inverse triples are also loaded",
+        "Both directions, because the inverse triples are entailed",
+        "Both directions, but only in stores that materialize on write",
+        "Neither direction reliably, since inverses need a domain and range declared",
+        "Only the asserted direction, since inverses apply to classes not properties"],
+      a:1, why:"An inverse is entailment, so one assertion serves both traversals. This is why hand-asserting both directions is duplicated data rather than thoroughness." },
+    { d:2, q:"You declare <code>:partOf</code> transitive across a four-level containment hierarchy. What is the consequence?",
+      opts:[
+        "Only adjacent levels are related, unless intermediate triples are asserted",
+        "Multi-hop membership is entailed, at a cost that grows with hierarchy depth",
+        "Queries must still use a property path to cross more than one level",
+        "The hierarchy is validated, and any cycle raises an inconsistency",
+        "The property also becomes symmetric, so containment traverses either way"],
+      a:1, why:"Transitivity buys you the closure without property paths in every query — but it materialises a lot of triples in a deep hierarchy. It is a good example of an axiom whose cost belongs in the inference budget." },
+    { d:3, q:"You declare a domain on a property that is, in practice, used with subjects from two classes asserted to be disjoint. What happens?",
+      opts:[
+        "The offending triples are ignored, and the reasoner logs a warning",
+        "Nothing, because domain declarations are advisory rather than enforced",
+        "The subjects are inferred into both classes, making the ontology inconsistent",
+        "The property is automatically split into two properties by domain",
+        "The domain is narrowed automatically to the intersection of both classes"],
+      a:2, why:"Domain entails type, and being in two disjoint classes is a contradiction — so a careless domain plus a disjointness axiom makes the whole ontology inconsistent, and a reasoner will then entail nothing useful at all." },
+    { d:3, q:"The business wants <i>Product</i> to be both a class of things and something it can attach attributes to, like a product category record. What do you do?",
+      opts:[
+        "Model a separate category node the class relates to, keeping the two roles distinct",
+        "Assert the class as an individual too, relying on OWL 2 punning to keep it legal",
+        "Make the attributes annotation properties on the class, since annotations are unconstrained",
+        "Model every product category as a subclass, attaching the attributes to each subclass",
+        "Model products as instances of a metaclass, which OWL 2 supports directly"],
+      a:0, why:"Punning is legal in OWL 2 DL but it confuses reasoners and reviewers alike, and annotations are invisible to inference. A category node keeps the class hierarchy clean while giving the business attributes somewhere real to live." },
+    { d:4, q:"A rule holds only for a stated period — a classification valid from 2023 to 2025. Where does it belong?",
+      opts:[
+        "As a subclass per period, so each interval has its own axiom set",
+        "As an axiom, with the validity period recorded in an annotation for reference",
+        "As data on a reified relationship, with validity enforced in queries and shapes",
+        "As two ontology versions, one per period, selected at query time",
+        "As a SHACL rule, since shapes can be scoped to a validity window"],
+      a:2, why:"OWL axioms are timeless — they cannot be scoped to an interval, and annotations are inert. Time-bounded truth is data about an assertion, which is exactly what reification plus effective dating exists for." },
+    { d:4, q:"The same ontology entails different things in two stores the client runs, because their reasoning support differs. How do you handle it?",
+      opts:[
+        "Restrict the model to axioms both stores support identically",
+        "Pin the entailment regime in the contract and materialize what queries depend on",
+        "Run reasoning in the store with the fuller support and replicate the results",
+        "Treat the difference as an implementation detail, and test against each store",
+        "Disable reasoning in both stores and express the entailments as queries"],
+      a:1, why:"Inference silently varying by engine means the same question has two answers, which destroys the single-definition promise. Naming the regime you rely on — and materialising those entailments — makes the guarantee portable rather than store-dependent." }
+  ],
+  learn: {
+    0:["Read the OWL 2 Primer and list five things OWL can state that RDFS cannot.",
+       "Build a five-class toy ontology in Protégé and run the reasoner to see inference happen."],
+    1:["Author a handful of real axioms — disjointness, inverse, cardinality — and check each inference against your prediction.",
+       "Write out, for one live model, which business rules are semantics and which are validation."],
+    2:["Read the OWL 2 Profiles spec and record, per profile, one construct it excludes and the consequence.",
+       "Review a peer's axioms and argue OWL versus SHACL on three specific constraints."],
+    3:["Set the profile policy for new domains and maintain the reusable axiom patterns.",
+       "Define the inference budget for one production deployment — what is materialized, what is live, what was pruned and why."]
+  }
+},
+{
+  id: "shacl", name: "SHACL &amp; constraint validation", weight: 3, required: 3,
+  why: "Expressing data-quality and structural rules that must fail loudly rather than be inferred away.",
+  anchors: [
+    "I don't know what SHACL is or why it exists alongside OWL.",
+    "I understand that SHACL validates data and reports violations, but I haven't written a shape.",
+    "I author shapes for stated rules using an existing shape set as a template.",
+    "I design the shape set for a domain, decide where it runs relative to inference, and use violation reports as a delivery gate."
+  ],
+  probes: [
+    { d:1, q:"What is SHACL for?",
+      opts:[
+        "Inferring additional triples from the statements already present",
+        "Defining the vocabulary of classes and properties a domain uses",
+        "Validating that data conforms to stated constraints, and reporting violations",
+        "Mapping relational sources into RDF according to a declared template",
+        "Generating the mapping rules that load source data into the graph"],
+      a:2, why:"SHACL closes the world on purpose. It answers \"is this data acceptable\" — a question OWL's open-world semantics cannot ask, let alone answer." },
+    { d:2, q:"A source column must hold one of five approved status codes, and anything else must be <b>reported as an error</b>. What do you author?",
+      opts:[
+        "A SHACL shape with <code>sh:in</code> over the five approved values",
+        "An <code>owl:oneOf</code> enumerated class declared in the domain ontology",
+        "An <code>rdfs:range</code> pointing at a custom enumerated datatype",
+        "An <code>owl:FunctionalProperty</code> declaration on the status property",
+        "A SPARQL query listing every distinct value the column contains"],
+      a:0, why:"OWL would infer membership, or report an inconsistency, rather than flag the offending row. Reporting violations against a value set is SHACL's job." },
+    { d:3, q:"Your shapes pass, but the reasoner is also enabled on the same graph. What is the risk you need to manage?",
+      opts:[
+        "Reasoning is slower than validation, so the load pipeline may time out",
+        "SHACL and OWL reasoning cannot be enabled on the same graph together",
+        "Inferred triples are invisible to SHACL, so shapes silently skip over them",
+        "Inference may supply the very values a shape requires, masking incomplete source data",
+        "Shapes must be re-authored against the inferred vocabulary, not the asserted one"],
+      a:3, why:"A required property satisfied only by an entailed triple passes validation while the source data is still incomplete. Whether shapes run before or after inference is a design decision you have to make deliberately, not inherit from a default." },
+    { d:4, q:"You inherit 400 shapes. Validation runs on every load and the team has stopped reading the report. What do you change?",
+      opts:[
+        "Delete the shapes that fail most often, since they are evidently not actionable",
+        "Assign severities and owners, blocking only on what must never ship",
+        "Make every violation blocking, so the report cannot simply be ignored",
+        "Auto-repair violations during load and log every correction for later review",
+        "Consolidate them into fewer, broader shapes so the report is shorter"],
+      a:1, why:"An ignored report is a governance failure, not a data failure. Shapes without severity or ownership generate noise; making everything blocking stops delivery dead; and auto-repair hides the problem in the one place you were trying to expose it." },
+    { d:1, q:"What does a node shape's target determine?",
+      opts:[
+        "The severity assigned to any violation the shape reports",
+        "Which nodes in the graph the shape's constraints are applied to",
+        "The order in which the shape's constraints are evaluated",
+        "Which properties the shape is permitted to constrain",
+        "The order in which shapes are loaded into the validation engine"],
+      a:1, why:"Targeting is the first design decision in any shape set: by class, by explicit node list, or by a query. Get it wrong and the shape either validates nothing or validates far too much." },
+    { d:1, q:"Why does SHACL distinguish violation, warning and info severities?",
+      opts:[
+        "To let a validation report separate what must block from what merely needs review",
+        "To control the order in which constraints run during a validation pass",
+        "To indicate how confident the shape author was in the rule",
+        "To decide which violations are written into the provenance graph",
+        "To record how often each rule has been violated historically"],
+      a:0, why:"Severity is what keeps a report actionable at scale. Without it every finding carries equal weight, and a report where everything matters is a report where nothing does." },
+    { d:2, q:"Every batch record must carry at least one manufacturing site. What do you author?",
+      opts:[
+        "An <code>owl:someValuesFrom</code> restriction on the batch class",
+        "A shape with <code>sh:minCount</code> 1 on the site property",
+        "An <code>rdfs:range</code> declaration pointing at the site class",
+        "A SPARQL query run after load to list batches without a site",
+        "A cardinality axiom stating that every batch has exactly one site"],
+      a:1, why:"The OWL restriction would entail the existence of an unnamed site rather than report the gap — under open-world semantics, missing is not wrong. A post-load query finds the problem but sits outside the validation gate." },
+    { d:2, q:"A rule spans two properties: a batch's release date must not precede its manufacture date. How do you express it?",
+      opts:[
+        "Two separate shapes, one constraining each of the dates",
+        "An <code>sh:lessThan</code> pair declared on the batch node shape",
+        "A <code>sh:sparql</code> constraint comparing the two values",
+        "A datatype constraint restricting both properties to valid dates",
+        "One shape with two pattern constraints checking the date formats"],
+      a:2, why:"Comparisons between two property values need either <code>sh:lessThan</code> where it fits the exact semantics, or a SPARQL constraint for anything more nuanced. Independent shapes on each date cannot see the relationship at all." },
+    { d:3, q:"When is <code>sh:closed</code> — rejecting any property not named in the shape — the right choice?",
+      opts:[
+        "On any shape, since unexpected properties always indicate a mapping defect",
+        "Never, because RDF is open by design and closing it defeats extensibility",
+        "On interchange contracts, where the receiver must know exactly what arrives",
+        "On core ontology classes, to stop domain teams adding properties locally",
+        "On generated artifacts, to catch any property the generator invented"],
+      a:2, why:"Closing a shape is right where the payload is a contract with a consumer who cannot cope with surprises. Applying it broadly fights the extensibility that makes the graph worth building." },
+    { d:3, q:"Your model is deployed by virtualization. What does that mean for validation?",
+      opts:[
+        "Shapes cannot be used, since there are no triples to validate until query time",
+        "Shapes run against the mapping's output, so coverage follows what queries expose",
+        "Shapes must be translated into constraints on the underlying relational sources",
+        "Shapes run unchanged, because the graph behaves identically either way",
+        "Shapes run against a nightly materialized snapshot of the whole model"],
+      a:1, why:"There is no materialised graph to sweep, so validation applies to what the mappings produce for a given query. Anything the mappings never surface is never validated — a coverage gap worth stating explicitly rather than discovering later." },
+    { d:4, q:"You are setting up shapes to be reused across clients. How do you organise them?",
+      opts:[
+        "One shared library, with client-specific rules toggled by configuration",
+        "Per-client shape sets, since data quality rules are always local",
+        "Universal structural shapes versioned separately from client policy shapes",
+        "A single shape set per domain, copied and adapted at each engagement",
+        "One library per industry, since clients in a sector share data shapes"],
+      a:2, why:"Identity, provenance and structural integrity generalise; a client's tolerance for a missing field does not. Separating and versioning the two is what lets the universal set harden over engagements while local policy stays free to differ." },
+    { d:4, q:"In a pipeline that generates triples, runs CQ tests against them, and then goes to human review, where should shape validation sit?",
+      opts:[
+        "Before the CQ queries run, so structural defects do not read as modelling gaps",
+        "After the CQ evaluation, so only data that answers the questions gets validated",
+        "Alongside human review, so reviewers see violations and query results together",
+        "After human review, so shapes are only run on already-approved data",
+        "Only when a CQ fails, to establish whether the cause was structural"],
+      a:0, why:"A missing required property makes a CQ return the wrong answer, and whoever reviews the results will attribute that to the ontology. Validating first keeps the two failure modes distinguishable — structural defect or genuine modelling gap." }
+  ],
+  learn: {
+    0:["Read the SHACL spec's core constraint components and note which map to rules on your current project.",
+       "Run an existing shape set against live triples and read the validation report."],
+    1:["Author a shape set for one existing SDD, covering cardinality, datatype and value-set rules.",
+       "Take five data-quality rules currently enforced in code and re-express them as shapes."],
+    2:["Design the shape set for a domain and decide explicitly whether it runs pre- or post-inference; document why.",
+       "Wire validation into a pipeline so violations block promotion, and triage the first real report."],
+    3:["Own the shape library and the validation gate standard for your team.",
+       "Set severity and ownership conventions so violation reports stay actionable at scale."]
+  }
+},
+{
+  id: "arch", name: "Ontology architecture &amp; layering", weight: 3, required: 3,
+  why: "Upper/core → domain → use-case layering, modularity, and reuse across engagements.",
+  anchors: [
+    "I build one flat ontology per problem; I don't separate shared concepts from specific ones.",
+    "I can explain why layering matters, but I couldn't decide where a given concept belongs.",
+    "I place concepts in the right layer when someone reviews it, and I reuse core relationships rather than re-declaring them.",
+    "I design the layering for a new domain, and I push back when local pressure would put use-case detail into the core."
+  ],
+  probes: [
+    { d:1, q:"What is the purpose of an upper/core ontology layer holding a small set of relationship types?",
+      opts:[
+        "To store client-specific attributes in one place for easier access control",
+        "To hold the certified metrics layer that BI tools and dashboards read",
+        "To give every domain one shared relationship vocabulary, so models align",
+        "To keep large ontologies inside the reasoner's practical size limit",
+        "To hold the relationships the client's source systems already implement"],
+      a:2, why:"The layer exists for alignment and reuse — it is what lets each new use case become configuration rather than custom engineering, and what lets one engagement's model seed the next." },
+    { d:2, q:"Two domain teams both need a class called <i>Site</i>, meaning different things (a manufacturing plant; a clinical investigator location). What do you do?",
+      opts:[
+        "Merge them into a single <i>Site</i> class with a type attribute distinguishing usage",
+        "Declare an abstract core concept with two domain subclasses and distinct definitions",
+        "Let each domain declare its own unrelated <i>Site</i> class and carry on",
+        "Rename both to domain-prefixed names so the collision cannot arise at all",
+        "Model one Site class and distinguish the two by which domain asserted it"],
+      a:1, why:"Merging destroys meaning; duplicating unrelated classes destroys reuse; renaming dodges the question and leaves two vocabularies. Subclassing a shared abstraction keeps both traversable while the definitions stay honest." },
+    { d:3, q:"A use-case model needs a concept the domain ontology lacks. What is the disciplined move?",
+      opts:[
+        "Promote it to the domain layer if genuinely general; otherwise add only constraints and queries",
+        "Add the class to the use-case layer only, and leave the domain ontology untouched",
+        "Add it straight to the core, so other domains can benefit from it immediately",
+        "Model it as a literal attribute, avoiding any disturbance to the class hierarchy",
+        "Raise it with governance and pause the use case until the core is extended"],
+      a:0, why:"The use-case layer should carry shapes, views and queries — not new vocabulary. New concepts belong in the domain layer, but only after review, or the core quietly accumulates local detail and stops generalising." },
+    { d:4, q:"A second client needs 80% of your existing core ontology but genuinely conflicts on the other 20%. What do you do to the core?",
+      opts:[
+        "Fork the core per client, so each engagement can move at its own pace",
+        "Add both variants to the core and let each client select what it needs",
+        "Keep the core intact and require the second client to adopt it as-is",
+        "Refactor the conflicting fifth into domain modules, leaving a smaller shared core",
+        "Extend the core with the shared portion and leave the conflicting fifth unmodelled"],
+      a:3, why:"The core is only worth having for what genuinely generalises. Forking ends the compounding that makes a shared core valuable across engagements; holding both variants turns the core into a container for local detail. Shrinking it is what keeps it reusable." },
+    { d:1, q:"What distinguishes a use-case model from the domain ontology beneath it?",
+      opts:[
+        "It is a simplified copy of the domain ontology, tuned for one audience",
+        "It holds the metrics, while the domain ontology holds the entities",
+        "It is a view over the domain ontology, scoped to one set of questions",
+        "It contains the client-specific concepts the domain layer keeps generic",
+        "It is generated from the competency questions agreed for that phase"],
+      a:2, why:"The use-case layer selects and constrains; it does not duplicate or extend the vocabulary. That is what allows several use cases to sit over one domain model without diverging from each other." },
+    { d:1, q:"Why reuse an existing core relationship instead of declaring a new one that fits your domain better?",
+      opts:[
+        "Reuse keeps the ontology smaller, which improves reasoner performance",
+        "Shared relationships let models align, so questions can traverse across domains",
+        "New relationships require governance approval, which delays delivery",
+        "Reused relationships are already covered by the existing shape library",
+        "Reuse avoids the naming collisions that arise as domains grow"],
+      a:1, why:"Alignment is the payoff: a question that crosses two domains only works if both used the same relationship. A locally perfect relationship that nobody else uses buys precision and loses the graph." },
+    { d:2, q:"Where should a certified metric's definition live?",
+      opts:[
+        "In the semantic layer, as one definition every consumer resolves against",
+        "In each BI tool, so teams can tune it to their reporting needs",
+        "In the use-case model for the question set that first needed it",
+        "In the SDD, alongside the source columns the metric is computed from",
+        "In a downstream export format, which is what other platforms actually consume"],
+      a:0, why:"One definition, many consumers — that is the whole proposition. Metrics defined per tool are how the same KPI acquires four values, and defining them in a use-case layer scopes them too narrowly to certify." },
+    { d:2, q:"Two domains need a concept neither the core nor either domain currently has, and it is not universal. Where does it go?",
+      opts:[
+        "Into the core, since more than one domain needs it",
+        "Into both domain ontologies, kept in step by review",
+        "Into a shared domain module both domains import",
+        "Into the use-case layers that surfaced the need",
+        "Into whichever domain uses it more heavily, imported by the other"],
+      a:2, why:"Two is not universal, so the core is the wrong home — but duplicating across domains guarantees drift. A shared module keeps one definition without inflating what every future domain has to adopt." },
+    { d:3, q:"You discover the core imports a domain module, which imports a use-case model. What do you do?",
+      opts:[
+        "Leave it, provided the reasoner resolves the imports without error",
+        "Restructure so dependencies flow one way only, from specific to general",
+        "Merge the three layers, since the separation is evidently not holding",
+        "Add the missing imports so every layer can see every other layer",
+        "Flatten the imports into a single file, resolving the cycle at build time"],
+      a:1, why:"A cycle means the core cannot be released, reasoned over or reused without dragging a client's use case along. Dependencies have to point in one direction or the layering is decorative." },
+    { d:3, q:"When is it right to split a domain ontology into separate modules?",
+      opts:[
+        "When it exceeds a few hundred classes and becomes hard to read",
+        "When different parts have distinct owners and change at different rates",
+        "When more than one use-case model needs to import parts of it",
+        "When the reasoner's classification time becomes noticeable on load",
+        "When more than one deployment pattern needs to import the ontology"],
+      a:1, why:"Modularity exists to serve independent lifecycles and ownership. Size alone is a readability problem with cheaper fixes, and import needs are satisfied by a single well-structured module." },
+    { d:4, q:"The core ontology needs a breaking change, and four live client engagements depend on it. What has to be in place?",
+      opts:[
+        "A freeze on core changes until the engagements reach a delivery milestone",
+        "Per-client copies, so each can absorb the change on its own schedule",
+        "A versioned release with impact analysis across dependent artifacts and a migration path",
+        "A compatibility layer that maps the old relationships onto the new ones indefinitely",
+        "Publish the change and let each engagement absorb it at its own pace"],
+      a:2, why:"A shared core is only shareable if change is governed: what breaks, who is affected, how they move. Freezing defers the problem, copies end reuse, and a permanent compatibility layer preserves the old model forever under a new name." },
+    { d:4, q:"There is pressure to grow the upper ontology from eighteen relationships to sixty, as each new domain asks for its own. How do you respond?",
+      opts:[
+        "Accept the additions — a richer core expresses more domains accurately",
+        "Cap the count, admitting new relationships only as older ones are retired",
+        "Admit only relationships already reused by more than one domain",
+        "Redirect every request to the domain layer, keeping the core permanently fixed",
+        "Split the core into per-industry cores, each with its own relationship set"],
+      a:2, why:"The core's value is inversely proportional to its size: eighteen relationships everyone uses beats sixty that each serve one client. Evidence of reuse is the admission test — and an arbitrary cap or a permanent freeze substitutes a rule for that judgement." }
+  ],
+  learn: {
+    0:["Map an existing engagement's layers on one page: which classes sit in core, domain, use case, and why.",
+       "Study a published upper-ontology example — a small shared relationship set sitting beneath domain and use-case models — and map how each layer earns its place."],
+    1:["Take twenty concepts from a live model and place each in a layer, then have a lead mark it.",
+       "Study two domain ontologies that share a core and list every reused relationship."],
+    2:["Lead the layering design for one small new domain and defend it in review.",
+       "Audit a model for leakage — use-case detail that has crept into core — and write the remediation."],
+    3:["Own the core relationship set and its change process across engagements.",
+       "Run one core refactor driven by a second engagement's conflict, and publish the reasoning as precedent."]
+  }
+},
+{
+  id: "cq", name: "Use cases &amp; competency questions", weight: 3, required: 3,
+  why: "Eliciting competency questions that are testable, with expected results, not aspirational statements.",
+  anchors: [
+    "I treat requirements as a list of fields; I hadn't thought of the model as answering questions.",
+    "I know competency questions drive the model, but mine come out too vague to test.",
+    "I write testable CQs with expected results when I have an existing set to work from.",
+    "I elicit CQs directly from stakeholders, negotiate scope through them, and hold them as the acceptance contract."
+  ],
+  probes: [
+    { d:1, q:"What is a competency question in ontology engineering?",
+      opts:[
+        "A question used in interview to assess an ontologist's modelling capability",
+        "A stakeholder's business objective, restated in the form of a question",
+        "A natural-language prompt that the LLM layer will answer at runtime",
+        "A question the ontology must answer, used to scope and test it",
+        "A question the client asks during procurement to test a supplier"],
+      a:3, why:"CQs are scope and test at the same time. If a competency question cannot be executed against the graph, it is doing neither job — which is why elicitation and query authoring cannot be fully separated." },
+    { d:2, q:"Which is a usable competency question?",
+      opts:[
+        "Is our commercial data well governed across the regions we operate in?",
+        "Which accounts had more than three engagements last quarter in territory X?",
+        "Can this graph support the AI use cases the business is asking for?",
+        "What does the business actually mean when it says an account is active?",
+        "How well aligned is our territory data with the commercial plan?"],
+      a:1, why:"Only one of these can be written as a query with an agreed expected result. The last is a good elicitation question and often the more important conversation — but it is an input to a CQ, not a CQ itself." },
+    { d:3, q:"A CQ's SPARQL runs green against generated triples, but stakeholders reject the answer as wrong. What is the most likely failure?",
+      opts:[
+        "The expected result set was never agreed, so the test only proved the query runs",
+        "The reasoner was not enabled during the test run, so entailed rows were missing",
+        "The triples were generated from a stale extract of the underlying source data",
+        "The CQ should have been tested against the virtualized layer, not generated triples",
+        "The CQ was tested before the ontology update it depended on had shipped"],
+      a:0, why:"A CQ without agreed expected results is a smoke test wearing an acceptance test's clothes. Pairing every question with the answer stakeholders expect is what turns validation into a real test rather than a rubber stamp." },
+    { d:4, q:"Stakeholders hand you 200 competency questions. You have capacity for about 60 this phase. How do you choose?",
+      opts:[
+        "Take the 60 the business ranks highest, so the phase delivers what was asked for",
+        "Take the 60 cheapest to implement, so the phase closes the largest number of questions",
+        "Take the 60 that between them exercise the widest range of entities and relationships",
+        "Allocate the 60 proportionally across stakeholder groups, to keep everyone's support",
+        "Take the 60 answerable from the sources already onboarded"],
+      a:2, why:"CQs are how the model gets built, so selection is a modelling decision before it is a prioritisation one. Choosing for structural coverage means most of the remaining 140 become configuration later. Choosing purely by stated priority tends to build the same narrow slice repeatedly, and the second phase starts from scratch." },
+    { d:1, q:"Where should competency questions come from?",
+      opts:[
+        "The modelling team, who understand what the ontology can express",
+        "The business, as questions it currently cannot get answered",
+        "The source systems, derived from the columns available to map",
+        "The industry reference model, which lists the standard questions",
+        "The governance team, who own the definitions the questions will use"],
+      a:1, why:"CQs are the business's questions, not the modeller's. Deriving them from available columns inverts the process and produces a model that answers whatever the data already happened to support." },
+    { d:1, q:"What makes a competency question testable?",
+      opts:[
+        "It has been signed off by a named business stakeholder",
+        "It uses only vocabulary already present in the ontology",
+        "It can be expressed as a query with an expected result",
+        "It concerns a single entity rather than several at once",
+        "It concerns a single dimension, so the answer cannot be ambiguous"],
+      a:2, why:"Executability plus an expected answer is the whole test. Sign-off without an expected result gives you agreement about a sentence, not a check on the model." },
+    { d:2, q:"A stakeholder asks for 'better visibility of supply risk'. What do you do with that?",
+      opts:[
+        "Record it as a CQ and refine the wording during modelling",
+        "Decompose it into specific questions that each have an answerable form",
+        "Model the supply domain broadly, so any risk question can be asked later",
+        "Ask the stakeholder to rewrite it in the form of a question",
+        "Log it as a use case and let the CQs emerge during modelling"],
+      a:1, why:"An aspiration is not a CQ, but it is the raw material for several. Decomposition is where scope gets negotiated — modelling broadly against a vague ask is how phases lose their boundaries." },
+    { d:2, q:"Who should supply the expected results a CQ is tested against?",
+      opts:[
+        "The modeller, from the data, so the test reflects what the graph contains",
+        "The stakeholders who asked the question, before the query is written",
+        "Whichever tool regenerated the triples, by diffing outputs across runs",
+        "Whoever performs the review, at the point of validation",
+        "The source system owners, who know what the data should contain"],
+      a:1, why:"Expected results produced from the data test only that the query runs. Getting them from the asker turns the CQ into an acceptance criterion — and often exposes a disagreement about the definition before any modelling happens." },
+    { d:3, q:"A CQ requires data the client does not currently capture anywhere. What do you do?",
+      opts:[
+        "Drop the CQ, since an unanswerable question cannot guide the model",
+        "Model the concept anyway, leaving the properties unpopulated for now",
+        "Keep the CQ and record the data gap as a scope decision",
+        "Substitute the closest question the available data can actually answer",
+        "Model the concept and populate it from a proxy the data does contain"],
+      a:2, why:"An unanswerable CQ is a finding about the client's data estate, often a valuable one. Quietly dropping it hides the gap; quietly modelling it produces a structure nothing populates and nobody validates." },
+    { d:3, q:"What role do CQ queries play after the model is delivered?",
+      opts:[
+        "They serve as documentation of what the model was built to answer",
+        "They become the regression suite, re-run on every regeneration",
+        "They are handed to consumers as templates for their own queries",
+        "They are retired once the corresponding use case has been accepted",
+        "They are archived with the phase documentation as evidence of scope"],
+      a:1, why:"CQs plus expected results are executable tests, so they keep earning after delivery — every regeneration and every refinement gets checked against the questions the model exists to answer." },
+    { d:4, q:"Stakeholders keep adding competency questions after the phase has been scoped. How do you handle it?",
+      opts:[
+        "Absorb them where they fit the existing model, and defer the rest",
+        "Hold the baseline firm, taking new questions into the next phase",
+        "Take them into the library, then re-baseline coverage as a change decision",
+        "Prioritise them against the agreed set and drop the weakest to stay level",
+        "Accept them all, since a larger CQ set produces a richer model"],
+      a:2, why:"The CQ set is the acceptance contract, so additions are change control rather than either generosity or refusal. Re-baselining makes the trade visible — new coverage against something already promised — and keeps the library growing for the next domain." },
+    { d:4, q:"Two competency questions from different business units imply contradictory definitions of the same metric. What is your move?",
+      opts:[
+        "Model both definitions as distinct named metrics with separate owners",
+        "Escalate the contradiction as a definition conflict for governance to settle",
+        "Adopt the definition of the unit that owns the underlying source data",
+        "Model the superset, so each query can filter to the definition it wants",
+        "Model the metric once and let each unit filter it downstream"],
+      a:1, why:"Two names for a contested metric ships the disagreement into the graph and multiplies it downstream. The contradiction is the finding — surfacing it is the value the semantic layer adds, and the decision belongs to the business, not the modeller." }
+  ],
+  learn: {
+    0:["Read the CQ sets from two past engagements and mark which are testable.",
+       "Rewrite five vague requirements from a live project as executable CQs."],
+    1:["Pair each of your CQs with an expected result set and get a stakeholder to sign it off.",
+       "Sit in on a CQ elicitation session and log which questions produced modelling decisions."],
+    2:["Run a CQ elicitation workshop yourself with a lead observing; use the CQ set as the scope boundary.",
+       "Trace three CQs end to end — question, SPARQL, expected result, validated anchor."],
+    3:["Curate the reusable CQ library that new domains start from.",
+       "Own scope selection for one phase on structural-coverage grounds, and defend the choice to stakeholders."]
+  }
+},
+{
+  id: "sparql", name: "SPARQL engineering", weight: 2, required: 3,
+  why: "Translating CQs to queries, federation, and understanding what does and does not push down.",
+  anchors: [
+    "I can't read a SPARQL query.",
+    "I can read and tweak a simple SELECT, but I only write queries by copying an example.",
+    "I write queries for most CQs with review, and I can work out why a result set came back empty.",
+    "I write federated queries, reason about pushdown and cost, and rewrite queries the engine can't translate."
+  ],
+  probes: [
+    { d:1, q:"Which SPARQL form builds new triples from a graph pattern you specify?",
+      opts:["SELECT","ASK","DESCRIBE","CONSTRUCT",
+        "SELECT DISTINCT"],
+      a:3, why:"CONSTRUCT builds triples from a pattern you control — the form you reach for when producing derived data rather than answering a question. DESCRIBE also returns RDF, but the shape of what comes back is decided by the store, not by you." },
+    { d:2, q:"A federated query joins CRM data with warehouse data via <code>SERVICE</code> and is unusably slow. Best first move?",
+      opts:[
+        "Push selective filters and projections inside the <code>SERVICE</code> block",
+        "Materialize both sources into the graph store and query locally",
+        "Replace the <code>SERVICE</code> clause with <code>OPTIONAL</code> and filter afterwards",
+        "Raise the remote endpoint's query timeout and retry the join",
+        "Split the query in two and join the results in the application layer"],
+      a:0, why:"Federation cost is dominated by rows crossing the wire. Filter and project remotely before you consider changing the deployment pattern — re-platforming to fix a query you have not yet optimised is an expensive way to learn this." },
+    { d:3, q:"Under virtualization with SPARQL-to-SQL rewriting, which construct is most likely to defeat pushdown?",
+      opts:[
+        "A <code>FILTER</code> on a literal value",
+        "A <code>LIMIT</code> clause on the outer query",
+        "An unbounded property path such as <code>:partOf+</code>",
+        "Selecting more variables than the CQ needs",
+        "A <code>BIND</code> expression computing a derived value"],
+      a:2, why:"Transitive paths need recursion the rewriter often cannot express, so evaluation falls back in memory. Recursive traversal appearing in your CQs is a signal that this part of the domain wants materializing." },
+    { d:4, q:"Writing SPARQL across a CQ set, you notice the same join-and-filter pattern in a dozen queries. What does it tell you?",
+      opts:[
+        "Overlap between competency questions is normal — factor the pattern into a shared template, keep the queries tidy, and carry on",
+        "The ontology is under-specified — add the missing relationship so each of the twelve queries collapses into a single clean traversal",
+        "Check whether the twelve are genuinely distinct questions — that decides whether to model or prune",
+        "The queries were written independently — put one owner on consolidating them, and require design review before any new CQ ships",
+        "The CQs came from different people, so phrasing varies more than substance"],
+      a:2, why:"The repetition is a symptom with two possible causes, and you cannot tell which without looking. If the twelve questions are genuinely distinct, the shared path is real core structure and naming it in the model pays off for every consumer. If they are near-duplicates dressed up as separate questions, that is a scoping failure — and modelling the shared path would hard-code the error into the core. Adding the missing relationship straight away is the trap: right action, wrong order. Note where this signal appears — writing the queries. It is invisible in the CQ workshop, where twelve questions from twelve stakeholders all look distinct." },
+    { d:1, q:"What does <code>OPTIONAL</code> do in a SPARQL query?",
+      opts:[
+        "Marks a pattern that may match, without discarding rows when it does not",
+        "Declares a pattern the engine may skip if the query is running slowly",
+        "Allows a variable to be left unbound by the person running the query",
+        "Matches the pattern only when no other pattern in the query matches",
+        "Marks a pattern whose bindings are excluded from the result set"],
+      a:0, why:"OPTIONAL is a left join. It is also the most common cause of surprising result sets, because a badly nested OPTIONAL quietly changes which rows survive." },
+    { d:1, q:"What does a basic graph pattern in a query match against?",
+      opts:[
+        "The class hierarchy, returning every instance of the classes named",
+        "The ontology's axioms, returning the definitions that satisfy the pattern",
+        "Triples in the data, binding variables to the values found",
+        "The mapping definitions, returning the source columns involved",
+        "The SHACL shapes, returning the nodes each shape targets"],
+      a:2, why:"Queries run against triples — asserted, and entailed if a reasoner is active. Everything else in the stack determines which triples exist, not what the pattern matches." },
+    { d:2, q:"A query returns nothing, though you can see the data in the source. What do you check first?",
+      opts:[
+        "Whether the store has finished indexing the most recent load",
+        "Whether the IRIs and namespace prefixes in the query match the data",
+        "Whether the query needs a higher result limit to return rows",
+        "Whether the reasoner is enabled on the endpoint you are querying",
+        "Whether another process holds a lock on the graph being read"],
+      a:1, why:"Namespace and IRI mismatches account for most empty result sets, and they fail silently because a pattern that matches nothing is not an error. Missing inference is the next thing to check, not the first." },
+    { d:2, q:"You need one row per territory with a count of accounts in each. What does the query require?",
+      opts:[
+        "A <code>GROUP BY</code> on territory, with the count aggregated per group",
+        "A <code>DISTINCT</code> projection over territory and account",
+        "An <code>ORDER BY</code> on territory so the rows collapse in sequence",
+        "A subquery per territory, combined with <code>UNION</code>",
+        "A <code>HAVING</code> clause counting the accounts in each territory"],
+      a:0, why:"Aggregation needs grouping — DISTINCT deduplicates rows but counts nothing, and unions per territory do by hand what GROUP BY does by definition." },
+    { d:3, q:"A CQ needs containment exactly two levels deep. Property path or explicit joins?",
+      opts:[
+        "A path with a length restriction, which reads more clearly than joins",
+        "Explicit joins, since a fixed depth is expressible and stays translatable",
+        "An unbounded path, filtered afterwards to the depth required",
+        "Either — the engine optimises both into the same execution plan",
+        "An unbounded path, since the engine stops when it runs out of levels"],
+      a:1, why:"Fixed depth is exactly the case where you do not need a path: explicit patterns push down cleanly, while unbounded paths defeat rewriting and force in-memory evaluation." },
+    { d:3, q:"You need to answer a question scoped to assertions from one source only. What does the query use?",
+      opts:[
+        "A filter on the provenance property attached to each assertion",
+        "A <code>GRAPH</code> clause, if assertions are held in per-source named graphs",
+        "A separate endpoint per source, joined with <code>SERVICE</code>",
+        "A subquery restricted to the classes that source populates",
+        "A <code>FROM</code> clause naming that source's endpoint URL"],
+      a:1, why:"Named graphs make source scoping a first-class query construct rather than a filter you hope everyone remembers. It only works if the loading strategy put assertions in per-source graphs — a design decision made much earlier." },
+    { d:4, q:"The same CQ query returns different results against the virtualized deployment and the materialized one. How do you treat that?",
+      opts:[
+        "As a defect in whichever deployment disagrees with the source system",
+        "As expected, since materialization always lags the live sources",
+        "As a semantics difference to pin down, then encode in per-deployment expected results",
+        "As a reason to standardise on one deployment pattern for that domain",
+        "As a caching artifact, resolved by clearing the query cache on both"],
+      a:2, why:"Inference availability, duplicate handling and null semantics genuinely differ between the patterns, so the same question can have two defensible answers. What you cannot allow is not knowing which — expected results per deployment turn a surprise into a specification." },
+    { d:4, q:"Agents need graph access for a governed use case. What do you expose?",
+      opts:[
+        "A read-only SPARQL endpoint, with entitlements applied per user",
+        "Parameterised, entitled queries covering the certified questions",
+        "The full endpoint, with a system prompt describing permitted queries",
+        "A generated schema description, letting the agent compose its own queries",
+        "A natural-language interface that generates SPARQL for review before running"],
+      a:1, why:"Arbitrary query generation against a governed model means arbitrary interpretations of governed metrics, plus an unbounded surface for entitlement mistakes. Named parameterised queries keep the certified definitions certified — and keep the audit trail readable." }
+  ],
+  learn: {
+    0:["Work through a SPARQL tutorial to the point of writing joins and aggregation unaided.",
+       "Read ten existing CQ queries and explain each in words."],
+    1:["Convert five CQs to SPARQL and have them reviewed; debug every empty result to root cause.",
+       "Practise the three usual causes of empty results: IRI mismatch, missing inference, wrong optional nesting."],
+    2:["Write a cross-source federated query and profile it; log what pushed down and what did not.",
+       "Take a slow virtualized query and rewrite it to be translatable, documenting the reasoning."],
+    3:["Set the query patterns and anti-patterns guidance for your team.",
+       "Promote one recurring hand-written pattern into a certified derived layer and migrate its consumers."]
+  }
+},
+{
+  id: "sdd", name: "Semantic data dictionaries &amp; mapping", weight: 3, required: 3,
+  why: "Declarative source-to-concept mapping, RML, codebooks, controlled vocabularies, IRI design.",
+  anchors: [
+    "I'd map data by writing bespoke transformation code.",
+    "I understand mappings should be declarative, but I haven't authored one.",
+    "I author SDD column mappings, relationships and codebooks using an existing template.",
+    "I design the mapping and IRI strategy for a new source, including stable identity and vocabulary reconciliation."
+  ],
+  probes: [
+    { d:1, q:"What does a semantic data dictionary contain?",
+      opts:[
+        "A glossary of business term definitions maintained for the data catalogue",
+        "The physical schema of the graph store the triples are loaded into",
+        "The list of certified metrics exposed to downstream BI tools",
+        "Declarative mappings from source columns to governed concepts, plus relationships and codebooks",
+        "The provenance records showing when each source was last loaded"],
+      a:3, why:"The SDD is the reusable mapping artifact — one table, one meaning, consumed by everything downstream rather than re-derived per pipeline. Because every consumer relies on the same artifact, its contents are a contract, not documentation." },
+    { d:2, q:"A source holds free-text country values (\"UK\", \"U.K.\", \"United Kingdom\"). Where does reconciliation belong?",
+      opts:[
+        "Declare a class per observed spelling in the domain ontology",
+        "A codebook mapping each observed value to one canonical concept IRI",
+        "Clean the values in the source system and reject anything unmapped",
+        "A SHACL shape that rejects any value outside the canonical set",
+        "In the query layer, normalising the values as each question is asked"],
+      a:1, why:"Codebooks are exactly this: variant values in, governed concept out, declaratively and auditably. The ontology should not track source spellings, and rejecting unmapped values throws away data you could have reconciled." },
+    { d:3, q:"Three overlapping systems, and you must decide what each entity's IRI is built from. Which principle holds regardless of deployment pattern?",
+      opts:[
+        "IRIs should read like the business's own vocabulary, so include the entity's name or code and its owning organisation",
+        "An IRI may only be derived from values that can never change — anything mutable encoded in it becomes a fact you cannot correct",
+        "IRIs should embed the source system and its primary key, so any entity can be traced back to the record it came from",
+        "IRIs should be allocated sequentially from a central registry, so identity is governed and collisions are impossible by construction",
+        "IRIs should be minted from a hash of the row, guaranteeing uniqueness"],
+      a:1, why:"An IRI is a name, not a description. Anything folded into it becomes an assertion you cannot retract without rewriting every reference and breaking provenance — and names, codes, org units and statuses all change. Embedding the source system and its primary key deserves explaining rather than dismissing: it is standard practice under virtualization, where mapping templates derive IRIs from source keys. But as a principle it fails the moment a key is reused or a migration renumbers it, and it yields one IRI per system per entity, so cross-system identity still has to be asserted separately." },
+    { d:4, q:"Your ETL pipeline was built from an SDD, but the mappings running in production have drifted from what the SDD documents. What has happened, and what do you do?",
+      opts:[
+        "Reconcile the SDD to the deployed state, so the artifact of record matches what is actually running in production today",
+        "Regenerate the pipeline from the SDD immediately, so any manual change is overwritten and the deployed state converges back on it",
+        "Add a reconciliation report flagging differences between the SDD and the deployed mapping for review at each release",
+        "Someone hand-edited the pipeline downstream of the SDD — capture the intent in the SDD and rebuild from it",
+        "Lock the pipeline so only the automated build process can change it"],
+      a:3, why:"If the pipeline is meant to be built from the SDD, drift can only mean changes made outside that build step — usually a deadline patch that worked. Reconciling the SDD to the deployed state ratifies an unreviewed change and quietly makes the patch the standard. Overwriting it destroys the fix without learning what it was for, so the same patch returns next sprint. A report makes the difference visible but leaves the door open. A generated artifact is only trustworthy if generation is the only way to change it — and a hand-patched pipeline that then passes review becomes a false record of what the mapping actually does." },
+    { d:1, q:"What is a codebook in an SDD?",
+      opts:[
+        "The list of source tables and columns available for mapping",
+        "A mapping from variant source values to one canonical concept",
+        "The set of validation rules applied to a mapped column",
+        "A glossary of the abbreviations used in source system names",
+        "The set of IRI templates used to mint identifiers for each entity"],
+      a:1, why:"Codebooks handle the messy reality that the same thing is spelled four ways across three systems — declaratively, so the reconciliation is auditable rather than buried in a transform." },
+    { d:1, q:"Where are the relationships between entities declared?",
+      opts:[
+        "In the ontology only, since relationships are semantics rather than mapping",
+        "In the SDD's relationship section, alongside the column mappings",
+        "In the SHACL shapes, which define how entities may connect",
+        "In the query layer, where joins between entities are expressed",
+        "In the codebooks, which resolve the values that join entities together"],
+      a:1, why:"The SDD carries column mappings, relationships and codebooks together — the relationship section is what says which source columns imply an edge, as opposed to what edges are permitted." },
+    { d:2, q:"One source column packs two facts together, like a code that encodes both plant and line. How do you map it?",
+      opts:[
+        "Map it to a single concept and let consumers parse the parts they need",
+        "Two mappings from the same column, one per concept, declared in the SDD",
+        "Map it as-is, then add a downstream transform that splits the value",
+        "Request the source team split the column before it can be mapped",
+        "Map it twice into the same concept, distinguished by a codebook"],
+      a:1, why:"A composite column is two facts wearing one name; the SDD is exactly where that gets untangled, declaratively. Pushing the split downstream or upstream leaves the compound meaning encoded where nobody can see it." },
+    { d:2, q:"The same concept arrives from two tables in different systems, and they disagree on some rows. What does the SDD need?",
+      opts:[
+        "One mapping per source, plus a declared rule for which wins where they conflict",
+        "A single mapping from whichever source is designated the system of record",
+        "Two separate concepts, one per source, reconciled by consumers as needed",
+        "One mapping, with the conflicting rows excluded during load",
+        "Map both and let provenance record which source each assertion came from"],
+      a:0, why:"Both sources are evidence and the disagreement is real, so the resolution rule belongs in the mapping where it can be reviewed. Silently preferring one source or dropping conflicts destroys the very signal that would have exposed a data problem." },
+    { d:3, q:"A column's meaning depends on the value of another column in the same row. How is that handled?",
+      opts:[
+        "A conditional mapping in the SDD, with the condition stated declaratively",
+        "A pre-processing step that splits the rows before mapping",
+        "One mapping per possible value, applied in sequence during load",
+        "A note in the SDD documentation, with the logic implemented in the pipeline",
+        "Two mappings from the column, with a shape rejecting invalid combinations"],
+      a:0, why:"Conditional meaning is common in legacy sources and it belongs in the mapping, visible and reviewable. Pushed into a pipeline step it becomes logic that generation cannot reproduce, which is how SDDs and deployments drift apart." },
+    { d:3, q:"A source keeps only current values, but the CQs ask questions about the past. What does the mapping have to do?",
+      opts:[
+        "Map current values, and note that historical questions are out of scope",
+        "Snapshot the source on each load and map every snapshot as separate entities",
+        "Map to effective-dated assertions, so each load contributes a time-bounded fact",
+        "Retain prior triples on reload, so the graph accumulates history naturally",
+        "Load each run into its own named graph, keeping earlier graphs as history"],
+      a:2, why:"Effective dating makes history a modelled property of the assertion rather than an accident of load order. Simply accumulating triples produces contradictory current-state answers with no way to tell which is now." },
+    { d:4, q:"An upstream team changes what a column means without telling anyone. How do you make that detectable?",
+      opts:[
+        "Schedule periodic reviews of source documentation with each owning team",
+        "Bind the mapping to shapes and CQ expectations that fail when semantics shift",
+        "Add provenance so the affected assertions can be traced after the fact",
+        "Require upstream teams to sign a data contract before onboarding",
+        "Compare column statistics between loads and alert on distribution shifts"],
+      a:1, why:"Silent semantic change is the failure mode that documentation and contracts do not catch, because nothing executes them. Shapes plus CQ expected results are running assertions about meaning — when the meaning moves, something goes red." },
+    { d:4, q:"Forty sources, a dozen overlapping concepts, and no time to reconcile them all this phase. What do you do?",
+      opts:[
+        "Reconcile the concepts the CQs traverse, recording the rest as unmapped",
+        "Reconcile every overlapping concept at a shallow level of detail",
+        "Onboard the sources the business ranks highest and defer the others entirely",
+        "Map all forty sources independently, deferring reconciliation to a later phase",
+        "Reconcile the concepts appearing in the most sources, as the largest overlaps"],
+      a:0, why:"Reconciliation is expensive and only pays where questions cross the boundary. Recording the remainder as unmapped keeps the gap visible; mapping everything independently creates forty islands and a reconciliation debt nobody has budgeted." }
+  ],
+  learn: {
+    0:["Read an existing SDD end to end — column mapping, relationships, codebooks — and trace one column into triples.",
+       "Replace one hand-coded transform with a declarative mapping."],
+    1:["Author the SDD for one small source under review, including at least one codebook.",
+       "Study R2RML/RML mapping syntax and produce a working mapping for a two-table source."],
+    2:["Own the mapping for a source with messy identity; design and defend the IRI strategy.",
+       "Reconcile two sources' controlled vocabularies and document the unmatched residue."],
+    3:["Maintain the SDD template and codebook library seeding new engagements.",
+       "Close the loop on one pipeline so the SDD is executed rather than described, and retire the duplicate logic."]
+  }
+},
+{
+  id: "gov", name: "Governance &amp; provenance", weight: 2, required: 2,
+  why: "PROV-O, entitlements and masking before retrieval, lineage, versioned metric contracts.",
+  anchors: [
+    "I've treated governance as someone else's layer.",
+    "I know provenance and entitlements should be modelled, but not how to do it.",
+    "I model provenance and apply entitlement patterns by following existing precedent.",
+    "I design the governance model for a new domain — versioning, effective dating, and where entitlements are enforced."
+  ],
+  probes: [
+    { d:1, q:"What is PROV-O used for in a semantic model?",
+      opts:[
+        "Defining the role-based access control rules that govern a domain",
+        "Validating that assertions carry every property the shapes require",
+        "Expressing what an assertion derives from, and who asserted it",
+        "Versioning the ontology file itself as it changes across releases",
+        "Recording which parts of the graph each consumer is entitled to read"],
+      a:2, why:"Provenance is modelled explicitly so every assertion is traceable to its source and confidence. That is what makes explainability a property of the graph rather than a document written about it afterwards." },
+    { d:2, q:"An agent retrieves graph context to answer a user's question. Where are entitlements and masking applied?",
+      opts:[
+        "In the prompt, instructing the model not to reveal restricted fields",
+        "By filtering restricted content out of the model's generated output",
+        "In the BI tool or application that renders the final answer",
+        "At the semantic layer, before any context reaches the model",
+        "In the retrieval query itself, written to exclude restricted properties"],
+      a:3, why:"Anything the model sees, it can leak — through paraphrase, inference or a later turn. Enforcement has to happen before retrieval, which is what makes the graph the guardrail rather than the prompt." },
+    { d:3, q:"A certified metric's definition changes mid-quarter and several consumers depend on it. The governed way to handle it:",
+      opts:[
+        "Publish the new definition alongside the old, with effective dates",
+        "Update the definition in place and notify every affected consumer directly",
+        "Fork the metric per consumer, so nobody's reporting is disrupted mid-quarter",
+        "Delay the change until the next scheduled annual model release",
+        "Version the metric per consumer, so each migrates when it suits them"],
+      a:0, why:"A versioned contract with effective dating keeps history reconcilable and lets consumers migrate deliberately. In-place edits silently change last quarter's numbers, and forking abandons the single definition you were there to create." },
+    { d:4, q:"A regulator asks you to reproduce, exactly, a figure your client reported 14 months ago. What makes that answerable?",
+      opts:[
+        "Restore a database backup from the reporting date and re-run the query",
+        "Retrieve the archived BI extract used to produce the report and trace the figure",
+        "Replay the query against effective-dated assertions using the contract version then in force",
+        "Recompute from current definitions, documenting every difference from the reported figure",
+        "The provenance graph, which records every assertion behind the figure"],
+      a:2, why:"Reproducibility is a modelling decision taken long before the request arrives — it only works if the model was designed to be queried as of a past date. Backups restore data but not the definitions in force; archived extracts prove what was printed, not that it was right. Effective dating plus contract versioning makes the past a queryable state." },
+    { d:1, q:"What is masking, in the context of a governed semantic layer?",
+      opts:[
+        "Hiding entire entities from users who lack entitlement to the class",
+        "Obscuring or withholding specific values while the record stays visible",
+        "Encrypting sensitive properties at rest within the graph store",
+        "Removing identifiers so the remaining data is anonymous",
+        "Replacing sensitive values with synthetic ones for testing purposes"],
+      a:1, why:"Masking works at value level — you can see that a patient record exists without seeing the protected fields. That is different from hiding the record, and different again from anonymising it." },
+    { d:1, q:"Why does lineage matter in a semantic model?",
+      opts:[
+        "It lets any reported number be traced back to its sources",
+        "It records which users have queried which parts of the graph",
+        "It documents the order in which sources were onboarded",
+        "It shows which ontology version each class was introduced in",
+        "It shows which competency question each assertion was created for"],
+      a:0, why:"Lineage answers 'where did this number come from', which is the question every disputed figure eventually provokes — and the one manual reconciliation exists to answer expensively." },
+    { d:2, q:"A graph holds patient-level data, and reps may only see their own territory. Where is that enforced?",
+      opts:[
+        "In each consuming application, according to the user's role",
+        "At the semantic layer, before any results are returned",
+        "In the source systems, which already hold territory assignments",
+        "In the graph store's row-level security configuration",
+        "In the semantic layer for reads, and in the application for writes"],
+      a:1, why:"One enforcement point, applied before retrieval, is the whole reason the semantic layer sits where it does. Per-application enforcement is the fifty-inconsistent-dashboards problem wearing a security hat." },
+    { d:2, q:"Who should own a certified metric's definition?",
+      opts:[
+        "The modelling team, who authored the definition in the ontology",
+        "A named business steward accountable for what it means",
+        "The team that owns the source data the metric is computed from",
+        "Whichever consumer group depends on it most heavily",
+        "The governance council collectively, so no single person can change it"],
+      a:1, why:"Certification is a business claim about meaning, so it needs a business owner. Modellers author and maintain the expression of the definition; they should not be the ones deciding what the company means by it." },
+    { d:3, q:"Should provenance be recorded per assertion or per graph?",
+      opts:[
+        "Per assertion, always, since granular traceability is the safer default",
+        "Per graph, always, because assertion-level provenance is impractical at scale",
+        "Per assertion where claims are contested or derived, per graph elsewhere",
+        "Per graph during delivery, refined to per assertion once volumes are known",
+        "Per source system, which is the granularity lineage questions are asked at"],
+      a:2, why:"Granularity has a cost, so it should follow risk: derived, inferred or disputed claims earn assertion-level provenance, while bulk facts from one trusted load are adequately described by their graph." },
+    { d:3, q:"A metric is being retired and several consumers still use it. What does a governed retirement need?",
+      opts:[
+        "A deprecation period, plus usage telemetry showing who still depends on it",
+        "An announcement to consumers with a firm cut-off date",
+        "A redirect from the old definition to its closest replacement",
+        "Retention of the definition indefinitely, marked as no longer certified",
+        "A replacement metric published first, with consumers migrated before removal"],
+      a:0, why:"You cannot retire safely without knowing who is still calling it, and a date without telemetry is a hope. Redirecting to a near-equivalent silently changes numbers, which is worse than breaking the query." },
+    { d:4, q:"Agents will write assertions back into the graph. How do you govern that?",
+      opts:[
+        "Allow writes only to a separate staging graph, promoted by a scheduled job",
+        "Require the agent to attach provenance to everything it asserts",
+        "Type and attribute agent assertions, keeping them apart from certified ones until validated",
+        "Prohibit agent writes, since generated assertions cannot be trusted",
+        "Allow writes only to a staging graph, promoted by a scheduled job"],
+      a:2, why:"Machine-authored claims are legitimate evidence but not certified fact, and the graph has to be able to tell the difference at query time — otherwise governed answers start including unreviewed inferences. Provenance alone does not create that boundary; typing and separation do." },
+    { d:4, q:"An auditor asks who <i>could</i> have seen a restricted figure last quarter. What makes that answerable?",
+      opts:[
+        "Query logs showing every request made against the restricted properties",
+        "The entitlement rules as they stood, plus a record of who held which roles",
+        "Entitlement decisions recorded as data, alongside the roles in force at the time",
+        "The current role assignments, since entitlements rarely change materially",
+        "Nothing answers it retrospectively — the question can only be answered going forward"],
+      a:2, why:"'Could have seen' is a question about the policy in force, not the queries actually run — and both the rules and the role assignments have to be historical. Enforcing entitlements without recording the decisions leaves you able to protect data but unable to prove it." }
+  ],
+  learn: {
+    0:["Read the assertion-provenance model and trace one assertion back to source and confidence.",
+       "List which governance controls your current project enforces and where."],
+    1:["Add PROV-O provenance to one use case's assertions and query it.",
+       "Walk the entitlement path for one RAG query and identify the enforcement point."],
+    2:["Design effective dating and a deprecation policy for one metric set.",
+       "Review a peer's model for governance gaps — unattributed assertions, late enforcement."],
+    3:["Set the governance and versioning standard for your team.",
+       "Prove time-travel reproducibility on one live domain by answering an as-of-date question end to end."]
+  }
+},
+{
+  id: "domain", name: "Novel domain investigation", weight: 3, required: 3,
+  why: "Becoming productive in an unfamiliar domain: eliciting from SMEs, exposing implicit entities, challenging definitions.",
+  anchors: [
+    "I'd wait to be told the model, and I'd take what an SME says as the specification.",
+    "I ask about the domain, but I tend to accept the first answer and model it literally.",
+    "I can investigate a new domain when I have a structure or a lead to follow, and I spot obvious contradictions.",
+    "I get productive in an unfamiliar domain fast — I triangulate SMEs against the data, surface implicit entities, and challenge definitions that don't hold."
+  ],
+  probes: [
+    { d:1, q:"Entering an unfamiliar domain, the most productive first step is:",
+      opts:[
+        "Collect the questions the business cannot currently answer, plus its reports and data samples",
+        "Draw a candidate class diagram from the SME's overview, so there is something to react to",
+        "Read the industry-standard reference ontology and adopt it as the starting point",
+        "Interview the most senior available stakeholder to establish authoritative definitions",
+        "Map the source schemas, since the data is the only unambiguous evidence"],
+      a:0, why:"Existing questions and artifacts are evidence; an overview is one person's abstraction, and a senior stakeholder's definitions are often the most abstracted of all. Real reports and column names reveal how the domain actually behaves." },
+    { d:2, q:"An SME insists \"a batch and a lot are the same thing,\" but the data shows one batch linked to many lots. What do you do?",
+      opts:[
+        "Model one class with two labels, since the SME is the authority on the domain",
+        "Model two unrelated classes and let each downstream consumer pick the one it needs",
+        "Model two classes with a relationship, then take the evidence back to the SME",
+        "Defer the decision, marking the concept ambiguous until someone else resolves it",
+        "Model one class and record the cardinality difference as a data quality issue"],
+      a:2, why:"The cardinality contradiction is the finding, not an obstacle to it. Collapsing the two loses genealogy; splitting them without going back loses the SME. Returning with the evidence is how the definition gets sharpened — and how you earn the next answer." },
+    { d:3, q:"Which pattern in a source table most reliably indicates an implicit entity worth promoting?",
+      opts:[
+        "A column with a high proportion of null values across most rows",
+        "A repeated group of columns describing one act — approver, date, reason",
+        "A column whose name does not match anything in the business glossary",
+        "A very wide table carrying more than fifty columns of mixed concerns",
+        "A column whose values are always drawn from a small fixed set"],
+      a:1, why:"A recurring attribute cluster describing a single act is an unnamed event or role. Promoting it to a typed entity is what turns context into a path you can traverse rather than columns duplicated across tables." },
+    { d:4, q:"Two weeks to produce a credible model in a domain new to you, and no SME time available at all. What do you do?",
+      opts:[
+        "Adopt a published reference ontology for the industry and tailor it once SMEs free up",
+        "Model only what can be established with certainty, and leave the uncertain parts out",
+        "Escalate that the timeline is not deliverable without some guaranteed SME access",
+        "Mine the domain's own reports, queries and codebooks, recording every assumption as a question",
+        "Interview adjacent teams who consume the domain's outputs instead"],
+      a:3, why:"The organisation has already encoded its domain in the things it built; a reference ontology tells you how the industry talks, not how this client operates. Recording assumptions explicitly converts absent SME time into a fast, targeted first review — where modelling only the certain parts quietly produces a model that answers nothing interesting." },
+    { d:1, q:"Which artifact tells you most about how a domain actually works?",
+      opts:[
+        "The org chart, showing who owns which part of the process",
+        "The reports and queries people already run to do their jobs",
+        "The system architecture diagram for the domain's applications",
+        "The corporate data dictionary maintained by the governance team",
+        "The training material new joiners are given for the process"],
+      a:1, why:"What people built to answer their own questions reveals the concepts they really use — including the ones no dictionary records because everybody supposedly knows them." },
+    { d:1, q:"Why look for implicit entities in source tables?",
+      opts:[
+        "Because tables are usually denormalised, so entities need splitting out",
+        "Because meaning hidden in columns cannot be queried, governed or reused",
+        "Because column counts indicate where the model needs most detail",
+        "Because implicit entities are the ones SMEs are least willing to discuss",
+        "Because implicit entities are usually the ones with the worst data quality"],
+      a:1, why:"An unnamed thing cannot be joined to, secured, or asked about. Naming it is what converts a column convention into something the graph and its consumers can actually use." },
+    { d:2, q:"An SME uses one word for what the data shows to be two different things. What do you do?",
+      opts:[
+        "Adopt the SME's single term and record the ambiguity as a known issue",
+        "Introduce two concepts with distinct definitions, and take both names back to the SME",
+        "Use the term for the more common meaning and coin a new one for the other",
+        "Model one concept with a subtype attribute distinguishing the two senses",
+        "Model the two senses as subclasses of the SME's single concept"],
+      a:1, why:"Polysemy in a domain's vocabulary is a finding, and resolving it needs the SME's help — they are the only one who can say which distinction the business actually acts on. Coining your own term without them produces a model nobody recognises." },
+    { d:2, q:"Two SMEs give you incompatible definitions of the same concept. What is the right move?",
+      opts:[
+        "Take the definition of the more senior of the two",
+        "Model the intersection both would agree with, and note the divergence",
+        "Record both definitions with their owners and escalate for a decision",
+        "Look at the data and adopt whichever definition it supports",
+        "Model both and let the CQs determine which definition is actually needed"],
+      a:2, why:"A definitional conflict between two parts of the business is exactly the fragmentation the semantic layer exposes. Deciding it yourself — by seniority, by data, or by averaging — hides an organisational disagreement inside a model." },
+    { d:3, q:"What do manual workarounds and exception logs usually indicate?",
+      opts:[
+        "Poor data quality in the source systems, needing cleansing before mapping",
+        "Real cases the systems cannot represent, so the model probably cannot either",
+        "Training gaps among the people operating the process",
+        "Edge cases too rare to be worth modelling explicitly",
+        "Process steps the organisation intends to automate, so worth modelling early"],
+      a:1, why:"A spreadsheet maintained beside a system is a specification for what the system lacks. Those exceptions are where the domain's genuinely hard concepts live, which makes them the most productive thing to read early." },
+    { d:3, q:"A source codebook has 200 values, and 40 appear in no current record. What do you do with the 40?",
+      opts:[
+        "Exclude them, since unused values add no information to the model",
+        "Include them all, so the codebook mirrors the source exactly",
+        "Establish whether they are historical or invalid, and treat each accordingly",
+        "Map them to a single 'other' concept pending clarification",
+        "Load all 200 and let SHACL flag the unused ones as warnings"],
+      a:2, why:"Historically valid values matter the moment a CQ asks a question about the past; genuinely invalid ones are noise that should not enter the vocabulary. Only asking tells you which is which, and the answer usually also reveals when the process changed." },
+    { d:4, q:"The client's own vocabulary conflicts with the industry standard for the same domain. Which do you model?",
+      opts:[
+        "The industry standard, mapping the client's terms onto it as aliases",
+        "The client's meaning, with an explicit mapping to the standard where they differ",
+        "Both in parallel, letting each consumer choose the vocabulary it prefers",
+        "The standard for shared concepts and the client's terms for the rest",
+        "Model whichever vocabulary the client's downstream tools already expect"],
+      a:1, why:"The model has to answer this client's questions about this client's business, so their meaning is primary. The mapping is what preserves interchange — and imposing a standard vocabulary on a business that thinks differently is how a model becomes something nobody uses." },
+    { d:4, q:"A definition is genuinely contested between two business units, and neither will concede. How do you proceed?",
+      opts:[
+        "Model two named concepts with distinct owners, and make the difference explicit",
+        "Escalate to an executive sponsor and implement whatever they decide",
+        "Model the broader definition, so each unit can filter to its own view",
+        "Defer the concept until the organisation resolves its disagreement",
+        "Model the concept once and attach both definitions as annotations"],
+      a:0, why:"Some disagreements are substantive rather than sloppy — two units really do mean different things, and forcing consensus produces a definition neither will use. Two named, owned concepts is honest; one unnamed superset invites both to keep computing their own number quietly." }
+  ],
+  learn: {
+    0:["Shadow a discovery phase and log every question that changed the model.",
+       "Practise reading a source schema and listing the entities its column names imply."],
+    1:["Run a domain investigation on an unfamiliar dataset and produce a candidate entity list, then have it critiqued.",
+       "Triangulate three SME statements against the data and write up each contradiction."],
+    2:["Lead discovery for one unfamiliar domain end to end, from questions to validated entity list.",
+       "Deliberately hunt implicit entities in a wide legacy table and defend each promotion."],
+    3:["Codify the discovery playbook so it is repeatable for the next domain.",
+       "Run a constrained discovery — tight timeline, little SME access — and publish the assumption register you worked from."]
+  }
+}
+];
+
+/* Rubric levels 0-3 are self-rated. Level 4 is confirmed by probe only — it exists to
+   separate a solid independent practitioner from someone who could set direction for a domain. */
+const LEVELS = ["Absent","Understands concepts","Works with guidance","Works independently","Sets direction"];
+const SELF_LEVELS = LEVELS.slice(0,4);
+const LEAD_ANCHOR = "I set the direction others follow here — I make the call when principles conflict, and I own the standard.";
+const KEY = "ontologist-assessment-v5";
+
+let state = load() || { name:"", self:{}, probe:{}, stage:1, cursor:0 };
+
+function load(){ try { const r = localStorage.getItem(KEY); return r ? JSON.parse(r) : null; } catch(e){ return null; } }
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){} }
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
+function anchorAt(d, L){ return L >= 4 ? LEAD_ANCHOR : d.anchors[L]; }
+/* Fisher-Yates over [0..n-1]. Used for probe options only — never for the rubric
+   anchors, which are ordinal and must stay in level order 0,1,2,3. */
+function shuffled(n){
+  const a = Array.from({length:n}, (_,i) => i);
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function plain(s){ return String(s).replace(/<[^>]+>/g,"").replace(/&amp;/g,"&"); }
+
+/* ---------------- STAGE 1 ---------------- */
+function renderSelf(){
+  const host = document.getElementById("selfList");
+  host.innerHTML = BANK.map(d => {
+    const cur = state.self[d.id];
+    return `<div class="card" data-dim="${d.id}">
+      <div class="dimhead">
+        <div>
+          <div class="dimname">${d.name}</div>
+          <div class="dimwhy">${d.why}</div>
+        </div>
+      </div>
+      ${d.anchors.map((a,i)=>`
+        <label class="opt ${cur===i?"sel":""}">
+          <input type="radio" name="self-${d.id}" value="${i}" ${cur===i?"checked":""}>
+          <span class="lvl">${i} · ${LEVELS[i]}</span> — ${a}
+        </label>`).join("")}
+    </div>`;
+  }).join("");
+
+  host.querySelectorAll("input[type=radio]").forEach(r => r.addEventListener("change", e => {
+    const dim = e.target.name.slice(5);
+    state.self[dim] = +e.target.value;
+    save(); renderSelf();
+  }));
+
+  const done = BANK.filter(d => state.self[d.id] !== undefined).length;
+  document.getElementById("selfCount").textContent = `${done} of ${BANK.length} dimensions rated`;
+  document.getElementById("toStage2").disabled = done < BANK.length;
+}
+
+/* ---------------- STAGE 2: adaptive probes ---------------- */
+function probeState(dimId){
+  if(!state.probe[dimId]) state.probe[dimId] = { asked:[], results:{}, used:[], corroborated:[], done:false, next:null };
+  const ps = state.probe[dimId];
+  ps.used = ps.used || []; ps.corroborated = ps.corroborated || [];
+  if(ps.next === null && ps.asked.length === 0){
+    ps.next = Math.max(1, Math.min(3, state.self[dimId] || 1));
+  }
+  return ps;
+}
+function attemptsAt(ps, d){ return ps.asked.filter(a => (a.d !== undefined ? a.d : a) === d).length; }
+function attemptedD(ps, d){ return attemptsAt(ps, d) > 0; }
+function correctAt(ps, d){ return ps.asked.filter(a => a.d === d && a.correct).length; }
+function wrongAt(ps, d){ return ps.asked.filter(a => a.d === d && !a.correct).length; }
+/* A level is held on the majority of attempts at it, not on a single lucky answer. */
+function heldAt(ps, d){ return correctAt(ps, d) > wrongAt(ps, d); }
+function ceilingOf(ps){
+  let c = 0;
+  [1,2,3,4].forEach(d => { if(attemptedD(ps, d) && heldAt(ps, d)) c = Math.max(c, d); });
+  return c;
+}
+const MAX_ITEMS_PER_DIM = 7;
+/* Draw an unused item at this difficulty from the dimension's pool. */
+function drawItem(d, ps, diff){
+  const pool = d.probes.map((p,i) => ({p,i})).filter(x => x.p.d === diff && !ps.used.includes(x.i));
+  const from = pool.length ? pool : d.probes.map((p,i) => ({p,i})).filter(x => x.p.d === diff);
+  if(!from.length) return null;
+  return from[Math.floor(Math.random() * from.length)];
+}
+
+function currentTask(){
+  for(let i=0;i<BANK.length;i++){
+    const d = BANK[i], ps = probeState(d.id);
+    if(!ps.done) return { d, ps };
+  }
+  return null;
+}
+
+let pending = null;
+
+function renderProbe(){
+  const task = currentTask();
+  if(!task){ goStage(3); return; }
+  const { d, ps } = task;
+  const drawn = drawItem(d, ps, ps.next);
+  if(!drawn){ ps.done = true; save(); renderProbe(); return; }
+  const item = drawn.p;
+
+  const answered = BANK.reduce((n,x)=> n + (state.probe[x.id]?.asked.length || 0), 0);
+  const again = attemptsAt(ps, item.d) > 0;
+  document.getElementById("probeDim").innerHTML = `${d.name} · item pitched at level ${item.d} — ${LEVELS[item.d]}${again ? " · second look at this level" : ""}`;
+  document.getElementById("probeQ").innerHTML = item.q;
+  document.getElementById("probeProgress").textContent = `${answered + 1} asked · dimension ${BANK.indexOf(d)+1}/${BANK.length}`;
+  // Present options in a fresh random order every time, so no answer key can be
+  // learned by position and repeated sittings are not comparable by memory alone.
+  // The radio value carries the ORIGINAL index, so scoring is unaffected.
+  const order = shuffled(item.opts.length);
+  document.getElementById("probeOpts").innerHTML = order.map(i =>
+    `<label class="opt"><input type="radio" name="probe" value="${i}"> ${item.opts[i]}</label>`).join("");
+  document.getElementById("probeFb").innerHTML = "";
+  document.getElementById("probeSubmit").classList.remove("hide");
+  document.getElementById("probeSubmit").disabled = true;
+  document.getElementById("probeNext").classList.add("hide");
+  document.getElementById("probeSkip").classList.remove("hide");
+
+  document.getElementById("probeOpts").querySelectorAll("input").forEach(r =>
+    r.addEventListener("change", () => {
+      document.getElementById("probeOpts").querySelectorAll("label").forEach(l => l.classList.remove("sel"));
+      r.closest("label").classList.add("sel");
+      document.getElementById("probeSubmit").disabled = false;
+    }));
+
+  pending = { d, ps, item, qi: drawn.i };
+}
+
+function answerProbe(choice){
+  const { d, ps, item, qi } = pending;
+  const correct = choice === item.a;
+  ps.asked.push({ d:item.d, qi, correct });
+  if(!ps.used.includes(qi)) ps.used.push(qi);
+
+  const D = item.d;
+  const selfLvl = state.self[d.id] ?? 0;
+  let next = null;
+
+  if(ps.asked.length >= MAX_ITEMS_PER_DIM){
+    next = null;                                              // hard stop
+  } else if(correctAt(ps, D) === wrongAt(ps, D) && attemptsAt(ps, D) < 3){
+    next = D;                                                 // 1-1 split: break the tie
+  } else if(!correct && D <= Math.max(1, selfLvl) && attemptsAt(ps, D) < 2){
+    next = D;                                                 // downward corroboration
+  } else if(heldAt(ps, D) && D < 4 && !attemptedD(ps, D + 1)){
+    next = D + 1;                                             // step up
+  } else if(!heldAt(ps, D) && D > 1 && !attemptedD(ps, D - 1)){
+    next = D - 1;                                             // step down
+  } else {
+    // Nothing left to explore: before settling, make the ceiling earn a second look
+    // so no level is awarded on the strength of one answer.
+    const c = ceilingOf(ps);
+    if(c > 0 && attemptsAt(ps, c) < 2) next = c;
+  }
+  // Mirror the majority verdict into results{} for scoring and the summary.
+  [1,2,3,4].forEach(x => { if(attemptedD(ps, x)) ps.results[x] = heldAt(ps, x); });
+  if(next === null){ ps.done = true; } else { ps.next = next; }
+  save();
+
+  document.getElementById("probeOpts").querySelectorAll("input").forEach(i => i.disabled = true);
+  document.getElementById("probeFb").innerHTML =
+    `<div class="fb ${correct?"good":"bad"}"><b>${correct?"Correct.":"Not quite — the answer is: "+plain(item.opts[item.a])+"."}</b> ${item.why}</div>`;
+  document.getElementById("probeSubmit").classList.add("hide");
+  document.getElementById("probeSkip").classList.add("hide");
+  document.getElementById("probeNext").classList.remove("hide");
+  document.getElementById("probeNext").textContent = ps.done && BANK.indexOf(d) === BANK.length - 1 ? "See results" : "Next";
+}
+
+/* ---------------- SCORING ---------------- */
+function confirmedLevel(dimId){
+  const ps = state.probe[dimId];
+  if(!ps) return null;
+  return ceilingOf(ps);   // highest level held on the majority of its attempts
+}
+
+function results(){
+  return BANK.map(d => {
+    const self = state.self[d.id] ?? 0;
+    const conf = confirmedLevel(d.id) ?? 0;
+    const toGo = Math.max(0, 3 - conf);          // steps remaining to independent practice
+    return { d, self, conf, toGo, lead: conf === 4, score: toGo * d.weight, delta: conf - self };
+  });
+}
+
+/* ---------------- STAGE 3 ---------------- */
+let chart = null;
+function renderResults(){
+  const R = results();
+  const ranked = R.filter(r => r.toGo > 0).sort((a,b) => b.score - a.score || b.toGo - a.toGo);
+  const leads = R.filter(r => r.conf === 4);
+  const indep = R.filter(r => r.conf >= 3);
+  const over = R.filter(r => r.delta < 0);
+  const counts = [0,1,2,3,4].map(l => R.filter(r => r.conf === l).length);
+
+  document.getElementById("summaryCard").innerHTML = `
+    <div class="dimname">${esc(state.name || "Unnamed participant")}</div>
+    <div class="dimwhy">Assessed ${new Date().toLocaleDateString()} · ${BANK.length} dimensions · ${BANK.reduce((n,d)=>n+(state.probe[d.id]?.asked.length||0),0)} probe items</div>
+    <p style="margin:0 0 8px">Confirmed position across ${R.length} dimensions:
+      <b>${counts[4]}</b> setting direction · <b>${counts[3]}</b> independent · <b>${counts[2]}</b> with guidance · <b>${counts[1]}</b> conceptual · <b>${counts[0]}</b> absent.
+      ${indep.length ? `Strongest ground: ${indep.slice(0,3).map(r=>plain(r.d.name)).join(", ")}.` : ""}</p>
+    ${leads.length >= 3 ? `<div class="warn"><b>Direction-setting:</b> the level-4 design-judgement items held up on ${leads.length} dimensions (${leads.map(r=>plain(r.d.name)).join(", ")}). This is someone who can own the modelling call on a domain, not just work in it.</div>` : ""}
+    ${over.length ? `<div class="warn"><b>Calibration:</b> your self-rating came out above what the probes confirmed on ${over.length} dimension${over.length>1?"s":""} (${over.map(r=>plain(r.d.name)).join(", ")}). Worth a look — the distance between what you thought you knew and what held up under questioning is usually the most useful thing here.</div>` : ""}`;
+
+  // chart
+  const ctx = document.getElementById("profileChart");
+  if(chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: R.map(r => plain(r.d.name)),
+      datasets: [
+        { label:"Confirmed", data:R.map(r=>r.conf), backgroundColor:"#4a7fd4", borderRadius:3 },
+        { label:"Self-rated", data:R.map(r=>r.self), backgroundColor:"#b9cdf0", borderRadius:3 }
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false, indexAxis:"y",
+      scales:{ x:{ min:0, max:4, ticks:{ stepSize:1, callback:v=>v+" "+(LEVELS[v]||"").split(" ")[0] } } },
+      plugins:{ legend:{ position:"bottom" } }
+    }
+  });
+
+  document.getElementById("profileTable").innerHTML = `
+    <tr><th>Dimension</th><th class="num">Self</th><th class="num">Confirmed level</th><th class="num">Next step</th><th class="num">Calibration</th></tr>
+    ${R.map(r=>`<tr>
+      <td>${r.d.name}</td>
+      <td class="num">${r.self}</td>
+      <td class="num"><span class="pill ${r.conf===4?"lead":"gap"+(r.conf===3?0:(r.conf===0?2:1))}">${r.conf} · ${LEVELS[r.conf]}</span></td>
+      <td class="num">${r.conf===4 ? "—" : "→ "+LEVELS[r.conf+1]}</td>
+      <td class="num">${r.delta===0?"aligned":(r.delta>0?"under-rated +"+r.delta:"over-rated "+r.delta)}</td>
+    </tr>`).join("")}`;
+
+  const maxScore = ranked.length ? Math.max(...ranked.map(x=>x.score)) : 1;
+  document.getElementById("gapList").innerHTML = ranked.length ? `<table>
+    <tr><th class="num">#</th><th>Dimension</th><th>Where you are</th><th>Next step up</th><th class="num">Weight</th></tr>
+    ${ranked.map((r,i)=>`<tr>
+      <td class="num">${i+1}</td>
+      <td><b>${r.d.name}</b></td>
+      <td>${r.d.anchors[r.conf]}</td>
+      <td>${r.d.anchors[r.conf+1]}</td>
+      <td class="num"><div class="bar"><i style="width:${Math.round(100*r.score/maxScore)}%"></i></div><div class="note">${r.toGo} step${r.toGo>1?"s":""} to independent</div></td>
+    </tr>`).join("")}</table>`
+    : `<div class="card"><b>Independent across every dimension.</b> Nothing left before independent practice — the remaining ground is the direction-setting stretch in the plan below.</div>`;
+
+  const planned = R.filter(r => r.conf < 4).sort((a,b) => b.score - a.score || a.conf - b.conf);
+  document.getElementById("planList").innerHTML = planned.length ? planned.map(r=>{
+    const stages = [];
+    for(let L = r.conf; L <= 3; L++){
+      stages.push(`<h3 style="margin-top:14px">→ ${LEVELS[L+1]}</h3>
+        <div class="plan"><ul>
+          ${(r.d.learn[L]||[]).map(a=>`<li>${a}</li>`).join("")}
+          <li><i>You're there when you can say:</i> ${anchorAt(r.d, L+1)}</li>
+        </ul></div>`);
+    }
+    return `<div class="card"><div class="dimname">${r.d.name}</div>
+      <div class="dimwhy">Currently level ${r.conf} · ${LEVELS[r.conf]}. ${r.toGo ? r.toGo+" step"+(r.toGo>1?"s":"")+" to independent practice, then the direction-setting stretch." : "Independent — the remaining stage is the direction-setting stretch."}</div>
+      ${stages.join("")}</div>`;
+  }).join("")
+    : `<p class="note">Nothing outstanding — every dimension confirmed at direction-setting level.</p>`;
+
+  buildMd(R, ranked);
+}
+
+function buildMd(R, ranked){
+  const L = [];
+  L.push(`# Ontologist capability assessment — ${state.name || "unnamed"}`);
+  L.push(``, `Date: ${new Date().toISOString().slice(0,10)}`, `Framework: Ontologist, ${BANK.length} dimensions`);
+  L.push(``, `Rubric: 0 absent · 1 understands concepts · 2 works with guidance · 3 works independently`, ``);
+  L.push(`| Dimension | Self | Confirmed | Next step |`, `|---|---|---|---|`);
+  R.forEach(r => L.push(`| ${plain(r.d.name)} | ${r.self} | ${r.conf} ${LEVELS[r.conf]} | ${r.conf===4?"-":LEVELS[r.conf+1]} |`));
+  L.push(``, `## Development plan`, ``);
+  R.filter(r=>r.conf<4).sort((a,b)=>b.score-a.score||a.conf-b.conf).forEach((r,i)=>{
+    L.push(`### ${i+1}. ${plain(r.d.name)} — level ${r.conf}, ${LEVELS[r.conf]}`);
+    L.push(`Where you are: ${plain(anchorAt(r.d, r.conf))}`, ``);
+    for(let Lv = r.conf; Lv <= 3; Lv++){
+      L.push(`**-> ${LEVELS[Lv+1]}**`);
+      (r.d.learn[Lv]||[]).forEach(a => L.push(`- ${plain(a)}`));
+      L.push(`- _You're there when you can say:_ ${plain(anchorAt(r.d, Lv+1))}`, ``);
+    }
+  });
+  if(R.every(r=>r.conf===4)) L.push(`Direction-setting level confirmed on every dimension.`);
+  document.getElementById("mdOut").value = L.join("\n");
+}
+
+/* ---------------- NAV ---------------- */
+function goStage(n){
+  state.stage = n; save();
+  [1,2,3].forEach(i => {
+    document.getElementById("stage"+i).classList.toggle("hide", i !== n);
+    const s = document.getElementById("s"+i);
+    s.classList.toggle("on", i === n);
+    s.classList.toggle("done", i < n);
+  });
+  if(n === 2) renderProbe();
+  if(n === 3) renderResults();
+}
+
+document.getElementById("pname").value = state.name || "";
+document.getElementById("pname").addEventListener("input", e => { state.name = e.target.value; save(); });
+document.getElementById("toStage2").addEventListener("click", () => goStage(2));
+document.getElementById("probeSubmit").addEventListener("click", () => {
+  const sel = document.querySelector("input[name=probe]:checked");
+  if(sel) answerProbe(+sel.value);
+});
+document.getElementById("probeSkip").addEventListener("click", () => answerProbe(-1));
+document.getElementById("probeNext").addEventListener("click", () => renderProbe());
+document.getElementById("copyMd").addEventListener("click", () => {
+  const t = document.getElementById("mdOut");
+  t.classList.remove("hide"); t.select();
+  try { navigator.clipboard.writeText(t.value); } catch(e){ document.execCommand("copy"); }
+  document.getElementById("copyMd").textContent = "Copied — paste into your record";
+});
+document.getElementById("restart").addEventListener("click", () => {
+  if(!confirm("Clear this assessment and start a new one?")) return;
+  state = { name:"", self:{}, probe:{}, stage:1, cursor:0 };
+  save(); document.getElementById("pname").value = "";
+  renderSelf(); goStage(1);
+});
+
+renderSelf();
+goStage(state.stage || 1);
+</script>
+</body>
+</html>
