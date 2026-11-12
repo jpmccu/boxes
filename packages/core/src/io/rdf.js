@@ -44,7 +44,7 @@ export const BUILTIN_PREFIXES = {
 };
 
 // Data fields that are Cytoscape internals – never serialised to RDF
-export const INTERNAL_FIELDS = new Set(['id', 'source', 'target', 'parent', '_style', '_classes', 'label']);
+export const INTERNAL_FIELDS = new Set(['id', 'source', 'target', 'parent', '_style', '_classes', 'label', 'iri', 'inferred']);
 
 // ─── IRI utilities ────────────────────────────────────────────────────────────
 
@@ -554,7 +554,7 @@ export function exportToTurtle(graphData, { context = {}, edgeTypes } = {}) {
   // Map: Cytoscape node id → full IRI (for building edge triples)
   const nodeIdToURI = new Map();
   for (const { data: d } of nodes) {
-    const raw = d['@id'] || d.id || '';
+    const raw = d['@id'] || d.iri || d.id || '';
     nodeIdToURI.set(d.id, expandIRI(raw, prefixes) || raw);
   }
 
@@ -570,7 +570,7 @@ export function exportToTurtle(graphData, { context = {}, edgeTypes } = {}) {
 
   // ── Export nodes ──────────────────────────────────────────────────────────
   for (const { data: d } of nodes) {
-    const raw    = d['@id'] || d.id || '';
+    const raw    = d['@id'] || d.iri || d.id || '';
     const subjURI = expandIRI(raw, prefixes) || raw;
     let hasRdfsLabel = false;
 
@@ -598,6 +598,7 @@ export function exportToTurtle(graphData, { context = {}, edgeTypes } = {}) {
   const reverseTriples = [];   // [[sourceURI, predURI, edgeURI]]
 
   for (const { data: d } of edges) {
+    if (d.inferred) continue;  // derived edges are not asserted
     const sourceURI = nodeIdToURI.get(d.source);
     const targetURI = nodeIdToURI.get(d.target);
     if (!sourceURI || !targetURI) continue;

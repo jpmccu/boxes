@@ -152,6 +152,46 @@ describe('BoxesEditor', () => {
     });
   });
 
+  describe('format conventions', () => {
+    const base = { elements: { nodes: [], edges: [] } };
+
+    it('accepts top-level nodeTypes/edgeTypes as the palette', () => {
+      editor = new BoxesEditor(container);
+      editor.importGraph({ ...base, nodeTypes: [{ id: 'a', label: 'A' }], edgeTypes: [{ id: 'e', label: 'E' }] });
+      expect(editor.getNodeTypes().map(t => t.id)).toEqual(['a']);
+      expect(editor.getEdgeTypes().map(t => t.id)).toEqual(['e']);
+    });
+
+    it('normalises roundrectangle to round-rectangle', () => {
+      editor = new BoxesEditor(container);
+      editor.importGraph({
+        ...base,
+        palette: { nodeTypes: [{ id: 'a', label: 'A', shape: 'roundrectangle' }] },
+        userStylesheet: [{ selector: 'node', style: { shape: 'roundrectangle' } }]
+      });
+      expect(editor.getNodeTypes()[0].shape).toBe('round-rectangle');
+      expect(editor.exportGraph().userStylesheet[0].style.shape).toBe('round-rectangle');
+    });
+
+    it('preserves unknown top-level keys on round trip', () => {
+      editor = new BoxesEditor(container);
+      editor.importGraph({ ...base, view: 'shapes', extensions: { x: 1 } });
+      const out = editor.exportGraph();
+      expect(out.view).toBe('shapes');
+      expect(out.extensions).toEqual({ x: 1 });
+    });
+
+    it('applies node type size and edge type arrows to new elements', () => {
+      editor = new BoxesEditor(container, {
+        nodeTypes: [{ id: 'a', label: 'A', width: 120, height: 40 }],
+        edgeTypes: [{ id: 'e', label: 'E', targetArrow: 'triangle-tee', width: 3 }]
+      });
+      const n = editor.addNodeOfType('a', { x: 10, y: 10 });
+      expect(n.data._style).toEqual({ width: 120, height: 40 });
+      expect(editor._edgeStyleData()._style).toEqual({ 'target-arrow-shape': 'triangle-tee', width: 3 });
+    });
+  });
+
   describe('import/export', () => {
     beforeEach(() => {
       editor = new BoxesEditor(container);

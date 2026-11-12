@@ -1051,3 +1051,21 @@ describe('nodes with bare or numeric IDs', () => {
     expect(() => importFromTurtle(ttl, { context: {}, edgeTypes: [] })).not.toThrow();
   });
 });
+
+describe('exportToTurtle – iri field and inferred edges', () => {
+  it('uses data.iri as the subject IRI and skips inferred edges', () => {
+    const nodes = [
+      { data: { id: 'n0', iri: 'ex:Dune', '@type': 'ex:Book' } },
+      { data: { id: 'n1', iri: 'ex:Herbert' } },
+    ];
+    const edges = [
+      { data: { id: 'e0', source: 'n1', target: 'n0', '@id': 'ex:wrote' } },
+      { data: { id: 'e1', source: 'n0', target: 'n1', '@id': 'ex:writtenBy', inferred: true } },
+    ];
+    const ttl = exportToTurtle(makeGraph(nodes, edges), { context: { ex: 'http://example.org/' } });
+    expect(ttl).toContain('ex:Dune');
+    expect(ttl).toContain('ex:wrote');
+    expect(ttl).not.toContain('n0');
+    expect(ttl).not.toContain('writtenBy');
+  });
+});

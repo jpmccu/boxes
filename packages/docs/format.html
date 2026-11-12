@@ -276,6 +276,9 @@
           <li><a href="#elements">elements</a></li>
           <li><a href="#elements-nodes" class="indent">  nodes</a></li>
           <li><a href="#elements-edges" class="indent">  edges</a></li>
+          <li><a href="#palette">palette</a></li>
+          <li><a href="#node-types" class="indent">  nodeTypes</a></li>
+          <li><a href="#edge-types" class="indent">  edgeTypes</a></li>
           <li><a href="#userStylesheet">userStylesheet</a></li>
           <li><a href="#selectors" class="indent">  selectors</a></li>
           <li><a href="#node-styles" class="indent">  node styles</a></li>
@@ -283,6 +286,7 @@
           <li><a href="#lastLayout">lastLayout</a></li>
           <li><a href="#context">context</a></li>
           <li><a href="#version">version</a></li>
+          <li><a href="#extra-keys">Unknown keys</a></li>
         </ul>
       </div>
       <div class="sidebar-section">
@@ -304,6 +308,7 @@
           <li><a href="#overview">Introduction</a></li>
           <li><a href="#top-level">Top-level structure</a></li>
           <li><a href="#elements">elements</a></li>
+          <li><a href="#palette">palette</a></li>
           <li><a href="#userStylesheet">userStylesheet</a></li>
           <li><a href="#lastLayout">lastLayout</a></li>
           <li><a href="#context">context</a></li>
@@ -371,6 +376,12 @@ cytoscape({
               <td>Graph nodes and edges in Cytoscape.js elements format.</td>
             </tr>
             <tr>
+              <td class="field-name">palette</td>
+              <td class="field-type">object</td>
+              <td><span class="badge-opt">optional</span></td>
+              <td>Node and edge types shown in the editor's Palette tab. Must wrap <code>nodeTypes</code> and <code>edgeTypes</code>; see <a href="#palette">palette</a>.</td>
+            </tr>
+            <tr>
               <td class="field-name">userStylesheet</td>
               <td class="field-type">array</td>
               <td><span class="badge-opt">optional</span></td>
@@ -398,6 +409,7 @@ cytoscape({
         </table>
         <pre><code>{
   "elements":       { "nodes": [...], "edges": [...] },
+  "palette":        { "nodeTypes": [...], "edgeTypes": [...] },
   "userStylesheet": [{ "selector": "...", "style": {} }, ...],
   "lastLayout":     { "name": "dagre", "options": {} },
   "context":        { "owl": "http://www.w3.org/2002/07/owl#" },
@@ -440,6 +452,18 @@ cytoscape({
               <td class="field-type">string</td>
               <td><span class="badge-opt">optional</span></td>
               <td>Human-readable display label. Referenced by the stylesheet via <code>data(label)</code>.</td>
+            </tr>
+            <tr>
+              <td class="field-name">data.@id / data.iri</td>
+              <td class="field-type">string</td>
+              <td><span class="badge-opt">optional</span></td>
+              <td>The node's IRI or CURIE (expanded with <a href="#context">context</a>) in RDF export. <code>@id</code> takes precedence over <code>iri</code>; if neither is present, <code>data.id</code> is used, which usually yields a meaningless IRI for opaque ids such as <code>n0</code>.</td>
+            </tr>
+            <tr>
+              <td class="field-name">data.inferred</td>
+              <td class="field-type">boolean</td>
+              <td><span class="badge-opt">optional</span></td>
+              <td>On an edge, <code>true</code> marks it as derived: it is drawn but not written by the Turtle export. <code>iri</code> and <code>inferred</code> are never exported as properties.</td>
             </tr>
             <tr>
               <td class="field-name">data.*</td>
@@ -535,6 +559,63 @@ cytoscape({
 }</code></pre>
       </div>
 
+      <!-- ── palette ───────────────────────────────────────────────────── -->
+      <div class="fmt-section">
+        <h2 id="palette">palette</h2>
+        <p>
+          Defines the node and edge types offered in the editor's Palette tab.
+          <code>nodeTypes</code> and <code>edgeTypes</code> belong <strong>inside</strong>
+          the <code>palette</code> object. For leniency the editor also accepts them at the
+          top level of the file, but writers should always use <code>palette</code>.
+        </p>
+        <pre><code>"palette": {
+  "nodeTypes": [
+    { "id": "class", "label": "Class", "color": "#fff3cd", "borderColor": "#b8860b",
+      "shape": "round-rectangle", "width": 120, "height": 40,
+      "data": { "@type": "owl:Class" } }
+  ],
+  "edgeTypes": [
+    { "id": "subclass", "label": "subClassOf", "color": "#555555", "lineStyle": "solid",
+      "targetArrow": "triangle-backcurve", "data": { "@id": "rdfs:subClassOf" } }
+  ]
+}</code></pre>
+
+        <h3 id="node-types">nodeTypes</h3>
+        <table class="schema-table">
+          <thead><tr><th>Field</th><th>Type</th><th></th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td class="field-name">id</td><td class="field-type">string</td><td><span class="badge-req">required</span></td><td>Unique type identifier.</td></tr>
+            <tr><td class="field-name">label</td><td class="field-type">string</td><td><span class="badge-req">required</span></td><td>Display name; also the default label of new nodes.</td></tr>
+            <tr><td class="field-name">color</td><td class="field-type">string</td><td><span class="badge-opt">optional</span></td><td>Fill colour shown in the palette.</td></tr>
+            <tr><td class="field-name">borderColor</td><td class="field-type">string</td><td><span class="badge-opt">optional</span></td><td>Border colour shown in the palette.</td></tr>
+            <tr><td class="field-name">shape</td><td class="field-type">string</td><td><span class="badge-opt">optional</span></td><td>A Cytoscape.js node shape (see <a href="#node-styles">node styles</a>). <code>roundrectangle</code> is accepted as an alias for <code>round-rectangle</code>.</td></tr>
+            <tr><td class="field-name">width</td><td class="field-type">number</td><td><span class="badge-opt">optional</span></td><td>Width in pixels given to nodes created from this type.</td></tr>
+            <tr><td class="field-name">height</td><td class="field-type">number</td><td><span class="badge-opt">optional</span></td><td>Height in pixels given to nodes created from this type.</td></tr>
+            <tr><td class="field-name">autoSize</td><td class="field-type">boolean</td><td><span class="badge-opt">optional</span></td><td>If <code>true</code>, new nodes are widened to fit their label (estimated from its length; <code>width</code> is the minimum). The size is set at creation and does not follow later label edits.</td></tr>
+            <tr><td class="field-name">data</td><td class="field-type">object</td><td><span class="badge-opt">optional</span></td><td>Default <code>data</code> properties copied to new nodes (e.g. <code>@type</code>).</td></tr>
+          </tbody>
+        </table>
+
+        <h3 id="edge-types">edgeTypes</h3>
+        <table class="schema-table">
+          <thead><tr><th>Field</th><th>Type</th><th></th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td class="field-name">id</td><td class="field-type">string</td><td><span class="badge-req">required</span></td><td>Unique type identifier.</td></tr>
+            <tr><td class="field-name">label</td><td class="field-type">string</td><td><span class="badge-req">required</span></td><td>Display name; also the default label of new edges.</td></tr>
+            <tr><td class="field-name">color</td><td class="field-type">string</td><td><span class="badge-opt">optional</span></td><td>Line colour shown in the palette.</td></tr>
+            <tr><td class="field-name">lineStyle</td><td class="field-type">string</td><td><span class="badge-opt">optional</span></td><td><code>solid</code>, <code>dashed</code> or <code>dotted</code>.</td></tr>
+            <tr><td class="field-name">targetArrow</td><td class="field-type">string</td><td><span class="badge-opt">optional</span></td><td>Any Cytoscape.js arrow shape (e.g. <code>triangle</code>, <code>triangle-tee</code>, <code>diamond</code>, <code>tee</code>). Applied to new edges as <code>target-arrow-shape</code>.</td></tr>
+            <tr><td class="field-name">sourceArrow</td><td class="field-type">string</td><td><span class="badge-opt">optional</span></td><td>As <code>targetArrow</code>, for the source end (<code>source-arrow-shape</code>). Set both for a two-headed edge.</td></tr>
+            <tr><td class="field-name">width</td><td class="field-type">number</td><td><span class="badge-opt">optional</span></td><td>Line width in pixels for new edges.</td></tr>
+            <tr><td class="field-name">data</td><td class="field-type">object</td><td><span class="badge-opt">optional</span></td><td>Default <code>data</code> properties copied to new edges (e.g. <code>@id</code> for a plain triple).</td></tr>
+          </tbody>
+        </table>
+        <p>
+          The size and arrow fields are applied once, as a per-element <code>_style</code>,
+          when an element is created from the palette. They do not restyle existing elements.
+        </p>
+      </div>
+
       <!-- ── userStylesheet ────────────────────────────────────────────── -->
       <div class="fmt-section">
         <h2 id="userStylesheet">userStylesheet</h2>
@@ -592,7 +673,7 @@ cytoscape({
         <p>The most commonly used Cytoscape.js style properties for nodes:</p>
         <div class="prop-grid">
           <div class="prop-card"><span class="prop-name">background-color</span><span class="prop-desc">CSS colour string, e.g. <code>"#4a7fd4"</code>, <code>"blue"</code></span></div>
-          <div class="prop-card"><span class="prop-name">shape</span><span class="prop-desc"><code>ellipse</code> · <code>rectangle</code> · <code>roundrectangle</code> · <code>diamond</code> · <code>triangle</code> · <code>barrel</code> · <code>hexagon</code> · <code>star</code></span></div>
+          <div class="prop-card"><span class="prop-name">shape</span><span class="prop-desc"><code>ellipse</code> · <code>rectangle</code> · <code>round-rectangle</code> · <code>cut-rectangle</code> · <code>diamond</code> · <code>rhomboid</code> · <code>triangle</code> · <code>barrel</code> · <code>hexagon</code> · <code>octagon</code> · <code>tag</code> · <code>star</code> (the deprecated spelling <code>roundrectangle</code> is accepted and normalised to <code>round-rectangle</code> on load)</span></div>
           <div class="prop-card"><span class="prop-name">width / height</span><span class="prop-desc">Number (px) or <code>"label"</code> to size to content</span></div>
           <div class="prop-card"><span class="prop-name">padding</span><span class="prop-desc">Extra space inside the node boundary, e.g. <code>"10px"</code></span></div>
           <div class="prop-card"><span class="prop-name">border-width</span><span class="prop-desc">Border thickness in px</span></div>
@@ -716,6 +797,18 @@ cytoscape({
         <pre><code>"version": "1.0.0"</code></pre>
       </div>
 
+      <!-- ── Unknown keys ───────────────────────────────────────────────── -->
+      <div class="fmt-section">
+        <h2 id="extra-keys">Unknown keys</h2>
+        <p>
+          The editor preserves top-level keys it does not recognise: they are kept when a
+          file is loaded and written back unchanged when it is saved. Tools may therefore
+          store their own metadata (for example <code>"view": "shapes"</code>) alongside the
+          standard fields. Use distinctive names to avoid collisions with future fields.
+          Unknown keys inside node and edge <code>data</code> are always preserved.
+        </p>
+      </div>
+
       <!-- ── Full example ───────────────────────────────────────────────── -->
       <div class="fmt-section">
         <h2 id="full-example">Full example</h2>
@@ -775,7 +868,7 @@ cytoscape({
     },
     {
       "selector": "node[nodeType = 'movie']",
-      "style": { "shape": "roundrectangle", "background-color": "#e67e22", "border-color": "#a04000" }
+      "style": { "shape": "round-rectangle", "background-color": "#e67e22", "border-color": "#a04000" }
     },
     {
       "selector": "edge",

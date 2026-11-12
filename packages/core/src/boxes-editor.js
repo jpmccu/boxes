@@ -296,6 +296,60 @@ const STYLE_PROP_DEFS = {
   'events':                 { type: 'enum', options: ['yes','no'] },
 };
 
+/** Map deprecated Cytoscape shape names onto their current spelling. */
+function _normalizeShape(shape) {
+  return shape === 'roundrectangle' ? 'round-rectangle' : shape;
+}
+
+/** Normalise a palette type's shape without mutating the input. */
+function _normalizeType(type) {
+  return type && type.shape ? { ...type, shape: _normalizeShape(type.shape) } : { ...type };
+}
+
+/** Normalise the `shape` property of stylesheet rules (accepts the legacy spelling). */
+function _normalizeRule(rule) {
+  const style = { ...rule.style };
+  if (typeof style.shape === 'string') style.shape = _normalizeShape(style.shape);
+  return { selector: rule.selector, style };
+}
+
+/** Top-level keys the editor manages itself; anything else is preserved on round trip. */
+const _KNOWN_GRAPH_KEYS = new Set([
+  'title', 'description', 'palette', 'nodeTypes', 'edgeTypes', 'elements',
+  'userStylesheet', 'stylesheet', 'lastLayout', 'context', 'version'
+]);
+
+/** Pick palette node/edge types, accepting legacy top-level nodeTypes/edgeTypes. */
+function _paletteOf(graph) {
+  const pal = graph.palette || {};
+  const nodeTypes = pal.nodeTypes ?? graph.nodeTypes;
+  const edgeTypes = pal.edgeTypes ?? graph.edgeTypes;
+  return nodeTypes || edgeTypes ? { nodeTypes, edgeTypes } : null;
+}
+
+/** Cytoscape style overrides carried by a node type (size, auto-size). */
+function _nodeTypeStyle(type) {
+  const style = {};
+  if (type.autoSize) {
+    const len = String(type.label ?? '').length;
+    style.width = Math.max(type.width ?? 0, len * 8 + 24);
+  } else if (type.width !== undefined) {
+    style.width = type.width;
+  }
+  if (type.height !== undefined) style.height = type.height;
+  return style;
+}
+
+/** Cytoscape style overrides carried by an edge type (arrows, width). */
+function _edgeTypeStyle(type) {
+  const style = {};
+  if (!type) return style;
+  if (type.targetArrow) style['target-arrow-shape'] = type.targetArrow;
+  if (type.sourceArrow) style['source-arrow-shape'] = type.sourceArrow;
+  if (type.width !== undefined) style.width = type.width;
+  return style;
+}
+
 /**
  * BoxesEditor - A Cytoscape.js-based Labeled Property Graph editor
  */
@@ -307,16 +361,17 @@ export class BoxesEditor {
     // If a pre-loaded template JSON object is provided, extract its fields.
     // Explicit options take precedence over template fields when both are supplied.
     const tmpl = options.template || {};
-    const palette = tmpl.palette || {};
+    const palette = _paletteOf(tmpl) || {};
 
     this.options = { layout: options.layout || tmpl.lastLayout || { name: 'preset' }, ...options };
     this._instanceId = Math.random().toString(36).slice(2, 9);
     this.title = options.title ?? tmpl.title ?? '';
     this.description = options.description ?? tmpl.description ?? '';
     const styleSource = options.style ?? tmpl.userStylesheet ?? [];
-    this.userStylesheet = styleSource.map(rule => ({ selector: rule.selector, style: { ...rule.style } }));
-    this._nodeTypes = (options.nodeTypes ?? palette.nodeTypes ?? []).map(t => ({ ...t }));
+    this.userStylesheet = styleSource.map(_normalizeRule);
+    this._nodeTypes = (options.nodeTypes ?? palette.nodeTypes ?? []).map(_normalizeType);
     this._edgeTypes = (options.edgeTypes ?? palette.edgeTypes ?? []).map(t => ({ ...t }));
+    this._extraGraphKeys = {};
     this.currentEdgeType = this._edgeTypes[0] || null;
     this.cy = null;
     this.eventHandlers = new Map();
@@ -932,7 +987,7 @@ export class BoxesEditor {
       nodePalette.innerHTML = '<div class="bxe-empty-small">No node types defined</div>';
     } else {
       nodeTypes.forEach((type, i) => {
-        const radius = type.shape === 'ellipse' ? '50%' : type.shape === 'roundrectangle' ? '5px' : '2px';
+        const radius = type.shape === 'ellipse' ? '50%' : type.shape === 'round-rectangle' || type.shape === 'roundrectangle' ? '5px' : '2px';
         const bg = type.color || '#e0e0e0';
         const border = type.borderColor || '#999';
         const item = document.createElement('div');
@@ -1014,7 +1069,7 @@ export class BoxesEditor {
     const label = type?.label ?? '';
     const color = type?.color ?? '#cccccc';
     const borderColor = type?.borderColor ?? '#888888';
-    const shape = type?.shape ?? 'rectangle';
+    const shape = _normalizeShape(type?.shape ?? 'rectangle');
     const data = type?.data ? JSON.stringify(type.data, null, 2) : '{}';
     this._nodeTypeFormEl.innerHTML = `
       <div style="font-weight:600;font-size:11px;color:#444;margin-bottom:6px">${isNew ? 'Add node type' : 'Edit node type'}</div>
@@ -1025,8 +1080,15 @@ export class BoxesEditor {
       <div class="bxe-type-form-row"><label>Shape</label>
         <select data-field="shape">
           <option value="rectangle" ${shape==='rectangle'?'selected':''}>Rectangle</option>
-          <option value="roundrectangle" ${shape==='roundrectangle'?'selected':''}>Round rect</option>
+          <option value="round-rectangle" ${shape==='round-rectangle'?'selected':''}>Round rect</option>
           <option value="ellipse" ${shape==='ellipse'?'selected':''}>Ellipse</option>
+          <option value="diamond" ${shape==='diamond'?'selected':''}>Diamond</option>
+          <option value="rhomboid" ${shape==='rhomboid'?'selected':''}>Rhomboid</option>
+          <option value="octagon" ${shape==='octagon'?'selected':''}>Octagon</option>
+          <option value="cut-rectangle" ${shape==='cut-rectangle'?'selected':''}>Cut rect</option>
+          <option value="tag" ${shape==='tag'?'selected':''}>Tag</option>
+          <option value="hexagon" ${shape==='hexagon'?'selected':''}>Hexagon</option>
+          <option value="triangle" ${shape==='triangle'?'selected':''}>Triangle</option>
         </select>
       </div>
       <div class="bxe-type-form-row" style="align-items:start"><label style="padding-top:3px">Data</label><textarea data-field="data" rows="2">${this._esc(data)}</textarea></div>
@@ -1044,7 +1106,7 @@ export class BoxesEditor {
     const label = f.querySelector('[data-field="label"]').value.trim();
     const color = f.querySelector('[data-field="color"]').value;
     const borderColor = f.querySelector('[data-field="borderColor"]').value;
-    const shape = f.querySelector('[data-field="shape"]').value;
+    const shape = _normalizeShape(f.querySelector('[data-field="shape"]').value);
     const dataRaw = f.querySelector('[data-field="data"]').value.trim();
     const origId = f.querySelector('[data-action="save-node-type"]').dataset.origId;
     if (!id) { alert('ID is required'); return; }
@@ -1053,7 +1115,8 @@ export class BoxesEditor {
     if (dataRaw && dataRaw !== '{}') {
       try { data = JSON.parse(dataRaw); } catch { alert('Data must be valid JSON'); return; }
     }
-    const type = { id, label, color, borderColor, shape, data };
+    const prev = origId ? this._nodeTypes.find(t => t.id === origId) : null;
+    const type = { ...prev, id, label, color, borderColor, shape, data };
     if (origId) {
       const idx = this._nodeTypes.findIndex(t => t.id === origId);
       if (idx >= 0) this._nodeTypes[idx] = type;
@@ -1117,7 +1180,8 @@ export class BoxesEditor {
     if (dataRaw && dataRaw !== '{}') {
       try { data = JSON.parse(dataRaw); } catch { alert('Data must be valid JSON'); return; }
     }
-    const type = { id, label, color, lineStyle, data };
+    const prev = origId ? this._edgeTypes.find(t => t.id === origId) : null;
+    const type = { ...prev, id, label, color, lineStyle, data };
     if (origId) {
       const idx = this._edgeTypes.findIndex(t => t.id === origId);
       if (idx >= 0) this._edgeTypes[idx] = type;
@@ -2003,6 +2067,7 @@ export class BoxesEditor {
       return cls.includes('eh-ghost') || cls.includes('eh-preview');
     };
     return {
+      ...this._extraGraphKeys,
       title: this.title,
       description: this.description,
       palette: {
@@ -2033,13 +2098,17 @@ export class BoxesEditor {
     if (graphData.description !== undefined) {
       this.description = graphData.description;
     }
-    if (graphData.palette) {
-      if (graphData.palette.nodeTypes) {
-        this._nodeTypes = graphData.palette.nodeTypes.map(t => ({ ...t }));
+    this._extraGraphKeys = Object.fromEntries(
+      Object.entries(graphData).filter(([k]) => !_KNOWN_GRAPH_KEYS.has(k))
+    );
+    const importedPalette = _paletteOf(graphData);
+    if (importedPalette) {
+      if (importedPalette.nodeTypes) {
+        this._nodeTypes = importedPalette.nodeTypes.map(_normalizeType);
         this._currentNodeTypeId = this._nodeTypes[0]?.id || null;
       }
-      if (graphData.palette.edgeTypes) {
-        this._edgeTypes = graphData.palette.edgeTypes.map(t => ({ ...t }));
+      if (importedPalette.edgeTypes) {
+        this._edgeTypes = importedPalette.edgeTypes.map(t => ({ ...t }));
         this.currentEdgeType = this._edgeTypes[0] || null;
       }
       this._renderPalette();
@@ -2057,10 +2126,7 @@ export class BoxesEditor {
     }
     const incoming = graphData.userStylesheet || graphData.stylesheet;
     if (incoming) {
-      this.userStylesheet = incoming.map(rule => ({
-        selector: rule.selector,
-        style: { ...rule.style }
-      }));
+      this.userStylesheet = incoming.map(_normalizeRule);
       this._updateStylesheet();
       this._emit('stylesheetChanged', { stylesheet: this.userStylesheet });
     }
@@ -2745,7 +2811,11 @@ export class BoxesEditor {
   addNodeOfType(typeId, position = null) {
     const type = this._nodeTypes.find(t => t.id === typeId);
     if (!type) return null;
-    const nodeData = { id: _uniqueId('n'), label: type.label, ...type.data };
+    const typeStyle = _nodeTypeStyle(type);
+    const nodeData = {
+      id: _uniqueId('n'), label: type.label, ...type.data,
+      ...(Object.keys(typeStyle).length ? { _style: { ...typeStyle, ...type.data?._style } } : {})
+    };
     if (!position) {
       const pan = this.cy.pan(), zoom = this.cy.zoom();
       const offset = this.cy.nodes().length * 15;
@@ -2770,6 +2840,12 @@ export class BoxesEditor {
         el.classList.toggle('selected', el.dataset.typeId === typeId);
       });
     }
+  }
+
+  /** `_style` data for a new edge, from the current edge type's arrow/width fields. */
+  _edgeStyleData() {
+    const style = _edgeTypeStyle(this.currentEdgeType);
+    return Object.keys(style).length ? { _style: { ...style, ...this.currentEdgeType?.data?._style } } : {};
   }
 
   /** Return the currently active edge type */
@@ -2811,7 +2887,8 @@ export class BoxesEditor {
       edgeParams: (sourceNode, targetNode) => ({
         data: {
           label: this.currentEdgeType?.label || '',
-          ...(this.currentEdgeType?.data || {})
+          ...(this.currentEdgeType?.data || {}),
+          ...this._edgeStyleData()
         }
       }),
       snap: false,
@@ -3034,7 +3111,8 @@ export class BoxesEditor {
               source: sourceNode.id(),
               target: sourceNode.id(),
               label: this.currentEdgeType?.label || '',
-              ...(this.currentEdgeType?.data || {})
+              ...(this.currentEdgeType?.data || {}),
+              ...this._edgeStyleData()
             }
           });
           this._updateStylesheet();
