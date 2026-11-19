@@ -5,6 +5,7 @@
   "palette": {
     "nodeTypes": [
       { "id": "owl:Class",    "label": "Class",     "data": { "@type": "owl:Class",    "@id": "", "skos:definition": "" }, "color": "#E6F3FF", "borderColor": "#2471A3", "shape": "roundrectangle" },
+      { "id": "sh:NodeShape","label": "Node Shape","data": { "@type": "sh:NodeShape", "@id": "" },                         "color": "#F5FAFF", "borderColor": "#2471A3", "shape": "roundrectangle" },
       { "id": "default",     "label": "Instance",  "data": { "@type": "",             "@id": "" },                         "color": "#FFFFFF", "borderColor": "#666666", "shape": "ellipse" },
       { "id": "skos:Concept","label": "Concept",   "data": { "@type": "skos:Concept", "@id": "", "skos:definition": "" }, "color": "#E6F3FF", "borderColor": "#2471A3", "shape": "roundrectangle" },
       { "id": "owl:Ontology","label": "Ontology",  "data": { "@type": "owl:Ontology", "@id": "" },                         "color": "#FFFACD", "borderColor": "#B8860B", "shape": "roundrectangle" }
@@ -132,6 +133,19 @@
         "font-size": "14px",
         "font-weight": "bold",
         "color": "#154360"
+      }
+    },
+    {
+      "selector": "node[\\@type = \"sh:NodeShape\"]",
+      "style": {
+        "shape": "roundrectangle",
+        "background-color": "#F5FAFF",
+        "border-width": 1.5,
+        "border-style": "dashed",
+        "border-color": "#2471A3",
+        "font-size": "14px",
+        "font-weight": "normal",
+        "color": "#5D7B93"
       }
     },
     {

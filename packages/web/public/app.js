@@ -344,6 +344,7 @@ document.getElementById('import-file-input').addEventListener('change', async (e
       const graphData = await runImport(importerId, ev.target.result, {
         context:   editor?.context   || fallbackTemplate.context   || {},
         edgeTypes: editor?.getEdgeTypes?.() || fallbackTemplate.edgeTypes || [],
+        annotationProperties: editor?.getAnnotationProperties?.(),
       });
       ensureEditor(fallbackTemplateId);
 

@@ -40,6 +40,7 @@ const LABEL_PREDICATES = [RDFS_LABEL, DC_TITLE, DCT_TITLE, SKOS_PREF, SCHEMA_NAM
 
 const OWL_NS  = 'http://www.w3.org/2002/07/owl#';
 const SKOS_NS = 'http://www.w3.org/2004/02/skos/core#';
+const SH_NS   = 'http://www.w3.org/ns/shacl#';
 
 /**
  * Standard RDFS / OWL / SKOS annotation properties.  These are always treated as
@@ -68,10 +69,40 @@ export const STANDARD_ANNOTATION_PROPERTIES = new Map([
   [SKOS_NS + 'example',                { iri: false }],
   [SKOS_NS + 'historyNote',            { iri: false }],
   [SKOS_NS + 'scopeNote',              { iri: false }],
+  // SHACL target declarations: the shape→class link is shown as a property of
+  // the shape rather than an edge.  Constraint links (sh:property, sh:node,
+  // sh:class, …) are deliberately NOT listed and remain edges.
+  [SH_NS   + 'targetClass',            { iri: true  }],
+  [SH_NS   + 'targetNode',             { iri: true  }],
+  [SH_NS   + 'targetSubjectsOf',       { iri: true  }],
+  [SH_NS   + 'targetObjectsOf',        { iri: true  }],
 ]);
 
+/**
+ * Build the effective annotation-property registry.
+ *
+ * Starts from STANDARD_ANNOTATION_PROPERTIES and applies user configuration:
+ *   config.remove – array of IRIs / prefixed names to stop treating as annotations
+ *   config.add    – array of IRIs / prefixed names, or { iri, isIri } objects
+ *                   (isIri defaults to true: values are IRI references)
+ * Names are expanded with `prefixes`.
+ *
+ * @returns {Map<string, {iri: boolean}>}
+ */
+export function resolveAnnotationProperties(config = {}, prefixes = {}) {
+  const all = { ...BUILTIN_PREFIXES, ...ANNOTATION_PREFIXES, ...prefixes };
+  const result = new Map(STANDARD_ANNOTATION_PROPERTIES);
+  for (const name of config?.remove || []) result.delete(expandIRI(name, all));
+  for (const entry of config?.add || []) {
+    const name = typeof entry === 'string' ? entry : entry.iri;
+    const isIri = typeof entry === 'string' ? true : entry.isIri !== false;
+    result.set(expandIRI(name, all), { iri: isIri });
+  }
+  return result;
+}
+
 // Prefixes injected into exported contexts when annotation properties use them
-const ANNOTATION_PREFIXES = { rdfs: RDFS_NS, owl: OWL_NS, skos: SKOS_NS };
+export const ANNOTATION_PREFIXES = { rdfs: RDFS_NS, owl: OWL_NS, skos: SKOS_NS, sh: SH_NS };
 
 /**
  * Return a copy of `context` extended so that annotation properties used in the
@@ -79,9 +110,13 @@ const ANNOTATION_PREFIXES = { rdfs: RDFS_NS, owl: OWL_NS, skos: SKOS_NS };
  * annotation property from that namespace is used, and IRI-valued standard
  * annotation properties get a `{ "@type": "@id" }` term definition.  Existing
  * context entries are never overridden.
+ *
+ * `annotationProperties` is the optional { add, remove } configuration (see
+ * resolveAnnotationProperties); it must match what was used on import.
  */
-export function injectAnnotationContext(context, graphData) {
+export function injectAnnotationContext(context, graphData, annotationProperties) {
   const result = { ...context };
+  const registry = resolveAnnotationProperties(annotationProperties, context);
   const all = { ...BUILTIN_PREFIXES, ...ANNOTATION_PREFIXES, ...context };
   const used = new Set();
   const collect = (list) => {
@@ -96,7 +131,7 @@ export function injectAnnotationContext(context, graphData) {
 
   for (const key of used) {
     const iri = expandIRI(key, all);
-    const info = STANDARD_ANNOTATION_PROPERTIES.get(iri);
+    const info = registry.get(iri);
     if (!info) continue;
     const colon = key.indexOf(':');
     if (colon > 0) {
@@ -615,12 +650,13 @@ export function matchEdgeType(edgeData, edgeTypes, prefixes) {
  * @param {object} options
  *   @param {object} options.context   – prefix→namespace map  (e.g. from editor.context)
  *   @param {Array}  options.edgeTypes – edge type definitions from the template
+ *   @param {object} options.annotationProperties – { add, remove } overrides for annotation properties
  * @returns {string} Turtle text
  */
-export function exportToTurtle(graphData, { context = {}, edgeTypes } = {}) {
+export function exportToTurtle(graphData, { context = {}, edgeTypes, annotationProperties = graphData.annotationProperties } = {}) {
   const resolvedEdgeTypes = edgeTypes ?? graphData.palette?.edgeTypes ?? [];
   const resolvedContext   = Object.keys(context).length > 0 ? context : (graphData.context || {});
-  const prefixes  = injectAnnotationContext(resolvedContext, graphData);
+  const prefixes  = injectAnnotationContext(resolvedContext, graphData, annotationProperties);
   const nodes     = graphData.elements?.nodes || [];
   const edges     = graphData.elements?.edges || [];
 
@@ -810,9 +846,11 @@ function pickLabel(predMap, subj, prefixes) {
  *
  * @param {Array}  triples        – [[s, p, o], …]
  * @param {object} parsedPrefixes – prefix→namespace map extracted from the source document
- * @param {object} options        – { context, edgeTypes, nodeTypes }
+ * @param {object} options        – { context, edgeTypes, nodeTypes, annotationProperties }
+ *   annotationProperties: { add, remove } overrides for which predicates are
+ *   shown as properties instead of links (see resolveAnnotationProperties).
  */
-export function importFromTriples(triples, parsedPrefixes, { context = {}, edgeTypes = [], nodeTypes = [] } = {}) {
+export function importFromTriples(triples, parsedPrefixes, { context = {}, edgeTypes = [], nodeTypes = [], annotationProperties } = {}) {
   // Merge: parsed file prefixes take precedence for expansion;
   // context prefixes preferred for compression (so round-trips use the same short names)
   const expandPrefixes  = { ...BUILTIN_PREFIXES, ...parsedPrefixes };
@@ -846,7 +884,9 @@ export function importFromTriples(triples, parsedPrefixes, { context = {}, edgeT
   // Standard RDFS/OWL/SKOS annotation properties and declared owl:AnnotationProperty
   // predicates are always treated as node/edge
   // data (shown in the properties tab), never as links between nodes.
-  const annotationProps = new Set(STANDARD_ANNOTATION_PROPERTIES.keys());
+  const annotationProps = new Set(
+    resolveAnnotationProperties(annotationProperties, { ...parsedPrefixes, ...context }).keys()
+  );
   for (const [s, pm] of store) {
     if ((pm.get(RDF_TYPE) || []).includes(OWL_ANNOTATION_PROPERTY)) annotationProps.add(s);
   }
@@ -1083,11 +1123,19 @@ export function importFromTriples(triples, parsedPrefixes, { context = {}, edgeT
     }
   }
 
-  return {
+  const result = {
     elements:  { nodes: resultNodes, edges: resultEdges },
     context:   mergedContext,
     version:   '1.0.0',
   };
+  // Persist non-default annotation configuration so the document round-trips.
+  if (annotationProperties?.add?.length || annotationProperties?.remove?.length) {
+    result.annotationProperties = {
+      add:    [...(annotationProperties.add    || [])],
+      remove: [...(annotationProperties.remove || [])],
+    };
+  }
+  return result;
 }
 
 /**

@@ -1,6 +1,6 @@
 export { BoxesEditor } from './boxes-editor.js';
 export { defaultTemplates, getTemplate, listTemplates, loadTemplateFromUrl } from './templates.js';
-export { exportToTurtle, importFromTurtle, rdfExporter, rdfImporter } from './io/rdf.js';
+export { exportToTurtle, importFromTurtle, rdfExporter, rdfImporter, resolveAnnotationProperties, STANDARD_ANNOTATION_PROPERTIES } from './io/rdf.js';
 export {
   exportToJsonLD, importFromJsonLD, jsonldExporter, jsonldImporter,
   exportToRdfXml, importFromRdfXml, rdfXmlExporter, rdfXmlImporter,

@@ -91,9 +91,9 @@ function buildIriValuedProps(context, allPrefixes) {
  *   - Edge targets in plain-triple edges are always resource references.
  *   - @type values are always resource references (standard JSON-LD semantics).
  */
-export function graphDataToJsonLD(graphData, { edgeTypes } = {}) {
+export function graphDataToJsonLD(graphData, { edgeTypes, annotationProperties = graphData.annotationProperties } = {}) {
   const resolvedEdgeTypes = edgeTypes ?? graphData.palette?.edgeTypes ?? [];
-  const context     = injectAnnotationContext(graphData.context || {}, graphData);
+  const context     = injectAnnotationContext(graphData.context || {}, graphData, annotationProperties);
   const nodes       = graphData.elements?.nodes || [];
   const edges       = graphData.elements?.edges || [];
   const allPrefixes = { ...BUILTIN_PREFIXES, ...context };
@@ -351,6 +351,7 @@ export async function exportToJsonLD(graphData, options) {
   const opts = options || {};
   const doc = graphDataToJsonLD(graphData, {
     edgeTypes: opts.edgeTypes,
+    annotationProperties: opts.annotationProperties,
   });
   return JSON.stringify(doc, null, 2);
 }

@@ -5,6 +5,9 @@ import cytoscapeCola from 'cytoscape-cola';
 import cytoscapeKlay from 'cytoscape-klay';
 import cytoscapeEuler from 'cytoscape-euler';
 import { createJSONEditor } from 'vanilla-jsoneditor';
+import {
+  resolveAnnotationProperties, expandIRI, compressIRI, BUILTIN_PREFIXES, ANNOTATION_PREFIXES,
+} from './io/rdf.js';
 
 // Register Cytoscape extensions once at module load (idempotent)
 cytoscape.use(cytoscapeEdgehandles);
@@ -316,8 +319,21 @@ function _normalizeRule(rule) {
 /** Top-level keys the editor manages itself; anything else is preserved on round trip. */
 const _KNOWN_GRAPH_KEYS = new Set([
   'title', 'description', 'palette', 'nodeTypes', 'edgeTypes', 'elements',
-  'userStylesheet', 'stylesheet', 'lastLayout', 'context', 'version'
+  'userStylesheet', 'stylesheet', 'lastLayout', 'context', 'annotationProperties', 'version'
 ]);
+
+/** Normalise an annotation-property config to { add: [], remove: [] }. */
+function _normalizeAnnotationConfig(cfg) {
+  return {
+    add:    Array.isArray(cfg?.add)    ? cfg.add.map(e => (typeof e === 'string' ? e : { ...e })) : [],
+    remove: Array.isArray(cfg?.remove) ? [...cfg.remove] : [],
+  };
+}
+
+const SHACL_SHAPE_SELECTOR = [
+  'sh:NodeShape', 'sh:PropertyShape',
+  'http://www.w3.org/ns/shacl#NodeShape', 'http://www.w3.org/ns/shacl#PropertyShape',
+].map(t => `node[\\@type = "${t}"]`).join(', ');
 
 /** Pick palette node/edge types, accepting legacy top-level nodeTypes/edgeTypes. */
 function _paletteOf(graph) {
@@ -390,6 +406,10 @@ export class BoxesEditor {
     this._findMatches = [];
     this._findCurrentIdx = -1;
     this.context = { ...(options.context ?? tmpl.context ?? {}) };
+    // Which RDF predicates import/export treat as properties instead of links
+    // ({ add: [...], remove: [...] } deltas over the built-in defaults).
+    this.annotationProperties = _normalizeAnnotationConfig(options.annotationProperties ?? tmpl.annotationProperties);
+    this._shapesHidden = false;   // view-only: hide SHACL shape nodes (not saved)
 
     this._init();
 
@@ -496,6 +516,13 @@ export class BoxesEditor {
 .bxe-ctx-item.danger:hover { background:#fff0f0; }
 .bxe-ctx-sep { height:1px; background:#dee2e6; }
 .bxe-ctx-editor { min-height:300px; margin:-4px; }
+.bxe-ann-settings { font-size:12px; }
+.bxe-ann-settings .bxe-ann-help { color:#777; margin-bottom:6px; }
+.bxe-ann-settings .bxe-ann-group { font-weight:600; margin:8px 0 2px; color:#555; }
+.bxe-ann-settings label { display:flex; align-items:center; gap:6px; padding:1px 0; cursor:pointer; }
+.bxe-ann-settings .bxe-ann-add { display:flex; gap:4px; margin-top:8px; align-items:center; flex-wrap:wrap; }
+.bxe-ann-settings .bxe-ann-add input[type=text] { flex:1; min-width:120px; }
+.bxe-toolbar button.bxe-active { background:#e7f1ff; border-color:#0d6efd; }
 .bxe-label-editor { position:absolute; z-index:20; background:rgba(255,255,255,.95); border:2px solid #4d90fe; border-radius:4px; padding:2px 6px; font-size:13px; font-family:inherit; outline:none; box-sizing:border-box; text-align:center; box-shadow:0 2px 8px rgba(0,0,0,.2); line-height:1.4; }
 .bxe-find-bar { position:absolute; top:8px; left:50%; transform:translateX(-50%); z-index:25; display:flex; align-items:center; gap:4px; background:#fff; border:1px solid #ccc; border-radius:5px; padding:4px 8px; box-shadow:0 2px 8px rgba(0,0,0,.2); white-space:nowrap; }
 .bxe-find-bar.bxe-hidden { display:none; }
@@ -629,6 +656,11 @@ export class BoxesEditor {
     this._findToolbarBtn.textContent = '\uD83D\uDD0D';
     this._findToolbarBtn.addEventListener('click', () => this._toggleFind());
     toolbar.appendChild(this._findToolbarBtn);
+    this._shapesBtn = document.createElement('button');
+    this._shapesBtn.textContent = '\u2B1A';
+    this._shapesBtn.addEventListener('click', () => this.setShapesVisible(this._shapesHidden));
+    toolbar.appendChild(this._shapesBtn);
+    this._syncShapesBtn();
     this._sidebarEl.appendChild(toolbar);
 
     // Tab nav
@@ -756,6 +788,15 @@ export class BoxesEditor {
     this._contextEditorEl = document.createElement('div');
     this._contextEditorEl.className = 'bxe-ctx-editor';
     contextPane.appendChild(this._contextEditorEl);
+    const annTitle = document.createElement('div');
+    annTitle.className = 'bxe-pane-title';
+    annTitle.style.marginTop = '16px';
+    annTitle.textContent = 'Properties instead of links';
+    contextPane.appendChild(annTitle);
+    this._annotationSettingsEl = document.createElement('div');
+    this._annotationSettingsEl.className = 'bxe-ann-settings';
+    contextPane.appendChild(this._annotationSettingsEl);
+    this._renderAnnotationSettings();
     this._panes['context'] = contextPane;
 
     [palettePane, propsPane, stylePane, layoutPane, contextPane].forEach(p => tabBody.appendChild(p));
@@ -1719,7 +1760,12 @@ export class BoxesEditor {
     const customStyles = this.userStylesheet;
     const elementStyles = this._generateElementStyles();
 
-    return [...baseStyles, ...customStyles, ...elementStyles];
+    // View-only rule (never exported): hide SHACL shapes and their incident edges.
+    const viewStyles = this._shapesHidden
+      ? [{ selector: SHACL_SHAPE_SELECTOR, style: { display: 'none' } }]
+      : [];
+
+    return [...baseStyles, ...customStyles, ...elementStyles, ...viewStyles];
   }
 
   _generateElementStyles() {
@@ -2084,6 +2130,9 @@ export class BoxesEditor {
       })),
       lastLayout: this.getLastLayout(),
       context: { ...this.context },
+      ...(this.annotationProperties.add.length || this.annotationProperties.remove.length
+        ? { annotationProperties: _normalizeAnnotationConfig(this.annotationProperties) }
+        : {}),
       version: '1.0.0'
     };
   }
@@ -2147,6 +2196,10 @@ export class BoxesEditor {
       this.context = { ...graphData.context };
       this._renderContextPane();
     }
+    if (graphData.annotationProperties) {
+      this.annotationProperties = _normalizeAnnotationConfig(graphData.annotationProperties);
+    }
+    this._renderAnnotationSettings();
     // Force unconditional recalculation of edge control points (useCache: false bypasses
     // the rstyle.clean guard), ensuring rstyle.srcX/tgtX/midX are populated before the
     // first render frame fires.  Without this, edges loaded from a file can have NaN
@@ -3444,6 +3497,122 @@ export class BoxesEditor {
       return;
     }
     this._contextEditor.set({ json: { ...this.context } });
+  }
+
+  // ─── Annotation properties (properties instead of links) ─────────────────
+
+  _annotationPrefixes() {
+    return { ...BUILTIN_PREFIXES, ...ANNOTATION_PREFIXES, ...this.context };
+  }
+
+  /** Replace the annotation-property configuration and notify listeners. */
+  setAnnotationProperties(config) {
+    this.annotationProperties = _normalizeAnnotationConfig(config);
+    this._renderAnnotationSettings();
+    this._emit('annotationPropertiesChanged', { annotationProperties: _normalizeAnnotationConfig(this.annotationProperties) });
+  }
+
+  getAnnotationProperties() {
+    return _normalizeAnnotationConfig(this.annotationProperties);
+  }
+
+  _renderAnnotationSettings() {
+    const el = this._annotationSettingsEl;
+    if (!el) return;
+    const prefixes = this._annotationPrefixes();
+    const cfg = this.annotationProperties;
+    const removed = new Set(cfg.remove.map(n => expandIRI(n, prefixes)));
+    const defaults = resolveAnnotationProperties({}, prefixes);
+    const added = new Set(cfg.add.map(e => expandIRI(typeof e === 'string' ? e : e.iri, prefixes)));
+
+    const rows = [];
+    const addRow = (iri, checked, kind) => {
+      const name = compressIRI(iri, prefixes);
+      rows.push(`<label title="${this._esc(iri)}"><input type="checkbox" data-ann-iri="${this._esc(iri)}" data-ann-kind="${kind}" ${checked ? 'checked' : ''}> ${this._esc(name)}${kind === 'custom' ? ' <button class="bxe-btn-del" data-ann-del="' + this._esc(iri) + '" title="Remove">×</button>' : ''}</label>`);
+    };
+    const groups = [
+      ['RDFS / OWL', n => n.includes('rdf-schema#') || n.includes('owl#')],
+      ['SKOS', n => n.includes('skos/core#')],
+      ['SHACL targets', n => n.includes('shacl#')],
+    ];
+    const shown = new Set();
+    for (const [title, test] of groups) {
+      const iris = [...defaults.keys()].filter(test);
+      if (!iris.length) continue;
+      rows.push(`<div class="bxe-ann-group">${title}</div>`);
+      iris.forEach(iri => { shown.add(iri); addRow(iri, !removed.has(iri), 'default'); });
+    }
+    const customs = [...added].filter(iri => !shown.has(iri));
+    if (customs.length) {
+      rows.push('<div class="bxe-ann-group">Custom</div>');
+      customs.forEach(iri => addRow(iri, true, 'custom'));
+    }
+
+    el.innerHTML = `
+      <div class="bxe-ann-help">Checked predicates are shown as properties on a node instead of as links. Applies to RDF import and export.</div>
+      ${rows.join('')}
+      <div class="bxe-ann-add">
+        <input type="text" placeholder="prefix:name or full IRI" data-ann-new>
+        <label><input type="checkbox" data-ann-new-iri checked> IRI values</label>
+        <button data-ann-add>Add</button>
+      </div>`;
+
+    el.querySelectorAll('input[data-ann-iri]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const iri = cb.dataset.annIri;
+        const next = _normalizeAnnotationConfig(this.annotationProperties);
+        if (cb.dataset.annKind === 'default') {
+          next.remove = next.remove.filter(n => expandIRI(n, prefixes) !== iri);
+          if (!cb.checked) next.remove.push(iri);
+        }
+        this.setAnnotationProperties(next);
+      });
+    });
+    el.querySelectorAll('[data-ann-del]').forEach(btn => {
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        const iri = btn.dataset.annDel;
+        const next = _normalizeAnnotationConfig(this.annotationProperties);
+        next.add = next.add.filter(e => expandIRI(typeof e === 'string' ? e : e.iri, prefixes) !== iri);
+        this.setAnnotationProperties(next);
+      });
+    });
+    const input = el.querySelector('[data-ann-new]');
+    const doAdd = () => {
+      const raw = input.value.trim();
+      if (!raw) return;
+      const iri = expandIRI(raw, prefixes);
+      const isIri = el.querySelector('[data-ann-new-iri]').checked;
+      const next = _normalizeAnnotationConfig(this.annotationProperties);
+      next.remove = next.remove.filter(n => expandIRI(n, prefixes) !== iri);
+      if (!defaults.has(iri) || defaults.get(iri).iri !== isIri) {
+        next.add = next.add.filter(e => expandIRI(typeof e === 'string' ? e : e.iri, prefixes) !== iri);
+        next.add.push(isIri ? iri : { iri, isIri: false });
+      }
+      this.setAnnotationProperties(next);
+    };
+    el.querySelector('[data-ann-add]').addEventListener('click', doAdd);
+    input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') doAdd(); });
+  }
+
+  // ─── SHACL shape visibility (view only) ──────────────────────────────────
+
+  /** Show or hide SHACL node/property shape nodes (and their links). Not saved with the document. */
+  setShapesVisible(visible) {
+    this._shapesHidden = !visible;
+    if (this.cy) this._updateStylesheet();
+    this._syncShapesBtn();
+    this._emit('shapesVisibilityChanged', { visible: !this._shapesHidden });
+  }
+
+  getShapesVisible() {
+    return !this._shapesHidden;
+  }
+
+  _syncShapesBtn() {
+    if (!this._shapesBtn) return;
+    this._shapesBtn.title = this._shapesHidden ? 'Show SHACL shapes' : 'Hide SHACL shapes';
+    this._shapesBtn.classList.toggle('bxe-active', this._shapesHidden);
   }
 
   // ─── Layout Panel ─────────────────────────────────────────────────────────

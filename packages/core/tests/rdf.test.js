@@ -1106,4 +1106,58 @@ describe('annotation properties', () => {
     expect(out['rdfs:seeAlso']).toEqual({ '@type': '@id' });
     expect(out['skos:altLabel']).toBeUndefined();
   });
+
+  describe('SHACL sh:target* annotations', () => {
+    const shacl = `
+      @prefix ex: <http://example.org/> .
+      @prefix owl: <http://www.w3.org/2002/07/owl#> .
+      @prefix sh: <http://www.w3.org/ns/shacl#> .
+      ex:Person a owl:Class .
+      ex:Pet a owl:Class .
+      ex:PersonShape a sh:NodeShape ; sh:targetClass ex:Person ;
+        sh:property ex:PersonPetShape .
+      ex:PersonPetShape a sh:PropertyShape ; sh:path ex:owns ; sh:class ex:Pet .
+    `;
+
+    it('shows sh:targetClass as a property, not an edge, by default', () => {
+      const { elements } = importFromTurtle(shacl);
+      const shape = elements.nodes.find(n => n.data.id === 'ex:PersonShape').data;
+      expect(shape['sh:targetClass']).toBe('ex:Person');
+      expect(elements.edges.some(e => e.data['@id'] === 'sh:targetClass')).toBe(false);
+    });
+
+    it('keeps constraint links (sh:property, sh:class) as edges', () => {
+      const { elements } = importFromTurtle(shacl);
+      const preds = elements.edges.map(e => e.data['@id']);
+      expect(preds).toContain('sh:property');
+      expect(preds).toContain('sh:class');
+    });
+
+    it('declares sh:targetClass as IRI-valued in the context', () => {
+      const { context } = importFromTurtle(shacl);
+      expect(context['sh:targetClass']).toEqual({ '@type': '@id' });
+    });
+
+    it('restores the edge when removed via annotationProperties config', () => {
+      const { elements } = importFromTurtle(shacl, {
+        annotationProperties: { remove: ['sh:targetClass'] },
+      });
+      expect(elements.edges.some(e => e.data['@id'] === 'sh:targetClass')).toBe(true);
+    });
+
+    it('supports adding custom annotation properties', () => {
+      const ttl = `@prefix ex: <http://example.org/> .
+        ex:A ex:rel ex:B . ex:B ex:rel ex:A .`;
+      expect(importFromTurtle(ttl).elements.edges.length).toBeGreaterThan(0);
+      const { elements } = importFromTurtle(ttl, { annotationProperties: { add: ['http://example.org/rel'] } });
+      expect(elements.edges).toHaveLength(0);
+    });
+
+    it('round-trips sh:targetClass as an IRI through Turtle', () => {
+      const data = importFromTurtle(shacl);
+      const out = exportToTurtle(data, { context: data.context });
+      expect(out).toMatch(/sh:targetClass\s+ex:Person/);
+      expect(out).not.toMatch(/sh:targetClass\s+"/);
+    });
+  });
 });
