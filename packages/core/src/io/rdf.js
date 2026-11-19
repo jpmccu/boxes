@@ -26,6 +26,7 @@ const RDF_NS   = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
 const RDFS_NS  = 'http://www.w3.org/2000/01/rdf-schema#';
 const XSD_NS   = 'http://www.w3.org/2001/XMLSchema#';
 const RDF_TYPE = RDF_NS + 'type';
+const OWL_ANNOTATION_PROPERTY = 'http://www.w3.org/2002/07/owl#AnnotationProperty';
 const RDFS_LABEL = RDFS_NS + 'label';
 
 // Additional predicates used as display label fallbacks, in priority order
@@ -36,6 +37,78 @@ const SCHEMA_NAME = 'http://schema.org/name';
 const FOAF_NAME   = 'http://xmlns.com/foaf/0.1/name';
 const FOAF_NICK   = 'http://xmlns.com/foaf/0.1/nick';
 const LABEL_PREDICATES = [RDFS_LABEL, DC_TITLE, DCT_TITLE, SKOS_PREF, SCHEMA_NAME, FOAF_NAME, FOAF_NICK];
+
+const OWL_NS  = 'http://www.w3.org/2002/07/owl#';
+const SKOS_NS = 'http://www.w3.org/2004/02/skos/core#';
+
+/**
+ * Standard RDFS / OWL / SKOS annotation properties.  These are always treated as
+ * element data (properties tab) rather than links, even when the document does
+ * not declare them as owl:AnnotationProperty.
+ * `iri: true` marks properties whose values are IRI references (not literals).
+ */
+export const STANDARD_ANNOTATION_PROPERTIES = new Map([
+  [RDFS_NS + 'label',                  { iri: false }],
+  [RDFS_NS + 'comment',                { iri: false }],
+  [RDFS_NS + 'seeAlso',                { iri: true  }],
+  [RDFS_NS + 'isDefinedBy',            { iri: true  }],
+  [OWL_NS  + 'versionInfo',            { iri: false }],
+  [OWL_NS  + 'deprecated',             { iri: false }],
+  [OWL_NS  + 'priorVersion',           { iri: true  }],
+  [OWL_NS  + 'backwardCompatibleWith', { iri: true  }],
+  [OWL_NS  + 'incompatibleWith',       { iri: true  }],
+  [SKOS_NS + 'prefLabel',              { iri: false }],
+  [SKOS_NS + 'altLabel',               { iri: false }],
+  [SKOS_NS + 'hiddenLabel',            { iri: false }],
+  [SKOS_NS + 'notation',               { iri: false }],
+  [SKOS_NS + 'note',                   { iri: false }],
+  [SKOS_NS + 'changeNote',             { iri: false }],
+  [SKOS_NS + 'definition',             { iri: false }],
+  [SKOS_NS + 'editorialNote',          { iri: false }],
+  [SKOS_NS + 'example',                { iri: false }],
+  [SKOS_NS + 'historyNote',            { iri: false }],
+  [SKOS_NS + 'scopeNote',              { iri: false }],
+]);
+
+// Prefixes injected into exported contexts when annotation properties use them
+const ANNOTATION_PREFIXES = { rdfs: RDFS_NS, owl: OWL_NS, skos: SKOS_NS };
+
+/**
+ * Return a copy of `context` extended so that annotation properties used in the
+ * graph export correctly: the rdfs/owl/skos prefix is added when a standard
+ * annotation property from that namespace is used, and IRI-valued standard
+ * annotation properties get a `{ "@type": "@id" }` term definition.  Existing
+ * context entries are never overridden.
+ */
+export function injectAnnotationContext(context, graphData) {
+  const result = { ...context };
+  const all = { ...BUILTIN_PREFIXES, ...ANNOTATION_PREFIXES, ...context };
+  const used = new Set();
+  const collect = (list) => {
+    for (const { data } of list || []) {
+      for (const key of Object.keys(data || {})) {
+        if (!INTERNAL_FIELDS.has(key) && !key.startsWith('@')) used.add(key);
+      }
+    }
+  };
+  collect(graphData.elements?.nodes);
+  collect(graphData.elements?.edges);
+
+  for (const key of used) {
+    const iri = expandIRI(key, all);
+    const info = STANDARD_ANNOTATION_PROPERTIES.get(iri);
+    if (!info) continue;
+    const colon = key.indexOf(':');
+    if (colon > 0) {
+      const prefix = key.slice(0, colon);
+      if (result[prefix] === undefined && ANNOTATION_PREFIXES[prefix]) {
+        result[prefix] = ANNOTATION_PREFIXES[prefix];
+      }
+    }
+    if (info.iri && result[key] === undefined) result[key] = { '@type': '@id' };
+  }
+  return result;
+}
 
 export const BUILTIN_PREFIXES = {
   rdf:  RDF_NS,
@@ -547,7 +620,7 @@ export function matchEdgeType(edgeData, edgeTypes, prefixes) {
 export function exportToTurtle(graphData, { context = {}, edgeTypes } = {}) {
   const resolvedEdgeTypes = edgeTypes ?? graphData.palette?.edgeTypes ?? [];
   const resolvedContext   = Object.keys(context).length > 0 ? context : (graphData.context || {});
-  const prefixes  = { ...resolvedContext };
+  const prefixes  = injectAnnotationContext(resolvedContext, graphData);
   const nodes     = graphData.elements?.nodes || [];
   const edges     = graphData.elements?.edges || [];
 
@@ -770,6 +843,14 @@ export function importFromTriples(triples, parsedPrefixes, { context = {}, edgeT
     }
   }
 
+  // Standard RDFS/OWL/SKOS annotation properties and declared owl:AnnotationProperty
+  // predicates are always treated as node/edge
+  // data (shown in the properties tab), never as links between nodes.
+  const annotationProps = new Set(STANDARD_ANNOTATION_PROPERTIES.keys());
+  for (const [s, pm] of store) {
+    if ((pm.get(RDF_TYPE) || []).includes(OWL_ANNOTATION_PROPERTY)) annotationProps.add(s);
+  }
+
   const resultNodes  = [];
   const resultEdges  = [];
   const edgeResources = new Set();  // subjects claimed as edges
@@ -872,6 +953,7 @@ export function importFromTriples(triples, parsedPrefixes, { context = {}, edgeT
 
   for (const edgeType of plainTypes) {
     const predURI = expandIRI(edgeType.data['@id'], compressPrefixes);
+    if (annotationProps.has(predURI)) continue;
 
     for (const [s, pm] of store) {
       const objs = pm.get(predURI) || [];
@@ -917,6 +999,7 @@ export function importFromTriples(triples, parsedPrefixes, { context = {}, edgeT
     for (const [pred, objs] of pm) {
       if (pred === RDF_TYPE) continue;
       if (consumed.has(pred)) continue;
+      if (annotationProps.has(pred)) continue; // annotation → property, not link
 
       for (const obj of objs) {
         if (typeof obj !== 'string') continue; // skip literals
@@ -987,6 +1070,17 @@ export function importFromTriples(triples, parsedPrefixes, { context = {}, edgeT
   for (const k of Object.keys(BUILTIN_PREFIXES)) {
     if (!context[k] && !parsedPrefixes[k]) delete mergedContext[k];
     else if (parsedPrefixes[k] === BUILTIN_PREFIXES[k] && !context[k]) delete mergedContext[k];
+  }
+
+  // Annotation properties whose values are IRIs must be declared "@type": "@id"
+  // in the context so that JSON-LD export round-trips them as resources, not strings.
+  for (const [, pm] of store) {
+    for (const [pred, objs] of pm) {
+      if (!annotationProps.has(pred)) continue;
+      if (!objs.some(o => typeof o === 'string')) continue;
+      const key = compressIRI(pred, compressPrefixes);
+      if (mergedContext[key] === undefined) mergedContext[key] = { '@type': '@id' };
+    }
   }
 
   return {

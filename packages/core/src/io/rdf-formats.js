@@ -30,6 +30,7 @@ import {
   matchEdgeType,
   INTERNAL_FIELDS,
   BUILTIN_PREFIXES,
+  injectAnnotationContext,
 } from './rdf.js';
 
 const RDF_NS         = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
@@ -92,7 +93,7 @@ function buildIriValuedProps(context, allPrefixes) {
  */
 export function graphDataToJsonLD(graphData, { edgeTypes } = {}) {
   const resolvedEdgeTypes = edgeTypes ?? graphData.palette?.edgeTypes ?? [];
-  const context     = graphData.context || {};
+  const context     = injectAnnotationContext(graphData.context || {}, graphData);
   const nodes       = graphData.elements?.nodes || [];
   const edges       = graphData.elements?.edges || [];
   const allPrefixes = { ...BUILTIN_PREFIXES, ...context };

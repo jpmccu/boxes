@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  injectAnnotationContext,
   expandIRI,
   compressIRI,
   parseTurtle,
@@ -1067,5 +1068,42 @@ describe('exportToTurtle – iri field and inferred edges', () => {
     expect(ttl).toContain('ex:wrote');
     expect(ttl).not.toContain('n0');
     expect(ttl).not.toContain('writtenBy');
+  });
+});
+
+describe('annotation properties', () => {
+  const ttl = `
+    @prefix ex: <http://example.org/> .
+    @prefix owl: <http://www.w3.org/2002/07/owl#> .
+    @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+    @prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+    ex:note a owl:AnnotationProperty .
+    ex:A a owl:Class ; ex:note ex:B ; rdfs:seeAlso ex:B ; skos:altLabel "Alpha" .
+    ex:B a owl:Class .
+  `;
+
+  it('treats declared and standard annotation properties as data, not edges', () => {
+    const { elements } = importFromTurtle(ttl);
+    expect(elements.edges).toHaveLength(0);
+    const a = elements.nodes.find(n => n.data.id === 'ex:A').data;
+    expect(a['ex:note']).toBe('ex:B');
+    expect(a['rdfs:seeAlso']).toBe('ex:B');
+    expect(a['skos:altLabel']).toBe('Alpha');
+  });
+
+  it('declares IRI-valued annotation properties in the context', () => {
+    const { context } = importFromTurtle(ttl);
+    expect(context['ex:note']).toEqual({ '@type': '@id' });
+    expect(context['rdfs:seeAlso']).toEqual({ '@type': '@id' });
+    expect(context['skos:altLabel']).toBeUndefined();
+  });
+
+  it('injects prefixes and IRI terms for standard annotations on export', () => {
+    const out = injectAnnotationContext({}, {
+      elements: { nodes: [{ data: { id: 'a', 'skos:altLabel': 'x', 'rdfs:seeAlso': 'ex:B' } }], edges: [] },
+    });
+    expect(out.skos).toBe('http://www.w3.org/2004/02/skos/core#');
+    expect(out['rdfs:seeAlso']).toEqual({ '@type': '@id' });
+    expect(out['skos:altLabel']).toBeUndefined();
   });
 });
